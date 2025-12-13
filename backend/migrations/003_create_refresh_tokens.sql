@@ -1,0 +1,7 @@
+-- refresh tokens table for rotation
+CREATE TABLE IF NOT EXISTS refresh_tokens (
+  token TEXT PRIMARY KEY,
+  user_id INT REFERENCES users(id) ON DELETE CASCADE,
+  expires_at TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
