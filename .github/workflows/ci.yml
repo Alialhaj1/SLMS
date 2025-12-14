@@ -72,3 +72,17 @@ jobs:
       - name: Run smoke tests
         run: npm run smoke
         working-directory: backend
+
+      - name: Install frontend-next dependencies
+        run: npm ci
+        working-directory: frontend-next
+
+      - name: Type-check frontend-next
+        run: npx tsc --noEmit
+        working-directory: frontend-next
+
+      - name: Build frontend-next
+        run: |
+          export NEXT_PUBLIC_API_URL=http://localhost:4000
+          npm run build
+        working-directory: frontend-next
