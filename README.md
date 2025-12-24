@@ -14,7 +14,7 @@ Quick start (PowerShell):
 
 ```powershell
 # from repository root
-cd i:\ملفاتي\LOGISTICS\slms
+cd C:\projects\slms
 # start dependencies + apps
 docker-compose up --build
 ```
