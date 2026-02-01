@@ -1,0 +1,79 @@
+-- Migration 010: Add Users and Roles Management Permissions
+-- Phase 4B: Complete RBAC system with user and role management permissions
+
+-- =============================================
+-- Users Resource Permissions
+-- =============================================
+
+INSERT INTO permissions (permission_code, resource, action, description) VALUES
+-- View permissions
+('users:view', 'users', 'view', 'View users list and details'),
+
+-- Manage permissions  
+('users:create', 'users', 'create', 'Create new users'),
+('users:edit', 'users', 'edit', 'Edit user details'),
+('users:delete', 'users', 'delete', 'Delete users'),
+
+-- Advanced permissions
+('users:manage_status', 'users', 'manage_status', 'Disable/enable/unlock users'),
+('users:assign_roles', 'users', 'assign_roles', 'Assign roles to users'),
+('users:view_activity', 'users', 'view_activity', 'View user login history and activity'),
+
+-- Export
+('users:export', 'users', 'export', 'Export users data');
+
+-- =============================================
+-- Roles Resource Permissions
+-- =============================================
+
+INSERT INTO permissions (permission_code, resource, action, description) VALUES
+-- View permissions
+('roles:view', 'roles', 'view', 'View roles list and details'),
+
+-- Manage permissions
+('roles:create', 'roles', 'create', 'Create new roles'),
+('roles:edit', 'roles', 'edit', 'Edit role details and permissions'),
+('roles:delete', 'roles', 'delete', 'Delete roles'),
+
+-- Advanced permissions
+('roles:assign_permissions', 'roles', 'assign_permissions', 'Assign permissions to roles'),
+('roles:clone', 'roles', 'clone', 'Clone existing roles'),
+('roles:view_templates', 'roles', 'view_templates', 'View role templates'),
+
+-- Export
+('roles:export', 'roles', 'export', 'Export roles data');
+
+-- =============================================
+-- Grant All Users & Roles Permissions to Super Admin
+-- =============================================
+
+-- Get super_admin role ID
+DO $$
+DECLARE
+    super_admin_role_id INT;
+    perm_record RECORD;
+BEGIN
+    -- Get super_admin role
+    SELECT id INTO super_admin_role_id FROM roles WHERE name = 'super_admin';
+    
+    IF super_admin_role_id IS NOT NULL THEN
+        -- Grant all users permissions
+        FOR perm_record IN 
+            SELECT id FROM permissions WHERE resource IN ('users', 'roles')
+        LOOP
+            INSERT INTO role_permissions (role_id, permission_id)
+            VALUES (super_admin_role_id, perm_record.id)
+            ON CONFLICT (role_id, permission_id) DO NOTHING;
+        END LOOP;
+        
+        RAISE NOTICE 'Granted users & roles permissions to super_admin role';
+    ELSE
+        RAISE WARNING 'super_admin role not found';
+    END IF;
+END $$;
+
+-- =============================================
+-- Comments
+-- =============================================
+
+COMMENT ON TABLE permissions IS 'System-wide permissions for RBAC. Phase 4B includes users and roles management.';

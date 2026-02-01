@@ -1,0 +1,663 @@
+{
+  "items": {
+    "title": "Items",
+    "subtitle": "Manage inventory items and pricing",
+    "new": "New Item",
+    "create": "Create Item",
+    "edit": "Edit Item",
+    "itemCode": "Item Code",
+    "itemName": "Item Name",
+    "category": "Category",
+    "unit": "Unit",
+    "costPrice": "Cost Price",
+    "sellingPrice": "Selling Price",
+    "barcode": "Barcode",
+    "sku": "SKU",
+    "trackInventory": "Track Inventory",
+    "searchPlaceholder": "Search by name, code, barcode, or SKU...",
+    "activeOnly": "Active only",
+    "loadingItems": "Loading items...",
+    "noItemsFound": "No items found",
+    "adjustSearch": "Try adjusting your search criteria",
+    "getStarted": "Get started by creating a new item",
+    "accessDenied": "Access Denied",
+    "noPermission": "You don't have permission to view items.",
+    "deleteTitle": "Delete Item",
+    "deleteMessage": "Are you sure you want to delete \"{{name}}\"? This action cannot be undone.",
+    "unitHelperText": "e.g., PCS, KG, M"
+  },
+  "vendors": {
+    "title": "Vendors",
+    "subtitle": "Manage suppliers and vendor information",
+    "new": "New Vendor",
+    "create": "Create Vendor",
+    "edit": "Edit Vendor",
+    "vendorCode": "Vendor Code",
+    "vendorName": "Vendor Name",
+    "taxNumber": "Tax Number",
+    "country": "Country",
+    "city": "City",
+    "address": "Address",
+    "mobile": "Mobile",
+    "creditLimit": "Credit Limit",
+    "paymentTerms": "Payment Terms (Days)",
+    "searchPlaceholder": "Search by name, code, or email...",
+    "loadingVendors": "Loading vendors...",
+    "noVendorsFound": "No vendors found",
+    "accessDenied": "Access Denied",
+    "noPermission": "You don't have permission to view vendors.",
+    "deleteTitle": "Delete Vendor",
+    "deleteMessage": "Are you sure you want to delete \"{{name}}\"? This action cannot be undone."
+  },
+  "customers": {
+    "title": "Customers",
+    "subtitle": "Manage customer information and accounts",
+    "new": "New Customer",
+    "create": "Create Customer",
+    "edit": "Edit Customer",
+    "customerCode": "Customer Code",
+    "customerName": "Customer Name",
+    "taxNumber": "Tax Number",
+    "country": "Country",
+    "city": "City",
+    "address": "Address",
+    "mobile": "Mobile",
+    "creditLimit": "Credit Limit",
+    "paymentTerms": "Payment Terms (Days)",
+    "searchPlaceholder": "Search by name, code, or email...",
+    "loadingCustomers": "Loading customers...",
+    "noCustomersFound": "No customers found",
+    "accessDenied": "Access Denied",
+    "noPermission": "You don't have permission to view customers.",
+    "deleteTitle": "Delete Customer",
+    "deleteMessage": "Are you sure you want to delete \"{{name}}\"? This action cannot be undone."
+  },
+  "warehouses": {
+    "title": "Warehouses",
+    "subtitle": "Manage warehouse locations and storage facilities",
+    "new": "New Warehouse",
+    "create": "Create Warehouse",
+    "edit": "Edit Warehouse",
+    "warehouseCode": "Warehouse Code",
+    "warehouseName": "Warehouse Name",
+    "warehouseType": "Warehouse Type",
+    "location": "Location",
+    "city": "City",
+    "country": "Country",
+    "managerName": "Manager Name",
+    "managerPhone": "Manager Phone",
+    "capacity": "Capacity",
+    "types": {
+      "main": "Main Warehouse",
+      "branch": "Branch Warehouse",
+      "transit": "Transit Warehouse",
+      "quarantine": "Quarantine Warehouse"
+    },
+    "searchPlaceholder": "Search by name, code, or location...",
+    "loadingWarehouses": "Loading warehouses...",
+    "noWarehousesFound": "No warehouses found",
+    "accessDenied": "Access Denied",
+    "noPermission": "You don't have permission to view warehouses.",
+    "deleteTitle": "Delete Warehouse",
+    "deleteMessage": "Are you sure you want to delete \"{{name}}\"? This action cannot be undone."
+  },
+  "addressTypes": {
+    "title": "Address Types",
+    "subtitle": "Manage address type classifications",
+    "new": "New Address Type",
+    "create": "Create Address Type",
+    "edit": "Edit Address Type",
+    "typeName": "Type Name"
+  },
+  "allowances": {
+    "title": "Allowances",
+    "subtitle": "Manage employee allowances and benefits",
+    "new": "New Allowance",
+    "create": "Create Allowance",
+    "edit": "Edit Allowance",
+    "allowanceName": "Allowance Name",
+    "amount": "Amount",
+    "type": "Type"
+  },
+  "approvalWorkflows": {
+    "title": "Approval Workflows",
+    "subtitle": "Manage document approval processes",
+    "new": "New Workflow",
+    "create": "Create Workflow",
+    "edit": "Edit Workflow",
+    "workflowName": "Workflow Name",
+    "steps": "Steps",
+    "approvers": "Approvers"
+  },
+  "backupSettings": {
+    "title": "Backup Settings",
+    "subtitle": "Configure automated system backups",
+    "frequency": "Backup Frequency",
+    "location": "Backup Location",
+    "retention": "Retention Period"
+  },
+  "bankAccounts": {
+    "title": "Bank Accounts",
+    "subtitle": "Manage company bank accounts",
+    "new": "New Bank Account",
+    "create": "Create Bank Account",
+    "edit": "Edit Bank Account",
+    "accountNumber": "Account Number",
+    "bankName": "Bank Name",
+    "iban": "IBAN",
+    "swiftCode": "SWIFT Code",
+    "currency": "Currency"
+  },
+  "batchNumbers": {
+    "title": "Batch Numbers",
+    "subtitle": "Track inventory batch numbers",
+    "new": "New Batch",
+    "create": "Create Batch",
+    "edit": "Edit Batch",
+    "batchNumber": "Batch Number",
+    "manufactureDate": "Manufacture Date",
+    "expiryDate": "Expiry Date"
+  },
+  "borderPoints": {
+    "title": "Border Points",
+    "subtitle": "Manage international border crossing points",
+    "new": "New Border Point",
+    "create": "Create Border Point",
+    "edit": "Edit Border Point",
+    "borderName": "Border Name",
+    "country": "Country",
+    "type": "Border Type"
+  },
+  "chartOfAccounts": {
+    "title": "Chart of Accounts",
+    "subtitle": "Manage accounting chart of accounts",
+    "new": "New Account",
+    "create": "Create Account",
+    "edit": "Edit Account",
+    "accountCode": "Account Code",
+    "accountName": "Account Name",
+    "accountType": "Account Type",
+    "parentAccount": "Parent Account"
+  },
+  "chequeBooks": {
+    "title": "Cheque Books",
+    "subtitle": "Manage company cheque books",
+    "new": "New Cheque Book",
+    "create": "Create Cheque Book",
+    "edit": "Edit Cheque Book",
+    "bookNumber": "Book Number",
+    "startNumber": "Start Number",
+    "endNumber": "End Number",
+    "bankAccount": "Bank Account"
+  },
+  "clearingAgents": {
+    "title": "Clearing Agents",
+    "subtitle": "Manage customs clearing agents",
+    "new": "New Clearing Agent",
+    "create": "Create Clearing Agent",
+    "edit": "Edit Clearing Agent",
+    "agentName": "Agent Name",
+    "licenseNumber": "License Number",
+    "phone": "Phone",
+    "email": "Email"
+  },
+  "containerTypes": {
+    "title": "Container Types",
+    "subtitle": "Manage shipping container classifications",
+    "new": "New Container Type",
+    "create": "Create Container Type",
+    "edit": "Edit Container Type",
+    "typeName": "Type Name",
+    "size": "Size",
+    "capacity": "Capacity"
+  },
+  "contractTemplates": {
+    "title": "Contract Templates",
+    "subtitle": "Manage contract document templates",
+    "new": "New Template",
+    "create": "Create Template",
+    "edit": "Edit Template",
+    "templateName": "Template Name",
+    "contractType": "Contract Type"
+  },
+  "contractTypes": {
+    "title": "Contract Types",
+    "subtitle": "Manage contract type classifications",
+    "new": "New Contract Type",
+    "create": "Create Contract Type",
+    "edit": "Edit Contract Type",
+    "typeName": "Type Name"
+  },
+  "costCenters": {
+    "title": "Cost Centers",
+    "subtitle": "Manage organizational cost centers",
+    "new": "New Cost Center",
+    "create": "Create Cost Center",
+    "edit": "Edit Cost Center",
+    "costCenterCode": "Cost Center Code",
+    "costCenterName": "Cost Center Name",
+    "parentCostCenter": "Parent Cost Center"
+  },
+  "countries": {
+    "title": "Countries",
+    "subtitle": "Manage country master data",
+    "new": "New Country",
+    "create": "Create Country",
+    "edit": "Edit Country",
+    "countryName": "Country Name",
+    "countryCode": "Country Code",
+    "dialCode": "Dial Code"
+  },
+  "currencies": {
+    "title": "Currencies",
+    "subtitle": "Manage multi-currency settings",
+    "new": "New Currency",
+    "create": "Create Currency",
+    "edit": "Edit Currency",
+    "currencyName": "Currency Name",
+    "currencyCode": "Currency Code",
+    "symbol": "Symbol",
+    "exchangeRate": "Exchange Rate"
+  },
+  "customerClassifications": {
+    "title": "Customer Classifications",
+    "subtitle": "Classify customers by categories",
+    "new": "New Classification",
+    "create": "Create Classification",
+    "edit": "Edit Classification",
+    "classificationName": "Classification Name"
+  },
+  "customerGroups": {
+    "title": "Customer Groups",
+    "subtitle": "Organize customers into groups",
+    "new": "New Group",
+    "create": "Create Group",
+    "edit": "Edit Group",
+    "groupName": "Group Name"
+  },
+  "customsOffices": {
+    "title": "Customs Offices",
+    "subtitle": "Manage customs office locations",
+    "new": "New Customs Office",
+    "create": "Create Customs Office",
+    "edit": "Edit Customs Office",
+    "officeName": "Office Name",
+    "port": "Port",
+    "officeCode": "Office Code"
+  },
+  "deductions": {
+    "title": "Deductions",
+    "subtitle": "Manage payroll deductions",
+    "new": "New Deduction",
+    "create": "Create Deduction",
+    "edit": "Edit Deduction",
+    "deductionName": "Deduction Name",
+    "amount": "Amount",
+    "type": "Type"
+  },
+  "digitalSignatures": {
+    "title": "Digital Signatures",
+    "subtitle": "Manage electronic signature settings",
+    "new": "New Signature",
+    "create": "Create Signature",
+    "edit": "Edit Signature",
+    "signatureName": "Signature Name",
+    "certificate": "Certificate"
+  },
+  "documentTypes": {
+    "title": "Document Types",
+    "subtitle": "Classify document types",
+    "new": "New Document Type",
+    "create": "Create Document Type",
+    "edit": "Edit Document Type",
+    "typeName": "Type Name",
+    "category": "Category"
+  },
+  "fiscalPeriods": {
+    "title": "Fiscal Periods",
+    "subtitle": "Manage accounting fiscal periods",
+    "new": "New Fiscal Period",
+    "create": "Create Fiscal Period",
+    "edit": "Edit Fiscal Period",
+    "periodName": "Period Name",
+    "startDate": "Start Date",
+    "endDate": "End Date",
+    "status": "Status"
+  },
+  "hsCodes": {
+    "title": "HS Codes",
+    "subtitle": "Harmonized System tariff codes",
+    "new": "New HS Code",
+    "create": "Create HS Code",
+    "edit": "Edit HS Code",
+    "hsCode": "HS Code",
+    "description": "Description",
+    "dutyRate": "Duty Rate"
+  },
+  "incoterms": {
+    "title": "Incoterms",
+    "subtitle": "International Commercial Terms",
+    "new": "New Incoterm",
+    "create": "Create Incoterm",
+    "edit": "Edit Incoterm",
+    "code": "Code",
+    "description": "Description"
+  },
+  "inventoryCounting": {
+    "title": "Inventory Counting",
+    "subtitle": "Physical inventory count settings",
+    "new": "New Count",
+    "create": "Create Count",
+    "edit": "Edit Count",
+    "countName": "Count Name",
+    "warehouse": "Warehouse",
+    "countDate": "Count Date"
+  },
+  "inventoryPolicies": {
+    "title": "Inventory Policies",
+    "subtitle": "Define inventory management policies",
+    "new": "New Policy",
+    "create": "Create Policy",
+    "edit": "Edit Policy",
+    "policyName": "Policy Name",
+    "rules": "Rules"
+  },
+  "itemGroups": {
+    "title": "Item Groups",
+    "subtitle": "Organize items into groups",
+    "new": "New Group",
+    "create": "Create Group",
+    "edit": "Edit Group",
+    "groupName": "Group Name"
+  },
+  "itemTypes": {
+    "title": "Item Types",
+    "subtitle": "Classify item types",
+    "new": "New Item Type",
+    "create": "Create Item Type",
+    "edit": "Edit Item Type",
+    "typeName": "Type Name"
+  },
+  "jobTitles": {
+    "title": "Job Titles",
+    "subtitle": "Manage employee job titles",
+    "new": "New Job Title",
+    "create": "Create Job Title",
+    "edit": "Edit Job Title",
+    "titleName": "Title Name",
+    "department": "Department",
+    "level": "Level"
+  },
+  "journalTypes": {
+    "title": "Journal Types",
+    "subtitle": "Accounting journal classifications",
+    "new": "New Journal Type",
+    "create": "Create Journal Type",
+    "edit": "Edit Journal Type",
+    "typeName": "Type Name"
+  },
+  "languages": {
+    "title": "Languages",
+    "subtitle": "System language settings",
+    "new": "New Language",
+    "create": "Create Language",
+    "edit": "Edit Language",
+    "languageName": "Language Name",
+    "languageCode": "Language Code",
+    "isRTL": "Right-to-Left"
+  },
+  "numberingSeries": {
+    "title": "Numbering Series",
+    "subtitle": "Configure document numbering",
+    "new": "New Series",
+    "create": "Create Series",
+    "edit": "Edit Series",
+    "seriesName": "Series Name",
+    "prefix": "Prefix",
+    "nextNumber": "Next Number",
+    "suffix": "Suffix"
+  },
+  "paymentMethods": {
+    "title": "Payment Methods",
+    "subtitle": "Manage payment method types",
+    "new": "New Payment Method",
+    "create": "Create Payment Method",
+    "edit": "Edit Payment Method",
+    "methodName": "Method Name"
+  },
+  "paymentTerms": {
+    "title": "Payment Terms",
+    "subtitle": "Define payment term conditions",
+    "new": "New Payment Term",
+    "create": "Create Payment Term",
+    "edit": "Edit Payment Term",
+    "termName": "Term Name",
+    "days": "Days"
+  },
+  "payrollPeriods": {
+    "title": "Payroll Periods",
+    "subtitle": "Manage payroll period settings",
+    "new": "New Period",
+    "create": "Create Period",
+    "edit": "Edit Period",
+    "periodName": "Period Name",
+    "startDate": "Start Date",
+    "endDate": "End Date"
+  },
+  "ports": {
+    "title": "Ports",
+    "subtitle": "Manage seaport locations",
+    "new": "New Port",
+    "create": "Create Port",
+    "edit": "Edit Port",
+    "portName": "Port Name",
+    "portCode": "Port Code",
+    "country": "Country"
+  },
+  "printedTemplates": {
+    "title": "Printed Templates",
+    "subtitle": "Manage print document templates",
+    "new": "New Template",
+    "create": "Create Template",
+    "edit": "Edit Template",
+    "templateName": "Template Name"
+  },
+  "regions": {
+    "title": "Regions",
+    "subtitle": "Manage geographic regions",
+    "new": "New Region",
+    "create": "Create Region",
+    "edit": "Edit Region",
+    "regionName": "Region Name",
+    "country": "Country"
+  },
+  "reorderRules": {
+    "title": "Reorder Rules",
+    "subtitle": "Automatic reorder point settings",
+    "new": "New Rule",
+    "create": "Create Rule",
+    "edit": "Edit Rule",
+    "item": "Item",
+    "minQuantity": "Minimum Quantity",
+    "maxQuantity": "Maximum Quantity"
+  },
+  "serialNumbers": {
+    "title": "Serial Numbers",
+    "subtitle": "Track item serial numbers",
+    "new": "New Serial Number",
+    "create": "Create Serial Number",
+    "edit": "Edit Serial Number",
+    "serialNumber": "Serial Number",
+    "item": "Item"
+  },
+  "shippingLines": {
+    "title": "Shipping Lines",
+    "subtitle": "Manage shipping line carriers",
+    "new": "New Shipping Line",
+    "create": "Create Shipping Line",
+    "edit": "Edit Shipping Line",
+    "lineName": "Line Name",
+    "code": "Code",
+    "country": "Country"
+  },
+  "stockLimits": {
+    "title": "Stock Limits",
+    "subtitle": "Define stock threshold limits",
+    "new": "New Limit",
+    "create": "Create Limit",
+    "edit": "Edit Limit",
+    "item": "Item",
+    "warehouse": "Warehouse",
+    "minStock": "Minimum Stock",
+    "maxStock": "Maximum Stock"
+  },
+  "supplierClassifications": {
+    "title": "Supplier Classifications",
+    "subtitle": "Classify suppliers by categories",
+    "new": "New Classification",
+    "create": "Create Classification",
+    "edit": "Edit Classification",
+    "classificationName": "Classification Name"
+  },
+  "systemLanguages": {
+    "title": "System Languages",
+    "subtitle": "Configure system language options",
+    "new": "New Language",
+    "create": "Create Language",
+    "edit": "Edit Language",
+    "languageName": "Language Name",
+    "code": "Code"
+  },
+  "systemPolicies": {
+    "title": "System Policies",
+    "subtitle": "Configure system-wide policies",
+    "policyName": "Policy Name",
+    "value": "Value",
+    "description": "Description"
+  },
+  "systemSetup": {
+    "title": "System Setup",
+    "subtitle": "Configure system-wide settings",
+    "companyInfo": "Company Information",
+    "generalSettings": "General Settings",
+    "save": "Save Settings"
+  },
+  "taxCodes": {
+    "title": "Tax Codes",
+    "subtitle": "Manage tax code classifications",
+    "new": "New Tax Code",
+    "create": "Create Tax Code",
+    "edit": "Edit Tax Code",
+    "taxCode": "Tax Code",
+    "description": "Description",
+    "rate": "Rate"
+  },
+  "taxTypes": {
+    "title": "Tax Types",
+    "subtitle": "Define tax type categories",
+    "new": "New Tax Type",
+    "create": "Create Tax Type",
+    "edit": "Edit Tax Type",
+    "typeName": "Type Name"
+  },
+  "taxes": {
+    "title": "Taxes",
+    "subtitle": "Manage tax configurations",
+    "new": "New Tax",
+    "create": "Create Tax",
+    "edit": "Edit Tax",
+    "taxName": "Tax Name",
+    "rate": "Rate (%)"
+  },
+  "timeZones": {
+    "title": "Time Zones",
+    "subtitle": "Manage time zone settings",
+    "new": "New Time Zone",
+    "create": "Create Time Zone",
+    "edit": "Edit Time Zone",
+    "zoneName": "Zone Name",
+    "offset": "UTC Offset"
+  },
+  "uiThemes": {
+    "title": "UI Themes",
+    "subtitle": "Customize user interface themes",
+    "themeName": "Theme Name",
+    "primaryColor": "Primary Color",
+    "accentColor": "Accent Color"
+  },
+  "unitTypes": {
+    "title": "Unit Types",
+    "subtitle": "Classify measurement unit types",
+    "new": "New Unit Type",
+    "create": "Create Unit Type",
+    "edit": "Edit Unit Type",
+    "typeName": "Type Name"
+  },
+  "units": {
+    "title": "Units of Measure",
+    "subtitle": "Manage measurement units",
+    "new": "New Unit",
+    "create": "Create Unit",
+    "edit": "Edit Unit",
+    "unitName": "Unit Name",
+    "unitCode": "Unit Code",
+    "unitType": "Unit Type"
+  },
+  "valuationMethods": {
+    "title": "Valuation Methods",
+    "subtitle": "Inventory valuation methods",
+    "new": "New Method",
+    "create": "Create Method",
+    "edit": "Edit Method",
+    "methodName": "Method Name",
+    "description": "Description"
+  },
+  "voucherTypes": {
+    "title": "Voucher Types",
+    "subtitle": "Manage voucher type classifications",
+    "new": "New Voucher Type",
+    "create": "Create Voucher Type",
+    "edit": "Edit Voucher Type",
+    "typeName": "Type Name"
+  },
+  "warehouseLocations": {
+    "title": "Warehouse Locations",
+    "subtitle": "Manage storage locations within warehouses",
+    "new": "New Location",
+    "create": "Create Location",
+    "edit": "Edit Location",
+    "locationCode": "Location Code",
+    "locationName": "Location Name",
+    "warehouse": "Warehouse",
+    "aisle": "Aisle",
+    "rack": "Rack",
+    "shelf": "Shelf"
+  },
+  "warehouseTypes": {
+    "title": "Warehouse Types",
+    "subtitle": "Classify warehouse types",
+    "new": "New Warehouse Type",
+    "create": "Create Warehouse Type",
+    "edit": "Edit Warehouse Type",
+    "typeName": "Type Name"
+  },
+  "withholdingTax": {
+    "title": "Withholding Tax",
+    "subtitle": "Manage withholding tax rules",
+    "new": "New Withholding Tax",
+    "create": "Create Withholding Tax",
+    "edit": "Edit Withholding Tax",
+    "taxName": "Tax Name",
+    "rate": "Rate (%)",
+    "applicableTo": "Applicable To"
+  },
+  "zatcaIntegration": {
+    "title": "ZATCA Integration",
+    "subtitle": "Saudi ZATCA e-invoicing integration",
+    "configuration": "Configuration",
+    "apiKey": "API Key",
+    "environment": "Environment",
+    "status": "Status",
+    "testConnection": "Test Connection"
+  }
+}

@@ -1,0 +1,6 @@
+@echo off
+echo Checking frontend logs...
+docker logs slms-frontend-next-1 --tail 10
+echo.
+echo Done! Press any key to exit...
+pause >nul

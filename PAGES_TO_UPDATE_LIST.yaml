@@ -1,0 +1,208 @@
+# Master Pages Update Script
+# هذا الملف يحتوي على معلومات جميع الصفحات التي تحتاج تحديث
+
+## pages to update:
+pages:
+  - file: digital-signatures.tsx
+    title: "Digital Signatures"
+    titleAr: "التوقيعات الرقمية"
+    icon: PencilSquareIcon
+    addButton: "+ Add Signature / إضافة توقيع"
+
+  - file: ui-themes.tsx
+    title: "UI Themes"
+    titleAr: "مظاهر الواجهة"
+    icon: SwatchIcon
+    addButton: "+ Add Theme / إضافة مظهر"
+
+  - file: payment-terms.tsx
+    title: "Payment Terms"
+    titleAr: "شروط الدفع"
+    icon: CreditCardIcon
+    addButton: "+ Add Term / إضافة شرط"
+
+  - file: companies.tsx
+    title: "Companies"
+    titleAr: "الشركات"
+    icon: BuildingOffice2Icon
+    addButton: "+ Add Company / إضافة شركة"
+
+  - file: branches.tsx
+    title: "Branches"
+    titleAr: "الفروع"
+    icon: MapPinIcon
+    addButton: "+ Add Branch / إضافة فرع"
+
+  - file: users.tsx
+    title: "Users"
+    titleAr: "المستخدمون"
+    icon: UserGroupIcon
+    addButton: "+ Add User / إضافة مستخدم"
+
+  - file: roles.tsx
+    title: "Roles"
+    titleAr: "الأدوار"
+    icon: ShieldCheckIcon
+    addButton: "+ Add Role / إضافة دور"
+
+  - file: permissions.tsx
+    title: "Permissions"
+    titleAr: "الأذونات"
+    icon: LockClosedIcon
+    addButton: "+ Add Permission / إضافة أذن"
+
+  - file: languages.tsx
+    title: "Languages"
+    titleAr: "اللغات"
+    icon: LanguageIcon
+    addButton: "+ Add Language / إضافة لغة"
+
+  - file: system-setup.tsx
+    title: "System Setup"
+    titleAr: "إعدادات النظام"
+    icon: AdjustmentsHorizontalIcon
+    addButton: "+ Add Setting / إضافة إعداد"
+
+  - file: system-policies.tsx
+    title: "System Policies"
+    titleAr: "سياسات النظام"
+    icon: DocumentCheckIcon
+    addButton: "+ Add Policy / إضافة سياسة"
+
+  - file: numbering-series.tsx
+    title: "Numbering Series"
+    titleAr: "سلاسل الترقيم"
+    icon: ListBulletIcon
+    addButton: "+ Add Series / إضافة سلسلة"
+
+  - file: system-languages.tsx
+    title: "System Languages"
+    titleAr: "لغات النظام"
+    icon: LanguageIcon
+    addButton: "+ Add Language / إضافة لغة"
+
+  - file: countries.tsx
+    title: "Countries"
+    titleAr: "الدول"
+    icon: GlobeAltIcon
+    addButton: "+ Add Country / إضافة دولة"
+
+  - file: cities.tsx
+    title: "Cities"
+    titleAr: "المدن"
+    icon: MapIcon
+    addButton: "+ Add City / إضافة مدينة"
+
+  - file: regions.tsx
+    title: "Regions"
+    titleAr: "المناطق"
+    icon: MapPinIcon
+    addButton: "+ Add Region / إضافة منطقة"
+
+  - file: border-points.tsx
+    title: "Border Points"
+    titleAr: "نقاط الحدود"
+    icon: FlagIcon
+    addButton: "+ Add Point / إضافة نقطة"
+
+  - file: ports.tsx
+    title: "Ports"
+    titleAr: "الموانئ"
+    icon: ShipIcon
+    addButton: "+ Add Port / إضافة ميناء"
+
+  - file: customs-offices.tsx
+    title: "Customs Offices"
+    titleAr: "مكاتب الجمارك"
+    icon: BuildingOfficeIcon
+    addButton: "+ Add Office / إضافة مكتب"
+
+  - file: time-zones.tsx
+    title: "Time Zones"
+    titleAr: "المناطق الزمنية"
+    icon: ClockIcon
+    addButton: "+ Add Zone / إضافة منطقة"
+
+  - file: address-types.tsx
+    title: "Address Types"
+    titleAr: "أنواع العناوين"
+    icon: HomeIcon
+    addButton: "+ Add Type / إضافة نوع"
+
+  - file: currencies.tsx
+    title: "Currencies"
+    titleAr: "العملات"
+    icon: CurrencyDollarIcon
+    addButton: "+ Add Currency / إضافة عملة"
+
+  - file: items.tsx
+    title: "Items"
+    titleAr: "الأصناف"
+    icon: ShoppingCartIcon
+    addButton: "+ Add Item / إضافة صنف"
+
+  - file: units.tsx
+    title: "Units"
+    titleAr: "الوحدات"
+    icon: CubeIcon
+    addButton: "+ Add Unit / إضافة وحدة"
+
+  - file: batch-numbers.tsx
+    title: "Batch Numbers"
+    titleAr: "أرقام الدفعات"
+    icon: ArchiveBoxIcon
+    addButton: "+ Add Batch / إضافة دفعة"
+
+  - file: inventory-policies.tsx
+    title: "Inventory Policies"
+    titleAr: "سياسات المخزون"
+    icon: DocumentTextIcon
+    addButton: "+ Add Policy / إضافة سياسة"
+
+  - file: reorder-rules.tsx
+    title: "Reorder Rules"
+    titleAr: "قواعد إعادة الطلب"
+    icon: ArrowPathIcon
+    addButton: "+ Add Rule / إضافة قاعدة"
+
+  - file: warehouses.tsx
+    title: "Warehouses"
+    titleAr: "المستودعات"
+    icon: BuildingStorefrontIcon
+    addButton: "+ Add Warehouse / إضافة مستودع"
+
+  - file: cost-centers.tsx
+    title: "Cost Centers"
+    titleAr: "مراكز التكاليف"
+    icon: CurrencyDollarIcon
+    addButton: "+ Add Center / إضافة مركز"
+
+  - file: customers.tsx
+    title: "Customers"
+    titleAr: "العملاء"
+    icon: UserIcon
+    addButton: "+ Add Customer / إضافة عميل"
+
+  - file: vendors.tsx
+    title: "Vendors"
+    titleAr: "الموردون"
+    icon: TruckIcon
+    addButton: "+ Add Vendor / إضافة مورد"
+
+  - file: taxes.tsx
+    title: "Taxes"
+    titleAr: "الضرائب"
+    icon: CalculatorIcon
+    addButton: "+ Add Tax / إضافة ضريبة"
+
+  - file: customer-groups.tsx
+    title: "Customer Groups"
+    titleAr: "مجموعات العملاء"
+    icon: UsersIcon
+    addButton: "+ Add Group / إضافة مجموعة"
+
+  - file: backup-settings.tsx
+    title: "Backup Settings"
+    titleAr: "إعدادات النسخ الاحتياطي"
+    icon: ArrowDownTrayIcon
+    addButton: "+ Add Configuration / إضافة إعداد"

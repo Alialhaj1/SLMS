@@ -1,0 +1,389 @@
+/**
+ * 🎨 Permission Components Styles
+ * =====================================================
+ */
+
+/* =====================================================
+   PERMISSION BUTTON
+   ===================================================== */
+.permission-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-weight: 500;
+  border-radius: 0.5rem;
+  transition: all 0.15s ease;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+/* Sizes */
+.permission-button.sm {
+  padding: 0.375rem 0.75rem;
+  font-size: 0.75rem;
+}
+
+.permission-button.md {
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+}
+
+.permission-button.lg {
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+}
+
+/* Variants */
+.permission-button.primary {
+  background-color: #3b82f6;
+  color: white;
+  border-color: #3b82f6;
+}
+
+.permission-button.primary:hover:not(:disabled) {
+  background-color: #2563eb;
+  border-color: #2563eb;
+}
+
+.permission-button.secondary {
+  background-color: #6b7280;
+  color: white;
+  border-color: #6b7280;
+}
+
+.permission-button.secondary:hover:not(:disabled) {
+  background-color: #4b5563;
+  border-color: #4b5563;
+}
+
+.permission-button.danger {
+  background-color: #ef4444;
+  color: white;
+  border-color: #ef4444;
+}
+
+.permission-button.danger:hover:not(:disabled) {
+  background-color: #dc2626;
+  border-color: #dc2626;
+}
+
+.permission-button.ghost {
+  background-color: transparent;
+  color: #374151;
+  border-color: #d1d5db;
+}
+
+.permission-button.ghost:hover:not(:disabled) {
+  background-color: #f3f4f6;
+}
+
+.permission-button.link {
+  background-color: transparent;
+  color: #3b82f6;
+  border-color: transparent;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.permission-button.link:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+/* Dangerous indicator */
+.permission-button.dangerous {
+  position: relative;
+}
+
+.permission-button.dangerous::before {
+  content: '⚠️';
+  margin-left: -0.25rem;
+  margin-right: 0.25rem;
+  font-size: 0.75em;
+}
+
+/* States */
+.permission-button:disabled,
+.permission-button.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.permission-button.loading {
+  position: relative;
+  pointer-events: none;
+}
+
+.permission-button .btn-spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.permission-button .btn-icon {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* RTL Support */
+[dir="rtl"] .permission-button {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .permission-button.dangerous::before {
+  margin-left: 0.25rem;
+  margin-right: -0.25rem;
+}
+
+/* =====================================================
+   PERMISSION CARD
+   ===================================================== */
+.permission-card {
+  background: white;
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+
+.permission-card.default {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.permission-card.bordered {
+  border: 1px solid #e5e7eb;
+}
+
+.permission-card.elevated {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.permission-card .card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.permission-card .card-title-section {
+  flex: 1;
+}
+
+.permission-card .card-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #111827;
+}
+
+.permission-card .card-subtitle {
+  margin: 0.25rem 0 0;
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+.permission-card .card-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-left: 1rem;
+}
+
+.permission-card .card-body {
+  padding: 1.25rem;
+}
+
+/* Placeholder/Locked state */
+.permission-card.placeholder {
+  min-height: 150px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f9fafb;
+}
+
+.permission-card .card-locked {
+  text-align: center;
+  color: #9ca3af;
+}
+
+.permission-card .card-locked .lock-icon {
+  font-size: 2rem;
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+.permission-card .card-locked p {
+  margin: 0;
+  font-size: 0.875rem;
+}
+
+/* RTL Support */
+[dir="rtl"] .permission-card .card-actions {
+  margin-left: 0;
+  margin-right: 1rem;
+}
+
+/* =====================================================
+   PERMISSION FIELD
+   ===================================================== */
+.permission-field {
+  margin-bottom: 1rem;
+}
+
+.permission-field label {
+  display: block;
+  margin-bottom: 0.375rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #374151;
+}
+
+.permission-field .required {
+  color: #ef4444;
+  margin-left: 0.25rem;
+}
+
+.permission-field input,
+.permission-field select,
+.permission-field textarea {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.permission-field input:focus,
+.permission-field select:focus,
+.permission-field textarea:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.permission-field.readonly input,
+.permission-field.readonly select,
+.permission-field.readonly textarea {
+  background-color: #f9fafb;
+  cursor: not-allowed;
+}
+
+/* RTL Support */
+[dir="rtl"] .permission-field .required {
+  margin-left: 0;
+  margin-right: 0.25rem;
+}
+
+/* =====================================================
+   PERMISSION SECTION
+   ===================================================== */
+.permission-section {
+  margin-bottom: 1.5rem;
+}
+
+.permission-section .section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.permission-section .section-header.collapsible {
+  cursor: pointer;
+  user-select: none;
+}
+
+.permission-section .section-header.collapsible:hover {
+  background-color: #f9fafb;
+  margin: 0 -0.5rem;
+  padding: 0.5rem;
+  border-radius: 0.375rem;
+}
+
+.permission-section .section-title {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #374151;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.permission-section .expand-icon {
+  color: #9ca3af;
+  font-size: 0.75rem;
+}
+
+.permission-section .section-content {
+  padding: 0;
+}
+
+/* =====================================================
+   MASKED VALUE (for hidden columns)
+   ===================================================== */
+.masked-value {
+  color: #9ca3af;
+  font-style: italic;
+  letter-spacing: 0.1em;
+}
+
+/* =====================================================
+   DARK MODE SUPPORT
+   ===================================================== */
+@media (prefers-color-scheme: dark) {
+  .permission-button.ghost {
+    color: #d1d5db;
+    border-color: #4b5563;
+  }
+
+  .permission-button.ghost:hover:not(:disabled) {
+    background-color: #374151;
+  }
+
+  .permission-card {
+    background: #1f2937;
+  }
+
+  .permission-card .card-header {
+    border-bottom-color: #374151;
+  }
+
+  .permission-card .card-title {
+    color: #f9fafb;
+  }
+
+  .permission-card.placeholder {
+    background: #111827;
+  }
+
+  .permission-field label {
+    color: #d1d5db;
+  }
+
+  .permission-field input,
+  .permission-field select,
+  .permission-field textarea {
+    background-color: #374151;
+    border-color: #4b5563;
+    color: #f9fafb;
+  }
+
+  .permission-field.readonly input,
+  .permission-field.readonly select,
+  .permission-field.readonly textarea {
+    background-color: #1f2937;
+  }
+
+  .permission-section .section-header {
+    border-bottom-color: #374151;
+  }
+
+  .permission-section .section-title {
+    color: #d1d5db;
+  }
+}

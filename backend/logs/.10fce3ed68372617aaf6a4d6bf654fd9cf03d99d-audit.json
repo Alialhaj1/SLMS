@@ -1,0 +1,30 @@
+{
+    "keep": {
+        "days": true,
+        "amount": 30
+    },
+    "auditLog": "c:\\projects\\slms\\backend\\logs\\.10fce3ed68372617aaf6a4d6bf654fd9cf03d99d-audit.json",
+    "files": [
+        {
+            "date": 1767507581635,
+            "name": "c:\\projects\\slms\\backend\\logs\\error-2026-01-04.log",
+            "hash": "464ef6acd89bbcc03954fc526658e7793eb9de360ef13f89af026f2ffec0aab9"
+        },
+        {
+            "date": 1767688179377,
+            "name": "c:\\projects\\slms\\backend\\logs\\error-2026-01-06.log",
+            "hash": "28b9acef090239bf91debcc49b0dc3cb4aef5e94ea4522af594acbf14fb795a4"
+        },
+        {
+            "date": 1767780757649,
+            "name": "c:\\projects\\slms\\backend\\logs\\error-2026-01-07.log",
+            "hash": "9ed951a7a3963136efd3dc101b174f1b95a6907b5761173f8cef2d09dfbdf273"
+        },
+        {
+            "date": 1768295604753,
+            "name": "c:\\projects\\slms\\backend\\logs\\error-2026-01-13.log",
+            "hash": "6c6b0496d26535cf4ec158a05bb6d4c741f3ca55d6ec43dd18baf3b1efa54c83"
+        }
+    ],
+    "hashType": "sha256"
+}

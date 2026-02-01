@@ -1,0 +1,20 @@
+
+> slms-backend@0.1.0 migrate
+> ts-node src/db/migrate.ts
+
+✅ Environment configuration loaded:
+   - NODE_ENV: development
+   - PORT: 4000
+   - JWT_SECRET: your-sup... (73 chars)
+   - DATABASE_URL: localhost:5432/slms_db
+   - CORS_ORIGINS: http://localhost:3000, http://localhost:3001
+New database client connected
+2026-01-07 13:25:20 [[32minfo[39m]: [32m✅ Migration applied: 106_seed_procurement_enterprise_reference_data.sql[39m | {
+  "executionTime": "39ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-01-07 13:25:20 [[32minfo[39m]: [32m📊 Migrations complete[39m | {
+  "applied": 1,
+  "skipped": 104
+}
+Database client removed from pool

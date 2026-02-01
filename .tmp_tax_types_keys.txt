@@ -1,0 +1,25 @@
+taxTypes keys seen in tax-types.tsx:
+- title
+- subtitle
+- new
+- vat
+- excise
+- zakat
+- category
+- rate
+- appliesTo
+- recoverable
+- edit
+- create
+- calculationMethod
+- defaultRate
+- taxAuthority
+- reportingFrequency
+- glPayable
+- glReceivable
+- inclusive
+
+common keys missing per console:
+- allCategories
+- yes
+- no

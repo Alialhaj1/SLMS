@@ -1,0 +1,191 @@
+{
+  "total": 31,
+  "entries": [
+    {
+      "route": "/master/advance-types",
+      "file": "pages/master/advance-types.tsx",
+      "title": "menu.hr.advanceTypes",
+      "titleAr": "menu.hr.advanceTypes"
+    },
+    {
+      "route": "/master/allowance-types",
+      "file": "pages/master/allowance-types.tsx",
+      "title": "menu.hr.allowanceTypes",
+      "titleAr": "menu.hr.allowanceTypes"
+    },
+    {
+      "route": "/master/bin-types",
+      "file": "pages/master/bin-types.tsx",
+      "title": "menu.inventory.binTypes",
+      "titleAr": "menu.inventory.binTypes"
+    },
+    {
+      "route": "/master/contact-types",
+      "file": "pages/master/contact-types.tsx",
+      "title": "menu.crm.contactTypes",
+      "titleAr": "menu.crm.contactTypes"
+    },
+    {
+      "route": "/master/counting-policies",
+      "file": "pages/master/counting-policies.tsx",
+      "title": "menu.inventory.countingPolicies",
+      "titleAr": "menu.inventory.countingPolicies"
+    },
+    {
+      "route": "/master/credit-limits",
+      "file": "pages/master/credit-limits.tsx",
+      "title": "menu.crm.creditLimits",
+      "titleAr": "menu.crm.creditLimits"
+    },
+    {
+      "route": "/master/customer-status",
+      "file": "pages/master/customer-status.tsx",
+      "title": "menu.crm.customerStatus",
+      "titleAr": "menu.crm.customerStatus"
+    },
+    {
+      "route": "/master/customer-types",
+      "file": "pages/master/customer-types.tsx",
+      "title": "menu.crm.customerTypes",
+      "titleAr": "menu.crm.customerTypes"
+    },
+    {
+      "route": "/master/deduction-types",
+      "file": "pages/master/deduction-types.tsx",
+      "title": "menu.hr.deductionTypes",
+      "titleAr": "menu.hr.deductionTypes"
+    },
+    {
+      "route": "/master/delivery-terms",
+      "file": "pages/master/delivery-terms.tsx",
+      "title": "menu.purchasing.deliveryTerms",
+      "titleAr": "menu.purchasing.deliveryTerms"
+    },
+    {
+      "route": "/master/discount-agreements",
+      "file": "pages/master/discount-agreements.tsx",
+      "title": "menu.crm.discountAgreements",
+      "titleAr": "menu.crm.discountAgreements"
+    },
+    {
+      "route": "/master/employee-status",
+      "file": "pages/master/employee-status.tsx",
+      "title": "menu.hr.employeeStatus",
+      "titleAr": "menu.hr.employeeStatus"
+    },
+    {
+      "route": "/master/entry-exit-points",
+      "file": "pages/master/entry-exit-points.tsx",
+      "title": "menu.importExport.entryExitPoints",
+      "titleAr": "menu.importExport.entryExitPoints"
+    },
+    {
+      "route": "/master/expense-distribution",
+      "file": "pages/master/expense-distribution.tsx",
+      "title": "menu.financeAccounting.expenseDistribution",
+      "titleAr": "menu.financeAccounting.expenseDistribution"
+    },
+    {
+      "route": "/master/expiry-policies",
+      "file": "pages/master/expiry-policies.tsx",
+      "title": "menu.inventory.expiryPolicies",
+      "titleAr": "menu.inventory.expiryPolicies"
+    },
+    {
+      "route": "/master/forwarders",
+      "file": "pages/master/forwarders.tsx",
+      "title": "menu.importExport.forwarders",
+      "titleAr": "menu.importExport.forwarders"
+    },
+    {
+      "route": "/master/hr-contract-status",
+      "file": "pages/master/hr-contract-status.tsx",
+      "title": "menu.hr.contractStatus",
+      "titleAr": "menu.hr.contractStatus"
+    },
+    {
+      "route": "/master/hr-contract-types",
+      "file": "pages/master/hr-contract-types.tsx",
+      "title": "menu.hr.contractTypes",
+      "titleAr": "menu.hr.contractTypes"
+    },
+    {
+      "route": "/master/hr-expense-types",
+      "file": "pages/master/hr-expense-types.tsx",
+      "title": "menu.hr.expenseTypes",
+      "titleAr": "menu.hr.expenseTypes"
+    },
+    {
+      "route": "/master/item-grades",
+      "file": "pages/master/item-grades.tsx",
+      "title": "menu.inventory.itemGrades",
+      "titleAr": "menu.inventory.itemGrades"
+    },
+    {
+      "route": "/master/min-max-policies",
+      "file": "pages/master/min-max-policies.tsx",
+      "title": "menu.inventory.minMaxPolicies",
+      "titleAr": "menu.inventory.minMaxPolicies"
+    },
+    {
+      "route": "/master/record-status",
+      "file": "pages/master/record-status.tsx",
+      "title": "menu.referenceData.recordStatus",
+      "titleAr": "menu.referenceData.recordStatus"
+    },
+    {
+      "route": "/master/request-status",
+      "file": "pages/master/request-status.tsx",
+      "title": "menu.referenceData.requestStatus",
+      "titleAr": "menu.referenceData.requestStatus"
+    },
+    {
+      "route": "/master/shipping-classifications",
+      "file": "pages/master/shipping-classifications.tsx",
+      "title": "menu.importExport.shippingClassifications",
+      "titleAr": "menu.importExport.shippingClassifications"
+    },
+    {
+      "route": "/master/tariffs",
+      "file": "pages/master/tariffs.tsx",
+      "title": "menu.importExport.tariffs",
+      "titleAr": "menu.importExport.tariffs"
+    },
+    {
+      "route": "/master/tax-item-categories",
+      "file": "pages/master/tax-item-categories.tsx",
+      "title": "menu.taxes.taxItemCategories",
+      "titleAr": "menu.taxes.taxItemCategories"
+    },
+    {
+      "route": "/master/tax-zones",
+      "file": "pages/master/tax-zones.tsx",
+      "title": "menu.referenceData.taxZones",
+      "titleAr": "menu.referenceData.taxZones"
+    },
+    {
+      "route": "/master/tracking-policies",
+      "file": "pages/master/tracking-policies.tsx",
+      "title": "menu.inventory.trackingPolicies",
+      "titleAr": "menu.inventory.trackingPolicies"
+    },
+    {
+      "route": "/master/vendor-classifications",
+      "file": "pages/master/vendor-classifications.tsx",
+      "title": "menu.purchasing.vendorClassifications",
+      "titleAr": "menu.purchasing.vendorClassifications"
+    },
+    {
+      "route": "/master/vendor-status",
+      "file": "pages/master/vendor-status.tsx",
+      "title": "menu.purchasing.vendorStatus",
+      "titleAr": "menu.purchasing.vendorStatus"
+    },
+    {
+      "route": "/master/vendor-types",
+      "file": "pages/master/vendor-types.tsx",
+      "title": "menu.purchasing.vendorTypes",
+      "titleAr": "menu.purchasing.vendorTypes"
+    }
+  ]
+}

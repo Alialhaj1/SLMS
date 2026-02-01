@@ -1,0 +1,119 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [
+      "pages/accounting/prepaid-expenses.tsx",
+      "pages/accounting/deferred-revenue.tsx",
+      "pages/accounting/cheques-due.tsx",
+      "pages/accounting/customers-ledger.tsx",
+      "pages/accounting/inventory-ledger.tsx",
+      "pages/accounting/default-accounts.tsx",
+      "pages/accounting/accounts.tsx",
+      "pages/accounting/reports/cash-flow.tsx",
+    "config/menu.permissions.ts",
+    "config/menu.registry.ts",
+
+    "pages/master/parallel-currencies.tsx",
+    "pages/master/tax-categories.tsx",
+    "pages/master/document-status.tsx",
+    "pages/master/cost-items.tsx",
+    "pages/master/profit-centers.tsx",
+    "pages/master/transport-companies.tsx",
+
+    "pages/master/exchange-rates.tsx",
+    "pages/master/banks.tsx",
+    "pages/master/drivers.tsx",
+    "pages/master/freight-agents.tsx",
+    "pages/master/insurance-types.tsx",
+    "pages/master/bill-of-lading-types.tsx",
+
+    "pages/master/asset-categories.tsx",
+    "pages/master/asset-status.tsx",
+    "pages/master/asset-locations.tsx",
+    "pages/master/vehicles.tsx",
+    "pages/master/vehicle-types.tsx",
+    "pages/master/transport-routes.tsx",
+
+    "pages/master/contract-approval-status.tsx",
+    "pages/master/contract-status.tsx",
+    "pages/master/delivery-locations.tsx",
+    "pages/master/external-warehouses.tsx",
+
+    "pages/master/group-types.tsx",
+    "pages/master/invoice-templates.tsx",
+    "pages/master/invoice-types.tsx",
+    "pages/master/notice-types.tsx",
+    "pages/master/payment-types.tsx",
+
+    "pages/master/pricing-methods.tsx",
+    "pages/master/project-contract-types.tsx",
+    "pages/master/purchase-order-templates.tsx",
+    "pages/master/purchase-order-types.tsx",
+    "pages/master/quality-status.tsx",
+
+    "pages/master/receipt-types.tsx",
+    "pages/master/report-types.tsx",
+    "pages/master/responsibility-centers.tsx",
+    "pages/master/risk-types.tsx",
+    "pages/master/shipment-cost-centers.tsx",
+    "pages/master/shipment-types.tsx",
+
+
+    "pages/master/shipping-methods.tsx",
+    "pages/master/supply-terms.tsx",
+    "pages/master/tax-exemptions.tsx",
+    "pages/master/tax-regions.tsx",
+    "pages/master/vendor-payment-terms.tsx",
+    "pages/master/zakat-codes.tsx",
+    "pages/master/shipping-methods.tsx",
+    "pages/master/supply-terms.tsx",
+    "pages/master/tax-exemptions.tsx",
+    "pages/master/tax-regions.tsx",
+    "pages/master/vendor-payment-terms.tsx",
+    "pages/master/zakat-codes.tsx",
+
+    "pages/customs/clearance-documents.tsx",
+    "pages/master/customs-duties.tsx",
+    "pages/master/clearance-status.tsx",
+    "pages/master/customs-fee-categories.tsx",
+    "pages/master/claim-status.tsx",
+
+    "pages/projects/index.tsx",
+    "pages/projects/phases.tsx",
+    "pages/quality/approved-vendors.tsx",
+    "pages/risks/insurance-documents.tsx",
+
+    "pages/reports/quality.tsx",
+    "pages/reports/reference-data.tsx",
+    "pages/reports/risks.tsx",
+    "pages/reports/security.tsx",
+    "pages/reports/warehouses.tsx",
+
+    "pages/shipments/statuses.tsx",
+    "pages/shipments/stages.tsx",
+    "pages/shipments/events.tsx",
+    "pages/shipments/alerts.tsx",
+    "pages/shipments/document-requirements.tsx",
+    "pages/shipments/cost-types.tsx",
+    "pages/shipments/landed-cost-allocation.tsx",
+    "pages/shipments/landed-cost-settings.tsx",
+
+    "pages/inventory/shipment-receiving.tsx",
+
+    "pages/customs/hs-codes.tsx",
+    "pages/customs/tariff-rates.tsx",
+    "pages/customs/customs-exemptions.tsx",
+    "pages/customs/duty-calculation.tsx",
+
+    "pages/accounting/shipment-journal-links.tsx",
+    "pages/accounting/shipment-default-accounts.tsx",
+    "pages/accounting/shipment-closing.tsx",
+
+    "pages/reports/shipment-costs.tsx",
+    "pages/reports/item-landed-cost.tsx",
+    "pages/reports/shipment-delays.tsx"
+  ],
+  "exclude": [
+    "node_modules",
+    ".next"
+  ]
+}

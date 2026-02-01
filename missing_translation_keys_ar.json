@@ -1,0 +1,279 @@
+{
+  "pages": {
+    "me": {
+      "title": "حسابي",
+      "profile": "معلومات الملف الشخصي",
+      "security": "إعدادات الأمان"
+    },
+    "notifications": {
+      "title": "الإشعارات",
+      "markAsRead": "وضع علامة كمقروء",
+      "markAllAsRead": "وضع علامة على الكل كمقروء",
+      "dismiss": "إخفاء",
+      "dismissAll": "إخفاء الكل",
+      "noNotifications": "لا توجد إشعارات",
+      "unread": "غير مقروءة",
+      "all": "الكل",
+      "types": {
+        "admin": "مدير",
+        "user": "مستخدم",
+        "system": "نظام"
+      }
+    },
+    "shipments": {
+      "title": "الشحنات",
+      "createShipment": "إنشاء شحنة",
+      "reference": "المرجع",
+      "origin": "المصدر",
+      "destination": "الوجهة",
+      "status": "الحالة",
+      "created": "تاريخ الإنشاء",
+      "updated": "تاريخ التحديث",
+      "noShipments": "لا توجد شحنات",
+      "searchPlaceholder": "البحث في الشحنات..."
+    },
+    "expenses": {
+      "title": "المصروفات",
+      "createExpense": "إنشاء مصروف",
+      "shipment": "الشحنة",
+      "description": "الوصف",
+      "amount": "المبلغ",
+      "currency": "العملة",
+      "created": "تاريخ الإنشاء",
+      "noExpenses": "لا توجد مصروفات",
+      "searchPlaceholder": "البحث في المصروفات..."
+    }
+  },
+  "admin": {
+    "auditLogs": {
+      "title": "سجل المراجعة",
+      "accessDenied": "الوصول مرفوض",
+      "insufficientPermissions": "ليس لديك صلاحية لعرض سجلات المراجعة",
+      "searchPlaceholder": "البحث بالمستخدم، المورد، الإجراء، أو IP...",
+      "allActions": "جميع الإجراءات",
+      "allResources": "جميع الموارد",
+      "noLogsFound": "لا توجد سجلات مراجعة",
+      "showDetails": "عرض التفاصيل",
+      "hideDetails": "إخفاء التفاصيل",
+      "filters": {
+        "action": "تصفية حسب الإجراء",
+        "resource": "تصفية حسب المورد",
+        "dateRange": "النطاق الزمني"
+      },
+      "actions": {
+        "create": "إنشاء",
+        "update": "تحديث",
+        "delete": "حذف",
+        "view": "عرض",
+        "login": "تسجيل دخول",
+        "logout": "تسجيل خروج"
+      }
+    },
+    "branches": {
+      "title": "إدارة الفروع",
+      "createBranch": "إنشاء فرع",
+      "editBranch": "تعديل فرع",
+      "searchPlaceholder": "البحث بالاسم، الرمز، أو الشركة...",
+      "allCompanies": "جميع الشركات",
+      "noBranches": "لا توجد فروع",
+      "headquarters": "المقر الرئيسي",
+      "branchCode": "رمز الفرع",
+      "branchName": "اسم الفرع",
+      "branchNameArabic": "اسم الفرع (عربي)",
+      "selectCompany": "اختر شركة",
+      "companyRequired": "الشركة مطلوبة",
+      "isHeadquarters": "مقر رئيسي",
+      "active": "نشط",
+      "inactive": "غير نشط",
+      "address": "العنوان",
+      "phone": "الهاتف",
+      "email": "البريد الإلكتروني",
+      "manager": "المدير",
+      "confirmDelete": "هل أنت متأكد من حذف هذا الفرع؟",
+      "deleteSuccess": "تم حذف الفرع بنجاح",
+      "createSuccess": "تم إنشاء الفرع بنجاح",
+      "updateSuccess": "تم تحديث الفرع بنجاح"
+    },
+    "companies": {
+      "title": "إدارة الشركات",
+      "createCompany": "إنشاء شركة",
+      "editCompany": "تعديل شركة",
+      "searchPlaceholder": "البحث بالاسم، الرمز، أو البريد الإلكتروني...",
+      "noCompanies": "لا توجد شركات",
+      "companyCode": "رمز الشركة",
+      "companyName": "اسم الشركة",
+      "companyNameArabic": "اسم الشركة (عربي)",
+      "legalName": "الاسم القانوني",
+      "legalNameArabic": "الاسم القانوني (عربي)",
+      "taxNumber": "الرقم الضريبي",
+      "taxId": "المعرف الضريبي",
+      "crNumber": "رقم السجل التجاري",
+      "contactEmail": "البريد الإلكتروني للتواصل",
+      "contactPhone": "هاتف التواصل",
+      "address": "العنوان",
+      "city": "المدينة",
+      "country": "الدولة",
+      "active": "نشط",
+      "inactive": "غير نشط",
+      "confirmDelete": "هل أنت متأكد من حذف هذه الشركة؟",
+      "deleteSuccess": "تم حذف الشركة بنجاح",
+      "createSuccess": "تم إنشاء الشركة بنجاح",
+      "updateSuccess": "تم تحديث الشركة بنجاح"
+    },
+    "settings": {
+      "title": "إعدادات النظام",
+      "searchPlaceholder": "البحث في الإعدادات...",
+      "allCategories": "جميع الفئات",
+      "noSettings": "لا توجد إعدادات",
+      "category": "الفئة",
+      "key": "المفتاح",
+      "value": "القيمة",
+      "description": "الوصف",
+      "editSetting": "تعديل الإعداد",
+      "updateSuccess": "تم تحديث الإعداد بنجاح",
+      "updateError": "فشل تحديث الإعداد",
+      "categories": {
+        "general": "عام",
+        "security": "الأمان",
+        "email": "البريد الإلكتروني",
+        "notifications": "الإشعارات",
+        "system": "النظام",
+        "appearance": "المظهر"
+      }
+    },
+    "users": {
+      "searchPlaceholder": "البحث بالاسم، البريد الإلكتروني، أو اسم المستخدم...",
+      "allRoles": "جميع الأدوار",
+      "allStatuses": "جميع الحالات",
+      "noUsers": "لا يوجد مستخدمون",
+      "username": "اسم المستخدم",
+      "fullName": "الاسم الكامل",
+      "fullNameArabic": "الاسم الكامل (عربي)",
+      "email": "البريد الإلكتروني",
+      "phone": "الهاتف",
+      "status": "الحالة",
+      "role": "الدور",
+      "company": "الشركة",
+      "branch": "الفرع",
+      "lastLogin": "آخر تسجيل دخول",
+      "createdAt": "تاريخ الإنشاء",
+      "actions": "الإجراءات",
+      "statuses": {
+        "active": "نشط",
+        "inactive": "غير نشط",
+        "locked": "مقفل",
+        "pending": "قيد الانتظار"
+      }
+    },
+    "roles": {
+      "searchPlaceholder": "البحث بالاسم أو الوصف...",
+      "noRoles": "لا توجد أدوار",
+      "roleName": "اسم الدور",
+      "roleNameArabic": "اسم الدور (عربي)",
+      "description": "الوصف",
+      "descriptionArabic": "الوصف (عربي)",
+      "permissions": "الصلاحيات",
+      "userCount": "عدد المستخدمين",
+      "isSystem": "دور نظام",
+      "isDefault": "دور افتراضي",
+      "selectPermissions": "اختر الصلاحيات",
+      "allPermissions": "جميع الصلاحيات",
+      "noPermissions": "لا توجد صلاحيات"
+    }
+  },
+  "forms": {
+    "placeholders": {
+      "email": "أدخل البريد الإلكتروني",
+      "password": "••••••••",
+      "username": "أدخل اسم المستخدم",
+      "phone": "أدخل رقم الهاتف",
+      "search": "البحث...",
+      "select": "اختر خياراً",
+      "enterText": "أدخل النص",
+      "selectDate": "اختر التاريخ"
+    },
+    "validation": {
+      "required": "هذا الحقل مطلوب",
+      "invalidEmail": "البريد الإلكتروني غير صحيح",
+      "invalidPhone": "رقم الهاتف غير صحيح",
+      "minLength": "الحد الأدنى للطول هو {min} حرفاً",
+      "maxLength": "الحد الأقصى للطول هو {max} حرفاً",
+      "passwordMismatch": "كلمتا المرور غير متطابقتين",
+      "invalidFormat": "التنسيق غير صحيح"
+    },
+    "buttons": {
+      "submit": "إرسال",
+      "cancel": "إلغاء",
+      "save": "حفظ",
+      "saveChanges": "حفظ التغييرات",
+      "delete": "حذف",
+      "edit": "تعديل",
+      "create": "إنشاء",
+      "update": "تحديث",
+      "search": "بحث",
+      "filter": "تصفية",
+      "clear": "مسح",
+      "reset": "إعادة تعيين",
+      "apply": "تطبيق",
+      "back": "رجوع",
+      "next": "التالي",
+      "finish": "إنهاء",
+      "close": "إغلاق",
+      "confirm": "تأكيد",
+      "yes": "نعم",
+      "no": "لا"
+    }
+  },
+  "table": {
+    "columns": {
+      "id": "المعرف",
+      "name": "الاسم",
+      "code": "الرمز",
+      "description": "الوصف",
+      "status": "الحالة",
+      "createdAt": "تاريخ الإنشاء",
+      "updatedAt": "تاريخ التحديث",
+      "createdBy": "أنشأ بواسطة",
+      "actions": "الإجراءات",
+      "details": "التفاصيل"
+    },
+    "actions": {
+      "view": "عرض",
+      "edit": "تعديل",
+      "delete": "حذف",
+      "restore": "استعادة",
+      "export": "تصدير",
+      "print": "طباعة",
+      "download": "تحميل"
+    },
+    "pagination": {
+      "showing": "عرض",
+      "to": "إلى",
+      "of": "من",
+      "entries": "سجلات",
+      "previous": "السابق",
+      "next": "التالي",
+      "page": "الصفحة",
+      "rowsPerPage": "عدد الصفوف في الصفحة"
+    },
+    "messages": {
+      "noData": "لا توجد بيانات متاحة",
+      "loading": "جاري التحميل...",
+      "error": "خطأ في تحميل البيانات",
+      "emptyResult": "لم يتم العثور على نتائج"
+    }
+  },
+  "test": {
+    "debug": {
+      "title": "تصحيح المصادقة",
+      "permission": "الصلاحية"
+    },
+    "i18nDemo": {
+      "title": "صفحة تجريبية للترجمة"
+    },
+    "permissions": {
+      "title": "اختبار الصلاحيات",
+      "checkPermission": "فحص الصلاحية"
+    }
+  }
+}

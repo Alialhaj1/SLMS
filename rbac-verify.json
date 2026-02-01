@@ -1,0 +1,76 @@
+{
+  "migrations": [],
+  "recentMigrations": [
+    {
+      "name": "117_payment_optimizations.sql",
+      "run_at": "2026-01-13T09:13:25.191Z"
+    },
+    {
+      "name": "116_data_integrity.sql",
+      "run_at": "2026-01-13T09:13:25.168Z"
+    },
+    {
+      "name": "115_payment_allocations.sql",
+      "run_at": "2026-01-13T09:13:25.145Z"
+    },
+    {
+      "name": "114_vendor_payments.sql",
+      "run_at": "2026-01-13T09:13:25.108Z"
+    },
+    {
+      "name": "113_invoice_due_dates.sql",
+      "run_at": "2026-01-13T09:13:25.091Z"
+    },
+    {
+      "name": "112_vendor_defaults.sql",
+      "run_at": "2026-01-13T09:13:25.048Z"
+    },
+    {
+      "name": "111_procurement_reference_data.sql",
+      "run_at": "2026-01-13T09:13:24.990Z"
+    },
+    {
+      "name": "110_add_procurement_performance_indexes.sql",
+      "run_at": "2026-01-13T09:13:24.963Z"
+    },
+    {
+      "name": "109_add_procurement_reports_dashboard_permissions.sql",
+      "run_at": "2026-01-13T09:13:24.945Z"
+    },
+    {
+      "name": "108_add_vendors_external_flag.sql",
+      "run_at": "2026-01-13T09:13:24.933Z"
+    }
+  ],
+  "rbacMigrationsLike": [],
+  "permissionsTotal": 572,
+  "rolesTotal": 6,
+  "superAdminExists": false,
+  "superAdminPermissionLinks": 0,
+  "topRoles": [
+    {
+      "name": "Admin",
+      "permission_count": 214
+    },
+    {
+      "name": "Accountant",
+      "permission_count": 31
+    },
+    {
+      "name": "Viewer",
+      "permission_count": 6
+    },
+    {
+      "name": "Logistics",
+      "permission_count": 2
+    },
+    {
+      "name": "Warehouse",
+      "permission_count": 0
+    },
+    {
+      "name": "Warehouse (Copy)",
+      "permission_count": 0
+    }
+  ]
+}

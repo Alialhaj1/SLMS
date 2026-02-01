@@ -1,0 +1,82 @@
+/**
+ * Global RTL/LTR Styles
+ * Applied dynamically based on locale
+ */
+
+/* RTL-specific font */
+html[dir='rtl'] {
+  font-family: 'Cairo', system-ui, sans-serif;
+}
+
+html[dir='ltr'] {
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+/* RTL-specific adjustments */
+html[dir='rtl'] body {
+  text-align: right;
+}
+
+/* Fix animations for RTL */
+@media (prefers-reduced-motion: no-preference) {
+  html[dir='rtl'] .animate-slide-in {
+    animation: slide-in-rtl 0.3s ease-out;
+  }
+}
+
+/* Flip icons that point in a direction */
+html[dir='rtl'] .flip-rtl {
+  transform: scaleX(-1);
+}
+
+/* Number formatting should remain LTR even in RTL */
+html[dir='rtl'] .number-ltr {
+  direction: ltr;
+  display: inline-block;
+}
+
+/* Tailwind's default "left" and "right" utilities work with logical properties */
+/* For browser compatibility, we ensure proper fallbacks */
+
+/* Custom scrollbar for RTL */
+html[dir='rtl'] ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+html[dir='rtl'] ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+html[dir='rtl'] ::-webkit-scrollbar-thumb {
+  background: rgba(156, 163, 175, 0.5);
+  border-radius: 4px;
+}
+
+html[dir='rtl'] ::-webkit-scrollbar-thumb:hover {
+  background: rgba(107, 114, 128, 0.7);
+}
+
+/* Ensure proper text alignment in inputs */
+html[dir='rtl'] input,
+html[dir='rtl'] textarea,
+html[dir='rtl'] select {
+  text-align: right;
+}
+
+html[dir='ltr'] input,
+html[dir='ltr'] textarea,
+html[dir='ltr'] select {
+  text-align: left;
+}
+
+/* Fix for dropdown menus positioning */
+html[dir='rtl'] .dropdown-menu {
+  left: auto;
+  right: 0;
+}
+
+html[dir='ltr'] .dropdown-menu {
+  right: auto;
+  left: 0;
+}

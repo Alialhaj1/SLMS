@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import pool from '../db';
 import { authenticate, authorize } from '../middleware/auth';
+import { getPaginationParams, sendPaginated } from '../utils/response';
 
 const router = Router();
 
@@ -22,13 +23,42 @@ router.post('/', authenticate, authorize('Admin', 'Logistics'), async (req, res)
 
 // List shipments (any authenticated user)
 router.get('/', authenticate, authorize(), async (req, res) => {
+  const { page, limit, offset } = getPaginationParams(req.query);
+  const shipmentNumber = typeof req.query.shipment_number === 'string' ? req.query.shipment_number.trim() : undefined;
+  const containerNo = typeof req.query.container_no === 'string' ? req.query.container_no.trim() : undefined;
+  const blNo = typeof req.query.bl_no === 'string' ? req.query.bl_no.trim() : undefined;
+  const trackingNumber = typeof req.query.tracking_number === 'string' ? req.query.tracking_number.trim() : undefined;
+
+  // NOTE: legacy shipments table currently stores a single identifier in tracking_number.
+  // These are accepted as aliases for now to support Tracking UI requirements.
+  const refFilter = shipmentNumber || containerNo || blNo || trackingNumber;
   const client = await pool.connect();
   try {
-    const r = await client.query(`SELECT s.*, sp.name as supplier_name FROM shipments s LEFT JOIN suppliers sp ON sp.id = s.supplier_id ORDER BY s.created_at DESC`);
-    res.json(r.rows);
+    // Get total count
+    const countResult = refFilter
+      ? await client.query('SELECT COUNT(*) as total FROM shipments WHERE tracking_number ILIKE $1', [`%${refFilter}%`])
+      : await client.query('SELECT COUNT(*) as total FROM shipments');
+    const total = parseInt(countResult.rows[0].total);
+
+    // Get paginated data
+    const r = refFilter
+      ? await client.query(
+          `SELECT s.*, sp.name as supplier_name
+           FROM shipments s
+           LEFT JOIN suppliers sp ON sp.id = s.supplier_id
+           WHERE s.tracking_number ILIKE $1
+           ORDER BY s.created_at DESC
+           LIMIT $2 OFFSET $3`,
+          [`%${refFilter}%`, limit, offset]
+        )
+      : await client.query(
+          `SELECT s.*, sp.name as supplier_name FROM shipments s LEFT JOIN suppliers sp ON sp.id = s.supplier_id ORDER BY s.created_at DESC LIMIT $1 OFFSET $2`,
+          [limit, offset]
+        );
+    return sendPaginated(res, r.rows, page, limit, total);
   } catch (e) {
     console.error(e);
-    res.status(500).json({ error: 'failed to list shipments' });
+    res.status(500).json({ success: false, error: 'failed to list shipments' });
   } finally { client.release(); }
 });
 

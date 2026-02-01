@@ -1,0 +1,32 @@
+{
+  "file": "/app/data/Tariff.csv",
+  "companyId": 1,
+  "countryCode": "SA",
+  "dryRun": false,
+  "defaultEffectiveFrom": "2025-01-01",
+  "detectedColumns": {
+    "hs": "رمز_النظام_المنسق_harmonized_code",
+    "nameAr": "الصنف_باللغة_العربية_item_arabic_name",
+    "nameEn": "الصنف_باللغة_الانجليزية_item_english_name",
+    "dutyAr": "فئة_الرسم_باللغة_العربية_arabic_duty_rate",
+    "dutyEn": "فئة_الرسم_باللغة_الانجليزية_english_duty_rate",
+    "procedures": "الاجراءات_'_procedures",
+    "date": "التاريخ_date"
+  },
+  "stats": {
+    "totalRows": 19138,
+    "skippedRows": 0,
+    "uniqueHsCodes": 19138,
+    "tariffRules": 19138,
+    "unknownDuty": 5189
+  },
+  "topUnknownDutyLabels": [
+    {
+      "label": "<empty>",
+      "count": 5189
+    }
+  ],
+  "generatedAt": "2026-01-06T10:47:00.534Z",
+  "applied": true,
+  "appliedAt": "2026-01-06T10:47:16.687Z"
+}

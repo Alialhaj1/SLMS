@@ -28,11 +28,17 @@ services:
     volumes:
       - ./backend:/app
       - /app/node_modules
+      - ./backups:/backups
     ports:
       - "4000:4000"
     environment:
       - NODE_ENV=development
       - DATABASE_URL=postgresql://slms:slms_pass@postgres:5432/slms_db
+      - JWT_SECRET=your-super-secret-jwt-key-change-in-production
+      - JWT_ACCESS_EXPIRATION=15m
+      - MAX_FAILED_LOGIN_ATTEMPTS=5
+      - LOCK_DURATION_MINUTES=30
+      - PGPASSWORD=slms_pass
     depends_on:
       - postgres
       - redis
@@ -60,9 +66,51 @@ services:
     ports:
       - "3001:3001"
     environment:
-      - NEXT_PUBLIC_API_URL=http://backend:4000
+      - NODE_ENV=development
+      - NEXT_PUBLIC_API_URL=http://localhost:4000
+      - WATCHPACK_POLLING=true
+      - WATCHPACK_POLLING_INTERVAL=1000
     depends_on:
       - backend
 
+  # Automated Database Backup Service
+  # Runs daily at 2 AM, keeps backups for 30 days
+  backup:
+    image: postgres:15
+    volumes:
+      - ./backend/scripts:/scripts
+      - backup-data:/backups
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=slms_db
+      - DB_USER=slms
+      - DB_PASSWORD=slms_pass
+      - BACKUP_DIR=/backups
+      - RETENTION_DAYS=30
+    entrypoint: |
+      sh -c '
+        # Make scripts executable
+        chmod +x /scripts/backup.sh /scripts/restore.sh
+        
+        # Install cron
+        apt-get update -qq && apt-get install -y -qq cron > /dev/null 2>&1
+        
+        # Setup cron job (daily at 2 AM)
+        echo "0 2 * * * /scripts/backup.sh >> /var/log/backup.log 2>&1" | crontab -
+        
+        # Run initial backup
+        echo "Running initial backup..."
+        /scripts/backup.sh
+        
+        # Start cron in foreground
+        echo "Backup service started. Scheduled: daily at 2 AM"
+        cron -f
+      '
+    depends_on:
+      - postgres
+    restart: unless-stopped
+
 volumes:
   db-data:
+  backup-data:

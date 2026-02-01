@@ -1,0 +1,22 @@
+﻿
+== ar.json ==
+Top-level keys: 142
+Has contractTypes: false
+contractTypes.title: <missing>
+Found contractTypes paths: master.contractTypes
+Last 15 keys: users.disableReasonDefault, users.deactivated, users.activated, users.unlocked, users.passwordResetSuccess, itemGroups.title, itemGroups.subtitle, itemGroups.totalGroups, itemGroups.mainGroups, itemGroups.subGroups, itemGroups.type, itemGroups.parent, itemGroups.itemCount, itemGroups.create, itemGroups.edit
+Raw contains "contractTypes": true
+Raw snippet: " ╪º╪«╪¬┘è╪º╪▒ ╪¿┘å┘â\"\n  },\n  \"contractTypes\": {\n    \"title\": \"╪ú┘å┘ê╪º╪╣ ╪º┘ä╪╣┘é┘ê╪»"
+Raw snippet code points: 32 1575 1582 1578 1610 1575 1585 32 1576 1606 1603 34 10 32 32 125 44 10 32 32 34 99 111 110 116 114 97 99 116 84 121 112 101 115 34 58 32 123 10 32 32 32 32 34 116 105 116 108 101 34 58 32 34 1571 1606 1608 1575 1593 32 1575 1604 1593 1602 1608 1583
+Duplicate top-level object keys: 0
+
+== en.json ==
+Top-level keys: 69
+Has contractTypes: true
+contractTypes.title: Contract Types
+Found contractTypes paths: contractTypes
+Last 15 keys: alerts, fieldPermissions, buttonPermissions, systemSettings, backup, security, approval, freeze, users, roles, settings, financialYears, validation, itemGroups, unitTypes
+Raw contains "contractTypes": true
+Raw snippet: "k Selection\"\n  },\n  \"contractTypes\": {\n    \"title\": \"Contract Typ"
+Raw snippet code points: 107 32 83 101 108 101 99 116 105 111 110 34 10 32 32 125 44 10 32 32 34 99 111 110 116 114 97 99 116 84 121 112 101 115 34 58 32 123 10 32 32 32 32 34 116 105 116 108 101 34 58 32 34 67 111 110 116 114 97 99 116 32 84 121 112
+Duplicate top-level object keys: 0

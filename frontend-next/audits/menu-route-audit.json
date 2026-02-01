@@ -1,0 +1,1242 @@
+{
+  "generatedAt": "2025-12-31T10:57:22.036Z",
+  "stats": {
+    "menuPaths": 228,
+    "pageRoutes": 346,
+    "missingPagesForMenu": 0,
+    "orphanPages": 118,
+    "menuPathsMissingPermission": 151
+  },
+  "missingPagesForMenu": [],
+  "orphanPages": [
+    {
+      "route": "/",
+      "file": "pages\\index.tsx"
+    },
+    {
+      "route": "/403",
+      "file": "pages\\403.tsx"
+    },
+    {
+      "route": "/accounting/accounts",
+      "file": "pages\\accounting\\accounts.tsx"
+    },
+    {
+      "route": "/accounting/cash-inventory",
+      "file": "pages\\accounting\\cash-inventory.tsx"
+    },
+    {
+      "route": "/accounting/credit-notes",
+      "file": "pages\\accounting\\credit-notes.tsx"
+    },
+    {
+      "route": "/accounting/customers-ledger",
+      "file": "pages\\accounting\\customers-ledger.tsx"
+    },
+    {
+      "route": "/accounting/debit-notes",
+      "file": "pages\\accounting\\debit-notes.tsx"
+    },
+    {
+      "route": "/accounting/default-accounts",
+      "file": "pages\\accounting\\default-accounts.tsx"
+    },
+    {
+      "route": "/accounting/fiscal-years",
+      "file": "pages\\accounting\\fiscal-years.tsx"
+    },
+    {
+      "route": "/accounting/inventory-ledger",
+      "file": "pages\\accounting\\inventory-ledger.tsx"
+    },
+    {
+      "route": "/accounting/journals/[id]",
+      "file": "pages\\accounting\\journals\\[id].tsx"
+    },
+    {
+      "route": "/accounting/journals/new",
+      "file": "pages\\accounting\\journals\\new.tsx"
+    },
+    {
+      "route": "/accounting/reports/general-ledger/[account_id]",
+      "file": "pages\\accounting\\reports\\general-ledger\\[account_id].tsx"
+    },
+    {
+      "route": "/accounting/reports/income-statement",
+      "file": "pages\\accounting\\reports\\income-statement.tsx"
+    },
+    {
+      "route": "/accounting/reports/trial-balance",
+      "file": "pages\\accounting\\reports\\trial-balance.tsx"
+    },
+    {
+      "route": "/accounting/suppliers-ledger",
+      "file": "pages\\accounting\\suppliers-ledger.tsx"
+    },
+    {
+      "route": "/admin/help-requests",
+      "file": "pages\\admin\\help-requests.tsx"
+    },
+    {
+      "route": "/admin/login-history",
+      "file": "pages\\admin\\login-history\\index.tsx"
+    },
+    {
+      "route": "/admin/permissions-matrix",
+      "file": "pages\\admin\\permissions-matrix.tsx"
+    },
+    {
+      "route": "/admin/roles/[id]",
+      "file": "pages\\admin\\roles\\[id]\\index.tsx"
+    },
+    {
+      "route": "/admin/roles/[id]/edit",
+      "file": "pages\\admin\\roles\\[id]\\edit.tsx"
+    },
+    {
+      "route": "/admin/roles/create",
+      "file": "pages\\admin\\roles\\create.tsx"
+    },
+    {
+      "route": "/admin/roles/templates",
+      "file": "pages\\admin\\roles\\templates.tsx"
+    },
+    {
+      "route": "/admin/security/login-history",
+      "file": "pages\\admin\\security\\login-history.tsx"
+    },
+    {
+      "route": "/admin/settings",
+      "file": "pages\\admin\\settings.tsx"
+    },
+    {
+      "route": "/admin/users/[id]",
+      "file": "pages\\admin\\users\\[id]\\index.tsx"
+    },
+    {
+      "route": "/admin/users/[id]/edit",
+      "file": "pages\\admin\\users\\[id]\\edit.tsx"
+    },
+    {
+      "route": "/admin/users/create",
+      "file": "pages\\admin\\users\\create.tsx"
+    },
+    {
+      "route": "/audit-logs",
+      "file": "pages\\audit-logs\\index.tsx"
+    },
+    {
+      "route": "/auth/change-password",
+      "file": "pages\\auth\\change-password.tsx"
+    },
+    {
+      "route": "/auth/forgot-password",
+      "file": "pages\\auth\\forgot-password.tsx"
+    },
+    {
+      "route": "/auth/login",
+      "file": "pages\\auth\\login.tsx"
+    },
+    {
+      "route": "/change-password",
+      "file": "pages\\change-password.tsx"
+    },
+    {
+      "route": "/customs/clearance-documents",
+      "file": "pages\\customs\\clearance-documents.tsx"
+    },
+    {
+      "route": "/customs/declarations",
+      "file": "pages\\customs\\declarations.tsx"
+    },
+    {
+      "route": "/dashboard/kpis",
+      "file": "pages\\dashboard\\kpis.tsx"
+    },
+    {
+      "route": "/debug-auth",
+      "file": "pages\\debug-auth.tsx"
+    },
+    {
+      "route": "/documents/letter-of-credit",
+      "file": "pages\\documents\\letter-of-credit.tsx"
+    },
+    {
+      "route": "/documents/warranty",
+      "file": "pages\\documents\\warranty.tsx"
+    },
+    {
+      "route": "/expenses",
+      "file": "pages\\expenses.tsx"
+    },
+    {
+      "route": "/expenses/create",
+      "file": "pages\\expenses\\create.tsx"
+    },
+    {
+      "route": "/expenses/reports",
+      "file": "pages\\expenses\\reports.tsx"
+    },
+    {
+      "route": "/forgot-password",
+      "file": "pages\\forgot-password.tsx"
+    },
+    {
+      "route": "/help",
+      "file": "pages\\help.tsx"
+    },
+    {
+      "route": "/hr/advances",
+      "file": "pages\\hr\\advances.tsx"
+    },
+    {
+      "route": "/hr/expenses",
+      "file": "pages\\hr\\expenses.tsx"
+    },
+    {
+      "route": "/hr/salaries",
+      "file": "pages\\hr\\salaries.tsx"
+    },
+    {
+      "route": "/i18n-demo",
+      "file": "pages\\i18n-demo.tsx"
+    },
+    {
+      "route": "/login",
+      "file": "pages\\login.tsx"
+    },
+    {
+      "route": "/master/approval-workflows",
+      "file": "pages\\master\\approval-workflows.tsx"
+    },
+    {
+      "route": "/master/backup-settings",
+      "file": "pages\\master\\backup-settings.tsx"
+    },
+    {
+      "route": "/master/banks",
+      "file": "pages\\master\\banks.tsx"
+    },
+    {
+      "route": "/master/branches",
+      "file": "pages\\master\\branches.tsx"
+    },
+    {
+      "route": "/master/clearing-agents",
+      "file": "pages\\master\\clearing-agents.tsx"
+    },
+    {
+      "route": "/master/companies",
+      "file": "pages\\master\\companies.tsx"
+    },
+    {
+      "route": "/master/contact-methods",
+      "file": "pages\\master\\contact-methods.tsx"
+    },
+    {
+      "route": "/master/contract-templates",
+      "file": "pages\\master\\contract-templates.tsx"
+    },
+    {
+      "route": "/master/cost-centers",
+      "file": "pages\\master\\cost-centers.tsx"
+    },
+    {
+      "route": "/master/cost-items",
+      "file": "pages\\master\\cost-items.tsx"
+    },
+    {
+      "route": "/master/currencies",
+      "file": "pages\\master\\currencies.tsx"
+    },
+    {
+      "route": "/master/customer-groups",
+      "file": "pages\\master\\customer-groups.tsx"
+    },
+    {
+      "route": "/master/customs-fee-categories",
+      "file": "pages\\master\\customs-fee-categories.tsx"
+    },
+    {
+      "route": "/master/deductions",
+      "file": "pages\\master\\deductions.tsx"
+    },
+    {
+      "route": "/master/document-status",
+      "file": "pages\\master\\document-status.tsx"
+    },
+    {
+      "route": "/master/document-types",
+      "file": "pages\\master\\document-types.tsx"
+    },
+    {
+      "route": "/master/exchange-rates",
+      "file": "pages\\master\\exchange-rates.tsx"
+    },
+    {
+      "route": "/master/inventory-counting",
+      "file": "pages\\master\\inventory-counting.tsx"
+    },
+    {
+      "route": "/master/invoice-templates",
+      "file": "pages\\master\\invoice-templates.tsx"
+    },
+    {
+      "route": "/master/job-titles",
+      "file": "pages\\master\\job-titles.tsx"
+    },
+    {
+      "route": "/master/journal-types",
+      "file": "pages\\master\\journal-types.tsx"
+    },
+    {
+      "route": "/master/languages",
+      "file": "pages\\master\\languages.tsx"
+    },
+    {
+      "route": "/master/notice-types",
+      "file": "pages\\master\\notice-types.tsx"
+    },
+    {
+      "route": "/master/parallel-currencies",
+      "file": "pages\\master\\parallel-currencies.tsx"
+    },
+    {
+      "route": "/master/payment-types",
+      "file": "pages\\master\\payment-types.tsx"
+    },
+    {
+      "route": "/master/pricing-methods",
+      "file": "pages\\master\\pricing-methods.tsx"
+    },
+    {
+      "route": "/master/profit-centers",
+      "file": "pages\\master\\profit-centers.tsx"
+    },
+    {
+      "route": "/master/purchase-order-templates",
+      "file": "pages\\master\\purchase-order-templates.tsx"
+    },
+    {
+      "route": "/master/quality-status",
+      "file": "pages\\master\\quality-status.tsx"
+    },
+    {
+      "route": "/master/receipt-types",
+      "file": "pages\\master\\receipt-types.tsx"
+    },
+    {
+      "route": "/master/regions",
+      "file": "pages\\master\\regions.tsx"
+    },
+    {
+      "route": "/master/reorder-rules",
+      "file": "pages\\master\\reorder-rules.tsx"
+    },
+    {
+      "route": "/master/roles",
+      "file": "pages\\master\\roles.tsx"
+    },
+    {
+      "route": "/master/shipment-cost-centers",
+      "file": "pages\\master\\shipment-cost-centers.tsx"
+    },
+    {
+      "route": "/master/supplier-classifications",
+      "file": "pages\\master\\supplier-classifications.tsx"
+    },
+    {
+      "route": "/master/system-languages",
+      "file": "pages\\master\\system-languages.tsx"
+    },
+    {
+      "route": "/master/system-policies",
+      "file": "pages\\master\\system-policies.tsx"
+    },
+    {
+      "route": "/master/system-setup",
+      "file": "pages\\master\\system-setup.tsx"
+    },
+    {
+      "route": "/master/taxes",
+      "file": "pages\\master\\taxes.tsx"
+    },
+    {
+      "route": "/master/time-zones",
+      "file": "pages\\master\\time-zones.tsx"
+    },
+    {
+      "route": "/master/ui-themes",
+      "file": "pages\\master\\ui-themes.tsx"
+    },
+    {
+      "route": "/master/users",
+      "file": "pages\\master\\users.tsx"
+    },
+    {
+      "route": "/master/voucher-types",
+      "file": "pages\\master\\voucher-types.tsx"
+    },
+    {
+      "route": "/master/withholding-tax",
+      "file": "pages\\master\\withholding-tax.tsx"
+    },
+    {
+      "route": "/master/zatca-integration",
+      "file": "pages\\master\\zatca-integration.tsx"
+    },
+    {
+      "route": "/me",
+      "file": "pages\\me.tsx"
+    },
+    {
+      "route": "/profile",
+      "file": "pages\\profile.tsx"
+    },
+    {
+      "route": "/purchasing/vendor-credit-limits",
+      "file": "pages\\purchasing\\vendor-credit-limits.tsx"
+    },
+    {
+      "route": "/quality/approved-vendors",
+      "file": "pages\\quality\\approved-vendors.tsx"
+    },
+    {
+      "route": "/reports/costs-pricing",
+      "file": "pages\\reports\\costs-pricing.tsx"
+    },
+    {
+      "route": "/reports/customs",
+      "file": "pages\\reports\\customs.tsx"
+    },
+    {
+      "route": "/reports/hr",
+      "file": "pages\\reports\\hr.tsx"
+    },
+    {
+      "route": "/reports/purchasing",
+      "file": "pages\\reports\\purchasing.tsx"
+    },
+    {
+      "route": "/reports/quality",
+      "file": "pages\\reports\\quality.tsx"
+    },
+    {
+      "route": "/roles",
+      "file": "pages\\roles\\index.tsx"
+    },
+    {
+      "route": "/settings",
+      "file": "pages\\settings\\index.tsx"
+    },
+    {
+      "route": "/settings/backup-security",
+      "file": "pages\\settings\\backup-security.tsx"
+    },
+    {
+      "route": "/settings/bank-reconciliation",
+      "file": "pages\\settings\\bank-reconciliation.tsx"
+    },
+    {
+      "route": "/settings/freeze-settings",
+      "file": "pages\\settings\\freeze-settings.tsx"
+    },
+    {
+      "route": "/settings/system-settings",
+      "file": "pages\\settings\\system-settings.tsx"
+    },
+    {
+      "route": "/shipments",
+      "file": "pages\\shipments.tsx"
+    },
+    {
+      "route": "/shipments/[id]",
+      "file": "pages\\shipments\\[id].tsx"
+    },
+    {
+      "route": "/shipments/create",
+      "file": "pages\\shipments\\create.tsx"
+    },
+    {
+      "route": "/suppliers",
+      "file": "pages\\suppliers\\index.tsx"
+    },
+    {
+      "route": "/suppliers/create",
+      "file": "pages\\suppliers\\create.tsx"
+    },
+    {
+      "route": "/test-api",
+      "file": "pages\\test-api.tsx"
+    },
+    {
+      "route": "/test-permissions",
+      "file": "pages\\test-permissions.tsx"
+    },
+    {
+      "route": "/warehouses",
+      "file": "pages\\warehouses\\index.tsx"
+    },
+    {
+      "route": "/warehouses/inventory",
+      "file": "pages\\warehouses\\inventory.tsx"
+    }
+  ],
+  "menuPathsMissingPermission": [
+    {
+      "key": "dashboard",
+      "labelKey": "menu.dashboard",
+      "path": "/dashboard"
+    },
+    {
+      "key": "notifications.systemNotifications",
+      "labelKey": "menu.notifications.systemNotifications",
+      "path": "/notifications"
+    },
+    {
+      "key": "notifications.paymentReminders",
+      "labelKey": "menu.notifications.paymentReminders",
+      "path": "/notifications/payment-reminders"
+    },
+    {
+      "key": "notifications.renewalAlerts",
+      "labelKey": "menu.notifications.renewalAlerts",
+      "path": "/notifications/renewal-alerts"
+    },
+    {
+      "key": "notifications.reports",
+      "labelKey": "menu.notifications.reports",
+      "path": "/reports/notifications"
+    },
+    {
+      "key": "generalLedger.openingBalances",
+      "labelKey": "menu.generalLedger.openingBalances",
+      "path": "/accounting/opening-balances"
+    },
+    {
+      "key": "generalLedger.budgets",
+      "labelKey": "menu.generalLedger.budgets",
+      "path": "/accounting/budgets"
+    },
+    {
+      "key": "generalLedger.cash",
+      "labelKey": "menu.generalLedger.cash",
+      "path": "/accounting/cash-ledger"
+    },
+    {
+      "key": "generalLedger.bankAccounts",
+      "labelKey": "menu.generalLedger.bankAccounts",
+      "path": "/master/bank-accounts"
+    },
+    {
+      "key": "generalLedger.receiptVoucher",
+      "labelKey": "menu.generalLedger.receiptVoucher",
+      "path": "/accounting/receipt-voucher"
+    },
+    {
+      "key": "generalLedger.paymentVoucher",
+      "labelKey": "menu.generalLedger.paymentVoucher",
+      "path": "/accounting/payment-voucher"
+    },
+    {
+      "key": "generalLedger.cashDeposit",
+      "labelKey": "menu.generalLedger.cashDeposit",
+      "path": "/accounting/cash-deposit"
+    },
+    {
+      "key": "generalLedger.chequeBooks",
+      "labelKey": "menu.generalLedger.chequeBooks",
+      "path": "/master/cheque-books"
+    },
+    {
+      "key": "generalLedger.bankMatching",
+      "labelKey": "menu.generalLedger.bankMatching",
+      "path": "/accounting/bank-matching"
+    },
+    {
+      "key": "generalLedger.bankReconciliation",
+      "labelKey": "menu.generalLedger.bankReconciliation",
+      "path": "/accounting/bank-reconciliation"
+    },
+    {
+      "key": "generalLedger.accruedRevenue",
+      "labelKey": "menu.generalLedger.accruedRevenue",
+      "path": "/accounting/accrued-revenue"
+    },
+    {
+      "key": "financeAccounting.expenseDistribution",
+      "labelKey": "menu.financeAccounting.expenseDistribution",
+      "path": "/master/expense-distribution"
+    },
+    {
+      "key": "taxes.taxTypes",
+      "labelKey": "menu.taxes.taxTypes",
+      "path": "/master/tax-types"
+    },
+    {
+      "key": "taxes.taxCodes",
+      "labelKey": "menu.taxes.taxCodes",
+      "path": "/master/tax-codes"
+    },
+    {
+      "key": "taxes.taxExemptions",
+      "labelKey": "menu.taxes.taxExemptions",
+      "path": "/master/tax-exemptions"
+    },
+    {
+      "key": "taxes.taxRegions",
+      "labelKey": "menu.taxes.taxRegions",
+      "path": "/master/tax-regions"
+    },
+    {
+      "key": "taxes.taxCategories",
+      "labelKey": "menu.taxes.taxCategories",
+      "path": "/master/tax-categories"
+    },
+    {
+      "key": "taxes.taxItemCategories",
+      "labelKey": "menu.taxes.taxItemCategories",
+      "path": "/master/tax-item-categories"
+    },
+    {
+      "key": "taxes.zakatCodes",
+      "labelKey": "menu.taxes.zakatCodes",
+      "path": "/master/zakat-codes"
+    },
+    {
+      "key": "taxes.zatcaSettings",
+      "labelKey": "menu.taxes.zatcaSettings",
+      "path": "/settings/zatca"
+    },
+    {
+      "key": "sales.quotations",
+      "labelKey": "menu.sales.quotations",
+      "path": "/sales/quotations"
+    },
+    {
+      "key": "sales.customerContracts",
+      "labelKey": "menu.sales.customerContracts",
+      "path": "/sales/customer-contracts"
+    },
+    {
+      "key": "sales.salesOrders",
+      "labelKey": "menu.sales.salesOrders",
+      "path": "/sales/orders"
+    },
+    {
+      "key": "sales.salesInvoices",
+      "labelKey": "menu.sales.salesInvoices",
+      "path": "/sales/invoices"
+    },
+    {
+      "key": "sales.invoiceTypes",
+      "labelKey": "menu.sales.invoiceTypes",
+      "path": "/master/invoice-types"
+    },
+    {
+      "key": "sales.returns",
+      "labelKey": "menu.sales.returns",
+      "path": "/sales/returns"
+    },
+    {
+      "key": "sales.paymentTerms",
+      "labelKey": "menu.sales.paymentTerms",
+      "path": "/master/payment-terms"
+    },
+    {
+      "key": "sales.priceLists",
+      "labelKey": "menu.sales.priceLists",
+      "path": "/sales/price-lists"
+    },
+    {
+      "key": "sales.discountAgreements",
+      "labelKey": "menu.sales.discountAgreements",
+      "path": "/sales/discount-agreements"
+    },
+    {
+      "key": "crm.customers",
+      "labelKey": "menu.crm.customers",
+      "path": "/master/customers"
+    },
+    {
+      "key": "crm.customerClassifications",
+      "labelKey": "menu.crm.customerClassifications",
+      "path": "/master/customer-classifications"
+    },
+    {
+      "key": "crm.customerTypes",
+      "labelKey": "menu.crm.customerTypes",
+      "path": "/master/customer-types"
+    },
+    {
+      "key": "crm.customerStatus",
+      "labelKey": "menu.crm.customerStatus",
+      "path": "/master/customer-status"
+    },
+    {
+      "key": "crm.creditLimits",
+      "labelKey": "menu.crm.creditLimits",
+      "path": "/master/credit-limits"
+    },
+    {
+      "key": "crm.discountAgreements",
+      "labelKey": "menu.crm.discountAgreements",
+      "path": "/master/discount-agreements"
+    },
+    {
+      "key": "crm.paymentMethods",
+      "labelKey": "menu.crm.paymentMethods",
+      "path": "/master/payment-methods"
+    },
+    {
+      "key": "crm.addresses",
+      "labelKey": "menu.crm.addresses",
+      "path": "/crm/addresses"
+    },
+    {
+      "key": "crm.addressTypes",
+      "labelKey": "menu.crm.addressTypes",
+      "path": "/master/address-types"
+    },
+    {
+      "key": "crm.contacts",
+      "labelKey": "menu.crm.contacts",
+      "path": "/crm/contacts"
+    },
+    {
+      "key": "crm.contactTypes",
+      "labelKey": "menu.crm.contactTypes",
+      "path": "/master/contact-types"
+    },
+    {
+      "key": "crm.salesOpportunities",
+      "labelKey": "menu.crm.salesOpportunities",
+      "path": "/crm/opportunities"
+    },
+    {
+      "key": "crm.customerFollowUp",
+      "labelKey": "menu.crm.customerFollowUp",
+      "path": "/crm/follow-up"
+    },
+    {
+      "key": "purchasing.vendorClassifications",
+      "labelKey": "menu.purchasing.vendorClassifications",
+      "path": "/master/vendor-classifications"
+    },
+    {
+      "key": "purchasing.vendorTypes",
+      "labelKey": "menu.purchasing.vendorTypes",
+      "path": "/master/vendor-types"
+    },
+    {
+      "key": "purchasing.vendorStatus",
+      "labelKey": "menu.purchasing.vendorStatus",
+      "path": "/master/vendor-status"
+    },
+    {
+      "key": "purchasing.purchaseInvoices",
+      "labelKey": "menu.purchasing.purchaseInvoices",
+      "path": "/purchasing/invoices"
+    },
+    {
+      "key": "purchasing.purchaseOrders",
+      "labelKey": "menu.purchasing.purchaseOrders",
+      "path": "/purchasing/orders"
+    },
+    {
+      "key": "purchasing.vendorQuotations",
+      "labelKey": "menu.purchasing.vendorQuotations",
+      "path": "/purchasing/quotations"
+    },
+    {
+      "key": "purchasing.vendorContracts",
+      "labelKey": "menu.purchasing.vendorContracts",
+      "path": "/purchasing/contracts"
+    },
+    {
+      "key": "purchasing.purchaseReturns",
+      "labelKey": "menu.purchasing.purchaseReturns",
+      "path": "/purchasing/returns"
+    },
+    {
+      "key": "purchasing.purchaseOrderTypes",
+      "labelKey": "menu.purchasing.purchaseOrderTypes",
+      "path": "/master/purchase-order-types"
+    },
+    {
+      "key": "purchasing.vendorPaymentTerms",
+      "labelKey": "menu.purchasing.vendorPaymentTerms",
+      "path": "/master/vendor-payment-terms"
+    },
+    {
+      "key": "purchasing.vendorPriceLists",
+      "labelKey": "menu.purchasing.vendorPriceLists",
+      "path": "/purchasing/vendor-price-lists"
+    },
+    {
+      "key": "purchasing.supplyTerms",
+      "labelKey": "menu.purchasing.supplyTerms",
+      "path": "/master/supply-terms"
+    },
+    {
+      "key": "purchasing.deliveryTerms",
+      "labelKey": "menu.purchasing.deliveryTerms",
+      "path": "/master/delivery-terms"
+    },
+    {
+      "key": "purchasing.contractTypes",
+      "labelKey": "menu.purchasing.contractTypes",
+      "path": "/master/contract-types"
+    },
+    {
+      "key": "purchasing.contractStatus",
+      "labelKey": "menu.purchasing.contractStatus",
+      "path": "/master/contract-status"
+    },
+    {
+      "key": "purchasing.contractApprovalStatus",
+      "labelKey": "menu.purchasing.contractApprovalStatus",
+      "path": "/master/contract-approval-status"
+    },
+    {
+      "key": "inventory.itemGroups",
+      "labelKey": "menu.inventory.itemGroups",
+      "path": "/master/item-groups"
+    },
+    {
+      "key": "inventory.groupTypes",
+      "labelKey": "menu.inventory.groupTypes",
+      "path": "/master/group-types"
+    },
+    {
+      "key": "inventory.itemTypes",
+      "labelKey": "menu.inventory.itemTypes",
+      "path": "/master/item-types"
+    },
+    {
+      "key": "inventory.itemCategories",
+      "labelKey": "menu.inventory.itemCategories",
+      "path": "/master/item-categories"
+    },
+    {
+      "key": "inventory.itemGrades",
+      "labelKey": "menu.inventory.itemGrades",
+      "path": "/master/item-grades"
+    },
+    {
+      "key": "inventory.unitTypes",
+      "labelKey": "menu.inventory.unitTypes",
+      "path": "/master/unit-types"
+    },
+    {
+      "key": "inventory.warehouseTypes",
+      "labelKey": "menu.inventory.warehouseTypes",
+      "path": "/master/warehouse-types"
+    },
+    {
+      "key": "inventory.warehouseLocations",
+      "labelKey": "menu.inventory.warehouseLocations",
+      "path": "/master/warehouse-locations"
+    },
+    {
+      "key": "inventory.binTypes",
+      "labelKey": "menu.inventory.binTypes",
+      "path": "/master/bin-types"
+    },
+    {
+      "key": "inventory.serialNumbers",
+      "labelKey": "menu.inventory.serialNumbers",
+      "path": "/master/serial-numbers"
+    },
+    {
+      "key": "inventory.trackingPolicies",
+      "labelKey": "menu.inventory.trackingPolicies",
+      "path": "/master/tracking-policies"
+    },
+    {
+      "key": "inventory.stockLimits",
+      "labelKey": "menu.inventory.stockLimits",
+      "path": "/master/stock-limits"
+    },
+    {
+      "key": "inventory.minMaxPolicies",
+      "labelKey": "menu.inventory.minMaxPolicies",
+      "path": "/master/min-max-policies"
+    },
+    {
+      "key": "inventory.countingPolicies",
+      "labelKey": "menu.inventory.countingPolicies",
+      "path": "/master/counting-policies"
+    },
+    {
+      "key": "inventory.expiryPolicies",
+      "labelKey": "menu.inventory.expiryPolicies",
+      "path": "/master/expiry-policies"
+    },
+    {
+      "key": "inventory.externalWarehouses",
+      "labelKey": "menu.inventory.externalWarehouses",
+      "path": "/master/external-warehouses"
+    },
+    {
+      "key": "inventory.valuationMethods",
+      "labelKey": "menu.inventory.valuationMethods",
+      "path": "/master/valuation-methods"
+    },
+    {
+      "key": "advancedWarehouses.itemExpiry",
+      "labelKey": "menu.advancedWarehouses.itemExpiry",
+      "path": "/inventory/item-expiry"
+    },
+    {
+      "key": "logistics.transportCompanies",
+      "labelKey": "menu.logistics.transportCompanies",
+      "path": "/master/transport-companies"
+    },
+    {
+      "key": "logistics.vehicleTypes",
+      "labelKey": "menu.logistics.vehicleTypes",
+      "path": "/master/vehicle-types"
+    },
+    {
+      "key": "logistics.vehicles",
+      "labelKey": "menu.logistics.vehicles",
+      "path": "/master/vehicles"
+    },
+    {
+      "key": "logistics.drivers",
+      "labelKey": "menu.logistics.drivers",
+      "path": "/master/drivers"
+    },
+    {
+      "key": "logistics.transportRoutes",
+      "labelKey": "menu.logistics.transportRoutes",
+      "path": "/master/transport-routes"
+    },
+    {
+      "key": "logistics.shippingSchedules",
+      "labelKey": "menu.logistics.shippingSchedules",
+      "path": "/shipping/schedules"
+    },
+    {
+      "key": "logistics.shipmentInsurance",
+      "labelKey": "menu.logistics.shipmentInsurance",
+      "path": "/shipping/insurance"
+    },
+    {
+      "key": "logistics.deliveryLocations",
+      "labelKey": "menu.logistics.deliveryLocations",
+      "path": "/master/delivery-locations"
+    },
+    {
+      "key": "logistics.externalWarehouses",
+      "labelKey": "menu.logistics.externalWarehouses",
+      "path": "/master/external-warehouses"
+    },
+    {
+      "key": "logistics.shipmentTypes",
+      "labelKey": "menu.logistics.shipmentTypes",
+      "path": "/master/shipment-types"
+    },
+    {
+      "key": "importExport.incoterms",
+      "labelKey": "menu.importExport.incoterms",
+      "path": "/master/incoterms"
+    },
+    {
+      "key": "importExport.shippingMethods",
+      "labelKey": "menu.importExport.shippingMethods",
+      "path": "/master/shipping-methods"
+    },
+    {
+      "key": "importExport.shippingLines",
+      "labelKey": "menu.importExport.shippingLines",
+      "path": "/master/shipping-lines"
+    },
+    {
+      "key": "importExport.shippingClassifications",
+      "labelKey": "menu.importExport.shippingClassifications",
+      "path": "/master/shipping-classifications"
+    },
+    {
+      "key": "importExport.freightAgents",
+      "labelKey": "menu.importExport.freightAgents",
+      "path": "/master/freight-agents"
+    },
+    {
+      "key": "importExport.forwarders",
+      "labelKey": "menu.importExport.forwarders",
+      "path": "/master/forwarders"
+    },
+    {
+      "key": "importExport.containerTypes",
+      "labelKey": "menu.importExport.containerTypes",
+      "path": "/master/container-types"
+    },
+    {
+      "key": "importExport.hsCodes",
+      "labelKey": "menu.importExport.hsCodes",
+      "path": "/master/hs-codes"
+    },
+    {
+      "key": "importExport.tariffs",
+      "labelKey": "menu.importExport.tariffs",
+      "path": "/master/tariffs"
+    },
+    {
+      "key": "importExport.entryExitPoints",
+      "labelKey": "menu.importExport.entryExitPoints",
+      "path": "/master/entry-exit-points"
+    },
+    {
+      "key": "importExport.shippingDocuments",
+      "labelKey": "menu.importExport.shippingDocuments",
+      "path": "/shipping/documents"
+    },
+    {
+      "key": "importExport.billOfLadingTypes",
+      "labelKey": "menu.importExport.billOfLadingTypes",
+      "path": "/master/bill-of-lading-types"
+    },
+    {
+      "key": "importExport.billOfLading",
+      "labelKey": "menu.importExport.billOfLading",
+      "path": "/shipping/bill-of-lading"
+    },
+    {
+      "key": "importExport.insuranceTypes",
+      "labelKey": "menu.importExport.insuranceTypes",
+      "path": "/master/insurance-types"
+    },
+    {
+      "key": "importExport.shipmentTypes",
+      "labelKey": "menu.importExport.shipmentTypes",
+      "path": "/master/shipment-types"
+    },
+    {
+      "key": "importExport.shippingSchedules",
+      "labelKey": "menu.importExport.shippingSchedules",
+      "path": "/shipping/schedules"
+    },
+    {
+      "key": "importExport.shippingContracts",
+      "labelKey": "menu.importExport.shippingContracts",
+      "path": "/shipping/contracts"
+    },
+    {
+      "key": "fixedAssets.assets",
+      "labelKey": "menu.fixedAssets.assets",
+      "path": "/assets/fixed-assets"
+    },
+    {
+      "key": "fixedAssets.assetCategories",
+      "labelKey": "menu.fixedAssets.assetCategories",
+      "path": "/master/asset-categories"
+    },
+    {
+      "key": "fixedAssets.assetLocations",
+      "labelKey": "menu.fixedAssets.assetLocations",
+      "path": "/master/asset-locations"
+    },
+    {
+      "key": "fixedAssets.assetStatus",
+      "labelKey": "menu.fixedAssets.assetStatus",
+      "path": "/master/asset-status"
+    },
+    {
+      "key": "fixedAssets.depreciationSchedules",
+      "labelKey": "menu.fixedAssets.depreciationSchedules",
+      "path": "/assets/depreciation-schedules"
+    },
+    {
+      "key": "fixedAssets.maintenanceContracts",
+      "labelKey": "menu.fixedAssets.maintenanceContracts",
+      "path": "/assets/maintenance-contracts"
+    },
+    {
+      "key": "hr.employees",
+      "labelKey": "menu.hr.employees",
+      "path": "/hr/employees"
+    },
+    {
+      "key": "hr.employeeStatus",
+      "labelKey": "menu.hr.employeeStatus",
+      "path": "/master/employee-status"
+    },
+    {
+      "key": "hr.departments",
+      "labelKey": "menu.hr.departments",
+      "path": "/master/departments"
+    },
+    {
+      "key": "hr.responsibilityCenters",
+      "labelKey": "menu.hr.responsibilityCenters",
+      "path": "/master/responsibility-centers"
+    },
+    {
+      "key": "hr.allowanceTypes",
+      "labelKey": "menu.hr.allowanceTypes",
+      "path": "/master/allowance-types"
+    },
+    {
+      "key": "hr.deductionTypes",
+      "labelKey": "menu.hr.deductionTypes",
+      "path": "/master/deduction-types"
+    },
+    {
+      "key": "hr.advanceTypes",
+      "labelKey": "menu.hr.advanceTypes",
+      "path": "/master/advance-types"
+    },
+    {
+      "key": "hr.expenseTypes",
+      "labelKey": "menu.hr.expenseTypes",
+      "path": "/master/hr-expense-types"
+    },
+    {
+      "key": "hr.payrollSchedules",
+      "labelKey": "menu.hr.payrollSchedules",
+      "path": "/master/payroll-periods"
+    },
+    {
+      "key": "hr.contractTypes",
+      "labelKey": "menu.hr.contractTypes",
+      "path": "/master/hr-contract-types"
+    },
+    {
+      "key": "hr.contractStatus",
+      "labelKey": "menu.hr.contractStatus",
+      "path": "/master/hr-contract-status"
+    },
+    {
+      "key": "hr.allowancesDeductions",
+      "labelKey": "menu.hr.allowancesDeductions",
+      "path": "/master/allowances"
+    },
+    {
+      "key": "projects.contractTypes",
+      "labelKey": "menu.projects.contractTypes",
+      "path": "/master/project-contract-types"
+    },
+    {
+      "key": "generalAdmin.reports",
+      "labelKey": "menu.generalAdmin.reports",
+      "path": "/reports/general"
+    },
+    {
+      "key": "referenceData.ports",
+      "labelKey": "menu.referenceData.ports",
+      "path": "/master/ports"
+    },
+    {
+      "key": "referenceData.clearingOffices",
+      "labelKey": "menu.referenceData.clearingOffices",
+      "path": "/master/customs-offices"
+    },
+    {
+      "key": "referenceData.deliveryLocations",
+      "labelKey": "menu.referenceData.deliveryLocations",
+      "path": "/master/delivery-locations"
+    },
+    {
+      "key": "referenceData.taxZones",
+      "labelKey": "menu.referenceData.taxZones",
+      "path": "/master/tax-zones"
+    },
+    {
+      "key": "referenceData.recordStatus",
+      "labelKey": "menu.referenceData.recordStatus",
+      "path": "/master/record-status"
+    },
+    {
+      "key": "referenceData.requestStatus",
+      "labelKey": "menu.referenceData.requestStatus",
+      "path": "/master/request-status"
+    },
+    {
+      "key": "security.fieldPermissions",
+      "labelKey": "menu.security.fieldPermissions",
+      "path": "/admin/field-permissions"
+    },
+    {
+      "key": "security.buttonPermissions",
+      "labelKey": "menu.security.buttonPermissions",
+      "path": "/admin/button-permissions"
+    },
+    {
+      "key": "compliance.conformityCertificates",
+      "labelKey": "menu.compliance.conformityCertificates",
+      "path": "/compliance/conformity-certificates"
+    },
+    {
+      "key": "compliance.originCertificates",
+      "labelKey": "menu.compliance.originCertificates",
+      "path": "/compliance/origin-certificates"
+    },
+    {
+      "key": "compliance.importExportLicenses",
+      "labelKey": "menu.compliance.importExportLicenses",
+      "path": "/compliance/licenses"
+    },
+    {
+      "key": "compliance.regulationsStandards",
+      "labelKey": "menu.compliance.regulationsStandards",
+      "path": "/compliance/regulations"
+    },
+    {
+      "key": "compliance.reports",
+      "labelKey": "menu.compliance.reports",
+      "path": "/reports/compliance"
+    },
+    {
+      "key": "risks.riskTypes",
+      "labelKey": "menu.risks.riskTypes",
+      "path": "/master/risk-types"
+    },
+    {
+      "key": "systemSettings.securityPolicies",
+      "labelKey": "menu.systemSettings.securityPolicies",
+      "path": "/settings/security-policies"
+    },
+    {
+      "key": "integrations.paymentGateways",
+      "labelKey": "menu.integrations.paymentGateways",
+      "path": "/integrations/payment-gateways"
+    },
+    {
+      "key": "integrations.shippingCompanies",
+      "labelKey": "menu.integrations.shippingCompanies",
+      "path": "/integrations/shipping-companies"
+    },
+    {
+      "key": "integrations.bankIntegration",
+      "labelKey": "menu.integrations.bankIntegration",
+      "path": "/integrations/banks"
+    },
+    {
+      "key": "integrations.reports",
+      "labelKey": "menu.integrations.reports",
+      "path": "/reports/integrations"
+    },
+    {
+      "key": "reportsAnalytics.reportTypes",
+      "labelKey": "menu.reportsAnalytics.reportTypes",
+      "path": "/master/report-types"
+    },
+    {
+      "key": "reportsAnalytics.kpis",
+      "labelKey": "menu.reportsAnalytics.kpis",
+      "path": "/reports/kpis"
+    },
+    {
+      "key": "reportsAnalytics.analyticalTemplates",
+      "labelKey": "menu.reportsAnalytics.analyticalTemplates",
+      "path": "/reports/analytical-templates"
+    },
+    {
+      "key": "reportsAnalytics.mainReports",
+      "labelKey": "menu.reportsAnalytics.mainReports",
+      "path": "/reports"
+    }
+  ]
+}

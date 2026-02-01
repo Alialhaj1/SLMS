@@ -1,0 +1,947 @@
+
+> slms-backend@0.1.0 dev
+> ts-node-dev --respawn --transpile-only src/index.ts
+
+[INFO] 06:04:05 ts-node-dev ver. 2.0.0 (using ts-node ver. 10.9.2, typescript ver. 5.9.3)
+✅ Environment configuration loaded:
+   - NODE_ENV: development
+   - PORT: 4000
+   - JWT_SECRET: your-sup... (46 chars)
+   - DATABASE_URL: postgres:5432/slms_db
+   - CORS_ORIGINS: http://localhost:3000, http://localhost:3001
+ℹ️  Sentry disabled - no SENTRY_DSN configured (dev mode OK)
+2026-02-01 06:04:13 [[32minfo[39m]: [32m🚀 Application starting...[39m | {
+  "nodeEnv": "development",
+  "port": 4000
+}
+2026-02-01 06:04:13 [[32minfo[39m]: [32m🚀 Starting SLMS Backend...[39m | {
+  "nodeVersion": "v18.20.8",
+  "platform": "linux"
+}
+2026-02-01 06:04:13 [[32minfo[39m]: [32mRunning database migrations...[39m
+New database client connected
+2026-02-01 06:04:19 [[32minfo[39m]: [32m✅ Migration applied: 001_create_roles_and_users.sql[39m | {
+  "executionTime": "4644ms",
+  "checksum": "LS0gY3JlYXRlIHJvbGVzLCB1c2VycyBh"
+}
+2026-02-01 06:04:22 [[32minfo[39m]: [32m✅ Migration applied: 002_create_suppliers_products.sql[39m | {
+  "executionTime": "2778ms",
+  "checksum": "LS0gc3VwcGxpZXJzIGFuZCBwcm9kdWN0"
+}
+2026-02-01 06:04:22 [[32minfo[39m]: [32m✅ Migration applied: 003_create_refresh_tokens.sql[39m | {
+  "executionTime": "638ms",
+  "checksum": "LS0gcmVmcmVzaCB0b2tlbnMgdGFibGUg"
+}
+2026-02-01 06:04:24 [[32minfo[39m]: [32m✅ Migration applied: 003_system_admin_tables.sql[39m | {
+  "executionTime": "1757ms",
+  "checksum": "LS0gQ29tcGFuaWVzIFRhYmxlIChNdWx0"
+}
+2026-02-01 06:04:24 [[32minfo[39m]: [32m✅ Migration applied: 004_replace_refresh_tokens.sql[39m | {
+  "executionTime": "32ms",
+  "checksum": "LS0gUmVwbGFjZSByZWZyZXNoX3Rva2Vu"
+}
+2026-02-01 06:04:24 [[32minfo[39m]: [32m✅ Migration applied: 005_create_shipments_expenses.sql[39m | {
+  "executionTime": "31ms",
+  "checksum": "LS0gU2hpcG1lbnRzIGFuZCBFeHBlbnNl"
+}
+2026-02-01 06:04:24 [[32minfo[39m]: [32m✅ Migration applied: 006_create_super_admin.sql[39m | {
+  "executionTime": "4ms",
+  "checksum": "LS0gQ3JlYXRlIHN1cGVyIGFkbWluIHVz"
+}
+2026-02-01 06:04:24 [[32minfo[39m]: [32m✅ Migration applied: 007_create_role_templates.sql[39m | {
+  "executionTime": "19ms",
+  "checksum": "LS0gTWlncmF0aW9uIDAwNzogQ3JlYXRl"
+}
+2026-02-01 06:04:24 [[32minfo[39m]: [32m✅ Migration applied: 008_add_user_status.sql[39m | {
+  "executionTime": "52ms",
+  "checksum": "LS0gTWlncmF0aW9uIDAwODogQWRkIFVz"
+}
+2026-02-01 06:04:24 [[32minfo[39m]: [32m✅ Migration applied: 009_create_login_history.sql[39m | {
+  "executionTime": "50ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-02-01 06:04:24 [[32minfo[39m]: [32m✅ Migration applied: 010_enhance_roles_table.sql[39m | {
+  "executionTime": "10ms",
+  "checksum": "LS0gTWlncmF0aW9uIDAxMDogRW5oYW5j"
+}
+2026-02-01 06:04:25 [[32minfo[39m]: [32m✅ Migration applied: 011_add_performance_indexes.sql[39m | {
+  "executionTime": "146ms",
+  "checksum": "LS0gTWlncmF0aW9uOiBBZGQgUGVyZm9y"
+}
+2026-02-01 06:04:25 [[32minfo[39m]: [32m✅ Migration applied: 012_add_soft_delete.sql[39m | {
+  "executionTime": "60ms",
+  "checksum": "LS0gTWlncmF0aW9uOiBBZGQgU29mdCBE"
+}
+2026-02-01 06:04:25 [[32minfo[39m]: [32m✅ Migration applied: 013_add_soft_delete_permissions.sql[39m | {
+  "executionTime": "5ms",
+  "checksum": "LS0gQWRkIG5ldyBwZXJtaXNzaW9ucyBm"
+}
+2026-02-01 06:04:26 [[32minfo[39m]: [32m✅ Migration applied: 014_password_reset_notifications.sql[39m | {
+  "executionTime": "933ms",
+  "checksum": "LS0gTWlncmF0aW9uIDAxNDogUGFzc3dv"
+}
+2026-02-01 06:04:26 [[32minfo[39m]: [32m✅ Migration applied: 015_create_accounting_periods.sql[39m | {
+  "executionTime": "102ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-02-01 06:04:26 [[32minfo[39m]: [32m✅ Migration applied: 016_create_reference_tables.sql[39m | {
+  "executionTime": "254ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-02-01 06:04:26 [[32minfo[39m]: [32m✅ Migration applied: 017_create_chart_of_accounts.sql[39m | {
+  "executionTime": "169ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-02-01 06:04:27 [[32minfo[39m]: [32m✅ Migration applied: 018_create_inventory_tables.sql[39m | {
+  "executionTime": "339ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-02-01 06:04:27 [[32minfo[39m]: [32m✅ Migration applied: 019_create_customers_vendors.sql[39m | {
+  "executionTime": "287ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-02-01 06:04:27 [[32minfo[39m]: [32m✅ Migration applied: 020_add_soft_delete_constraints_indexes.sql[39m | {
+  "executionTime": "298ms",
+  "checksum": "LS0gTWlncmF0aW9uOiAwMjBfYWRkX3Nv"
+}
+2026-02-01 06:04:27 [[32minfo[39m]: [32m✅ Migration applied: 021_create_permission_system.sql[39m | {
+  "executionTime": "62ms",
+  "checksum": "LS0gTWlncmF0aW9uOiAwMjFfY3JlYXRl"
+}
+2026-02-01 06:04:27 [[32minfo[39m]: [32m✅ Migration applied: 022_create_balance_tables.sql[39m | {
+  "executionTime": "164ms",
+  "checksum": "LS0gTWlncmF0aW9uOiAwMjJfY3JlYXRl"
+}
+2026-02-01 06:04:28 [[32minfo[39m]: [32m✅ Migration applied: 023_create_journal_engine.sql[39m | {
+  "executionTime": "220ms",
+  "checksum": "LS0gTWlncmF0aW9uOiAwMjNfY3JlYXRl"
+}
+2026-02-01 06:04:28 [[32minfo[39m]: [32m✅ Migration applied: 024_create_number_series.sql[39m | {
+  "executionTime": "74ms",
+  "checksum": "LS0gTWlncmF0aW9uOiAwMjRfY3JlYXRl"
+}
+2026-02-01 06:04:28 [[32minfo[39m]: [32m✅ Migration applied: 025_add_user_companies.sql[39m | {
+  "executionTime": "101ms",
+  "checksum": "LS0gTWlncmF0aW9uOiAwMjVfYWRkX3Vz"
+}
+2026-02-01 06:04:28 [[32minfo[39m]: [32m✅ Migration applied: 025_user_images.sql[39m | {
+  "executionTime": "9ms",
+  "checksum": "LS0gTWlncmF0aW9uIDAyNTogQWRkIGNv"
+}
+2026-02-01 06:04:28 [[32minfo[39m]: [32m✅ Migration applied: 026_master_data_soft_delete.sql[39m | {
+  "executionTime": "101ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-02-01 06:04:28 [[32minfo[39m]: [32m✅ Migration applied: 027_create_master_data_group1.sql[39m | {
+  "executionTime": "515ms",
+  "checksum": "LS0gTWlncmF0aW9uIDAyNzogTWFzdGVy"
+}
+2026-02-01 06:04:29 [[32minfo[39m]: [32m✅ Migration applied: 030_enhance_group2_existing_tables.sql[39m | {
+  "executionTime": "125ms",
+  "checksum": "LS0gTWlncmF0aW9uIDAzMDogR3JvdXAg"
+}
+2026-02-01 06:04:29 [[32minfo[39m]: [32m✅ Migration applied: 031_create_group2_new_tables.sql[39m | {
+  "executionTime": "770ms",
+  "checksum": "LS0gTWlncmF0aW9uIDAzMTogR3JvdXAg"
+}
+2026-02-01 06:04:30 [[32minfo[39m]: [32m✅ Migration applied: 032_enhance_group3_existing_tables.sql[39m | {
+  "executionTime": "156ms",
+  "checksum": "LS0gTWlncmF0aW9uIDAzMjogR3JvdXAg"
+}
+2026-02-01 06:04:30 [[32minfo[39m]: [32m✅ Migration applied: 034_create_batch_inventory_reorder_tables.sql[39m | {
+  "executionTime": "301ms",
+  "checksum": "LS0gTWlncmF0aW9uIDAzNDogQ3JlYXRl"
+}
+2026-02-01 06:04:30 [[32minfo[39m]: [32m✅ Migration applied: 035_add_units_of_measure_measurement_type.sql[39m | {
+  "executionTime": "15ms",
+  "checksum": "LS0gQWRkIG1lYXN1cmVtZW50IHR5cGUg"
+}
+2026-02-01 06:04:30 [[32minfo[39m]: [32m✅ Migration applied: 035_create_help_requests_table.sql[39m | {
+  "executionTime": "305ms",
+  "checksum": "LS0gTWlncmF0aW9uOiBDcmVhdGUgaGVs"
+}
+2026-02-01 06:04:30 [[32minfo[39m]: [32m✅ Migration applied: 036_add_module_permissions.sql[39m | {
+  "executionTime": "10ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-02-01 06:04:31 [[32minfo[39m]: [32m✅ Migration applied: 037_create_customs_engine_tables.sql[39m | {
+  "executionTime": "330ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-02-01 06:04:31 [[32minfo[39m]: [32m✅ Migration applied: 038_add_customs_engine_permissions.sql[39m | {
+  "executionTime": "4ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-02-01 06:04:31 [[32minfo[39m]: [32m✅ Migration applied: 039_create_shipment_lifecycle_tables.sql[39m | {
+  "executionTime": "175ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-02-01 06:04:31 [[32minfo[39m]: [32m✅ Migration applied: 040_add_shipment_lifecycle_permissions.sql[39m | {
+  "executionTime": "32ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-02-01 06:04:31 [[32minfo[39m]: [32m✅ Migration applied: 041_create_shipment_event_log.sql[39m | {
+  "executionTime": "80ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-02-01 06:04:31 [[32minfo[39m]: [32m✅ Migration applied: 041_fix_transfer_request_number_trigger.sql[39m | {
+  "executionTime": "5ms",
+  "checksum": "LS0gRml4IHRyYW5zZmVyIHJlcXVlc3Qg"
+}
+2026-02-01 06:04:31 [[32minfo[39m]: [32m✅ Migration applied: 042_add_shipment_events_permissions.sql[39m | {
+  "executionTime": "3ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-02-01 06:04:33 [[32minfo[39m]: [32m✅ Migration applied: 043_create_shipment_event_reference_tables.sql[39m | {
+  "executionTime": "2043ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-02-01 06:04:33 [[32minfo[39m]: [32m✅ Migration applied: 044_create_backup_settings.sql[39m | {
+  "executionTime": "189ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-02-01 06:04:33 [[32minfo[39m]: [32m✅ Migration applied: 045_seed_permissions_admin.sql[39m | {
+  "executionTime": "11ms",
+  "checksum": "LS0gU2VlZCBtaXNzaW5nIEFkbWluL1N5"
+}
+2026-02-01 06:04:33 [[32minfo[39m]: [32m✅ Migration applied: 046_create_logistics_integration_tables.sql[39m | {
+  "executionTime": "207ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-02-01 06:04:34 [[32minfo[39m]: [32m✅ Migration applied: 047_add_is_default_to_digital_signatures.sql[39m | {
+  "executionTime": "14ms",
+  "checksum": "LS0gQWRkIGlzX2RlZmF1bHQgdG8gZGln"
+}
+2026-02-01 06:04:34 [[32minfo[39m]: [32m✅ Migration applied: 048_fix_currencies_required_columns.sql[39m | {
+  "executionTime": "6ms",
+  "checksum": "LS0gTWlncmF0aW9uIDA0ODogRml4IGN1"
+}
+2026-02-01 06:04:34 [[32minfo[39m]: [32m✅ Migration applied: 049_create_customer_classifications.sql[39m | {
+  "executionTime": "44ms",
+  "checksum": "LS0gTWlncmF0aW9uIDA0OTogQ3JlYXRl"
+}
+2026-02-01 06:04:34 [[32minfo[39m]: [32m✅ Migration applied: 050_seed_customer_classifications_permissions.sql[39m | {
+  "executionTime": "7ms",
+  "checksum": "LS0gTWlncmF0aW9uIDA1MDogU2VlZCBj"
+}
+2026-02-01 06:04:34 [[32minfo[39m]: [32m✅ Migration applied: 051_create_reference_data.sql[39m | {
+  "executionTime": "68ms",
+  "checksum": "LS0gMDUxX2NyZWF0ZV9yZWZlcmVuY2Vf"
+}
+2026-02-01 06:04:34 [[32minfo[39m]: [32m✅ Migration applied: 052_create_cheque_books.sql[39m | {
+  "executionTime": "39ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-02-01 06:04:34 [[32minfo[39m]: [32m✅ Migration applied: 053_create_tax_rates.sql[39m | {
+  "executionTime": "60ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-02-01 06:04:34 [[32minfo[39m]: [32m✅ Migration applied: 054_create_tax_codes.sql[39m | {
+  "executionTime": "65ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-02-01 06:04:34 [[32minfo[39m]: [32m✅ Migration applied: 055_payment_methods_api.sql[39m | {
+  "executionTime": "23ms",
+  "checksum": "LS0gMDU1X3BheW1lbnRfbWV0aG9kc19h"
+}
+2026-02-01 06:04:34 [[32minfo[39m]: [32m✅ Migration applied: 056_company_base_currency.sql[39m | {
+  "executionTime": "115ms",
+  "checksum": "LS0gTWlncmF0aW9uIDA1NjogQ29tcGFu"
+}
+2026-02-01 06:04:35 [[32minfo[39m]: [32m✅ Migration applied: 057_company_languages.sql[39m | {
+  "executionTime": "665ms",
+  "checksum": "LS0gTWlncmF0aW9uIDA1NzogQ29tcGFu"
+}
+2026-02-01 06:04:35 [[32minfo[39m]: [32m✅ Migration applied: 058_financial_year_defaults.sql[39m | {
+  "executionTime": "25ms",
+  "checksum": "LS0gTWlncmF0aW9uIDA1ODogRmlzY2Fs"
+}
+2026-02-01 06:04:35 [[32minfo[39m]: [32m✅ Migration applied: 059_assign_phase1_step2_permissions.sql[39m | {
+  "executionTime": "15ms",
+  "checksum": "LS0gTWlncmF0aW9uIDA1OTogQXNzaWdu"
+}
+2026-02-01 06:04:35 [[32minfo[39m]: [32m✅ Migration applied: 060_fix_currency_scoping_seed_company_currencies.sql[39m | {
+  "executionTime": "11ms",
+  "checksum": "QkVHSU47DQoNCi0tIExlZ2FjeSBjb25z"
+}
+2026-02-01 06:04:35 [[32minfo[39m]: [32m✅ Migration applied: 061_seed_sa_master_data.sql[39m | {
+  "executionTime": "29ms",
+  "checksum": "LS0gMDYxX3NlZWRfc2FfbWFzdGVyX2Rh"
+}
+2026-02-01 06:04:35 [[32minfo[39m]: [32m✅ Migration applied: 062_seed_countries_capitals_from_ar_list.sql[39m | {
+  "executionTime": "74ms",
+  "checksum": "LS0gMDYyX3NlZWRfY291bnRyaWVzX2Nh"
+}
+2026-02-01 06:04:35 [[32minfo[39m]: [32m✅ Migration applied: 063_seed_sa_ports_airports_customs_expanded.sql[39m | {
+  "executionTime": "12ms",
+  "checksum": "LS0gMDYzX3NlZWRfc2FfcG9ydHNfYWly"
+}
+2026-02-01 06:04:35 [[32minfo[39m]: [32m✅ Migration applied: 064_seed_sa_land_ports_and_border_customs.sql[39m | {
+  "executionTime": "12ms",
+  "checksum": "LS0gMDY0X3NlZWRfc2FfbGFuZF9wb3J0"
+}
+2026-02-01 06:04:35 [[32minfo[39m]: [32m✅ Migration applied: 065_seed_record_and_request_status_reference_data.sql[39m | {
+  "executionTime": "5ms",
+  "checksum": "LS0gMDY1X3NlZWRfcmVjb3JkX2FuZF9y"
+}
+2026-02-01 06:04:35 [[32minfo[39m]: [32m✅ Migration applied: 066_seed_numbering_series_printed_templates_digital_signatures.sql[39m | {
+  "executionTime": "4ms",
+  "checksum": "LS0gU2VlZCBjb21wYW55LXNjb3BlZCBl"
+}
+2026-02-01 06:04:35 [[32minfo[39m]: [32m✅ Migration applied: 067_fix_numbering_series_uniqueness_and_dedupe.sql[39m | {
+  "executionTime": "7ms",
+  "checksum": "LS0gTWlncmF0aW9uIDA2NzogRml4IG51"
+}
+2026-02-01 06:04:35 [[32minfo[39m]: [32m✅ Migration applied: 068_add_sequences_to_company_tables.sql[39m | {
+  "executionTime": "103ms",
+  "checksum": "LS0gTWlncmF0aW9uIDA2ODogQXBwbHkg"
+}
+2026-02-01 06:04:35 [[32minfo[39m]: [32m✅ Migration applied: 069_add_sequence_format_function.sql[39m | {
+  "executionTime": "3ms",
+  "checksum": "LS0gTWlncmF0aW9uIDA2OTogQWRkIGhl"
+}
+2026-02-01 06:04:35 [[32minfo[39m]: [32m✅ Migration applied: 070_seed_company_coa_and_default_accounts.sql[39m | {
+  "executionTime": "4ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-02-01 06:04:35 [[32minfo[39m]: [32m✅ Migration applied: 071_create_opening_balances_and_budgets.sql[39m | {
+  "executionTime": "75ms",
+  "checksum": "LS0gTWlncmF0aW9uOiAwNzFfY3JlYXRl"
+}
+2026-02-01 06:04:35 [[32minfo[39m]: [32m✅ Migration applied: 072_tax_zakat_seed_and_tax_types_api_support.sql[39m | {
+  "executionTime": "28ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-02-01 06:04:35 [[32minfo[39m]: [32m✅ Migration applied: 073_assign_tax_types_permissions.sql[39m | {
+  "executionTime": "5ms",
+  "checksum": "LS0gTWlncmF0aW9uIDA3MzogQXNzaWdu"
+}
+2026-02-01 06:04:35 [[32minfo[39m]: [32m✅ Migration applied: 074_cash_banks_permissions_and_seed.sql[39m | {
+  "executionTime": "11ms",
+  "checksum": "LS0gTWlncmF0aW9uIDA3NDogQ2FzaCAm"
+}
+2026-02-01 06:04:35 [[32minfo[39m]: [32m✅ Migration applied: 075_cash_boxes_master.sql[39m | {
+  "executionTime": "34ms",
+  "checksum": "LS0gTWlncmF0aW9uIDA3NTogQ2FzaCBC"
+}
+2026-02-01 06:04:35 [[32minfo[39m]: [32m✅ Migration applied: 076_payment_vouchers.sql[39m | {
+  "executionTime": "30ms",
+  "checksum": "LS0gTWlncmF0aW9uOiAwNzZfcGF5bWVu"
+}
+2026-02-01 06:04:35 [[32minfo[39m]: [32m✅ Migration applied: 077_seed_cash_boxes_and_bank_gl_accounts.sql[39m | {
+  "executionTime": "9ms",
+  "checksum": "LS0gTWlncmF0aW9uIDA3NzogU2VlZCBD"
+}
+2026-02-01 06:04:36 [[32minfo[39m]: [32m✅ Migration applied: 078_seed_inventory_master_data.sql[39m | {
+  "executionTime": "7ms",
+  "checksum": "LS0gMDc4X3NlZWRfaW52ZW50b3J5X21h"
+}
+2026-02-01 06:04:36 [[32minfo[39m]: [32m✅ Migration applied: 079_seed_inventory_master_data_more.sql[39m | {
+  "executionTime": "16ms",
+  "checksum": "LS0gMDc5X3NlZWRfaW52ZW50b3J5X21h"
+}
+2026-02-01 06:04:36 [[32minfo[39m]: [32m✅ Migration applied: 080_seed_item_groups_arabic_catalog.sql[39m | {
+  "executionTime": "8ms",
+  "checksum": "LS0gMDgwX3NlZWRfaXRlbV9ncm91cHNf"
+}
+2026-02-01 06:04:36 [[32minfo[39m]: [32m✅ Migration applied: 081_seed_item_groups_additional_catalog.sql[39m | {
+  "executionTime": "6ms",
+  "checksum": "LS0gMDgxX3NlZWRfaXRlbV9ncm91cHNf"
+}
+2026-02-01 06:04:36 [[32minfo[39m]: [32m✅ Migration applied: 082_create_item_uom_conversions.sql[39m | {
+  "executionTime": "31ms",
+  "checksum": "LS0gQ3JlYXRlIGl0ZW0tc3BlY2lmaWMg"
+}
+2026-02-01 06:04:36 [[32minfo[39m]: [32m✅ Migration applied: 083_link_item_groups_to_categories.sql[39m | {
+  "executionTime": "9ms",
+  "checksum": "LS0gTGluayBpdGVtX2dyb3VwcyB0byBp"
+}
+2026-02-01 06:04:36 [[32minfo[39m]: [32m✅ Migration applied: 084_create_warehouse_types.sql[39m | {
+  "executionTime": "34ms",
+  "checksum": "LS0gMDg0X2NyZWF0ZV93YXJlaG91c2Vf"
+}
+2026-02-01 06:04:36 [[32minfo[39m]: [32m✅ Migration applied: 085_seed_warehouse_types_and_accounts.sql[39m | {
+  "executionTime": "694ms",
+  "checksum": "LS0gMDg1X3NlZWRfd2FyZWhvdXNlX3R5"
+}
+2026-02-01 06:04:37 [[32minfo[39m]: [32m✅ Migration applied: 086_link_warehouses_to_warehouse_types.sql[39m | {
+  "executionTime": "878ms",
+  "checksum": "LS0gMDg2X2xpbmtfd2FyZWhvdXNlc190"
+}
+2026-02-01 06:04:37 [[31merror[39m]: [31m❌ Migration failed: 087_seed_warehouses_company_1_from_image_list.sql insert or update on table "numbering_series" violates foreign key constraint "numbering_series_company_id_fkey"[39m | {
+  "length": 990,
+  "name": "error",
+  "severity": "ERROR",
+  "code": "23503",
+  "detail": "Key (company_id)=(1) is not present in table \"companies\".",
+  "where": "SQL statement \"INSERT INTO numbering_series (\r\n    company_id, module, prefix, suffix, current_number, padding_length,\r\n    format, notes_en, notes_ar, is_active, created_by, updated_by\r\n  )\r\n  VALUES (\r\n    p_company_id,\r\n    p_module,\r\n    v_prefix,\r\n    NULL,\r\n    1,\r\n    6,\r\n    NULL,\r\n    'Auto-created default numbering series for table: ' || p_module,\r\n    'تم إنشاء تسلسل ترقيم افتراضي تلقائياً للجدول: ' || p_module,\r\n    TRUE,\r\n    p_user_id,\r\n    p_user_id\r\n  )\r\n  RETURNING id\"\nPL/pgSQL function slms_ensure_numbering_series(integer,text,integer) line 19 at SQL statement\nPL/pgSQL function slms_set_sequence_fields() line 31 at assignment",
+  "schema": "public",
+  "table": "numbering_series",
+  "constraint": "numbering_series_company_id_fkey",
+  "file": "ri_triggers.c",
+  "line": "2596",
+  "routine": "ri_ReportViolation"
+}
+2026-02-01 06:04:37 [[31merror[39m]: [31mMigration runner error insert or update on table "numbering_series" violates foreign key constraint "numbering_series_company_id_fkey"[39m | {
+  "length": 990,
+  "name": "error",
+  "severity": "ERROR",
+  "code": "23503",
+  "detail": "Key (company_id)=(1) is not present in table \"companies\".",
+  "where": "SQL statement \"INSERT INTO numbering_series (\r\n    company_id, module, prefix, suffix, current_number, padding_length,\r\n    format, notes_en, notes_ar, is_active, created_by, updated_by\r\n  )\r\n  VALUES (\r\n    p_company_id,\r\n    p_module,\r\n    v_prefix,\r\n    NULL,\r\n    1,\r\n    6,\r\n    NULL,\r\n    'Auto-created default numbering series for table: ' || p_module,\r\n    'تم إنشاء تسلسل ترقيم افتراضي تلقائياً للجدول: ' || p_module,\r\n    TRUE,\r\n    p_user_id,\r\n    p_user_id\r\n  )\r\n  RETURNING id\"\nPL/pgSQL function slms_ensure_numbering_series(integer,text,integer) line 19 at SQL statement\nPL/pgSQL function slms_set_sequence_fields() line 31 at assignment",
+  "schema": "public",
+  "table": "numbering_series",
+  "constraint": "numbering_series_company_id_fkey",
+  "file": "ri_triggers.c",
+  "line": "2596",
+  "routine": "ri_ReportViolation"
+}
+2026-02-01 06:04:37 [[31merror[39m]: [31m❌ Failed to start application insert or update on table "numbering_series" violates foreign key constraint "numbering_series_company_id_fkey"[39m | {
+  "length": 990,
+  "name": "error",
+  "severity": "ERROR",
+  "code": "23503",
+  "detail": "Key (company_id)=(1) is not present in table \"companies\".",
+  "where": "SQL statement \"INSERT INTO numbering_series (\r\n    company_id, module, prefix, suffix, current_number, padding_length,\r\n    format, notes_en, notes_ar, is_active, created_by, updated_by\r\n  )\r\n  VALUES (\r\n    p_company_id,\r\n    p_module,\r\n    v_prefix,\r\n    NULL,\r\n    1,\r\n    6,\r\n    NULL,\r\n    'Auto-created default numbering series for table: ' || p_module,\r\n    'تم إنشاء تسلسل ترقيم افتراضي تلقائياً للجدول: ' || p_module,\r\n    TRUE,\r\n    p_user_id,\r\n    p_user_id\r\n  )\r\n  RETURNING id\"\nPL/pgSQL function slms_ensure_numbering_series(integer,text,integer) line 19 at SQL statement\nPL/pgSQL function slms_set_sequence_fields() line 31 at assignment",
+  "schema": "public",
+  "table": "numbering_series",
+  "constraint": "numbering_series_company_id_fkey",
+  "file": "ri_triggers.c",
+  "line": "2596",
+  "routine": "ri_ReportViolation"
+}
+
+> slms-backend@0.1.0 dev
+> ts-node-dev --respawn --transpile-only src/index.ts
+
+[INFO] 06:07:04 ts-node-dev ver. 2.0.0 (using ts-node ver. 10.9.2, typescript ver. 5.9.3)
+✅ Environment configuration loaded:
+   - NODE_ENV: development
+   - PORT: 4000
+   - JWT_SECRET: your-sup... (46 chars)
+   - DATABASE_URL: postgres:5432/slms_db
+   - CORS_ORIGINS: http://localhost:3000, http://localhost:3001
+ℹ️  Sentry disabled - no SENTRY_DSN configured (dev mode OK)
+2026-02-01 06:07:11 [[32minfo[39m]: [32m🚀 Application starting...[39m | {
+  "nodeEnv": "development",
+  "port": 4000
+}
+2026-02-01 06:07:11 [[32minfo[39m]: [32m🚀 Starting SLMS Backend...[39m | {
+  "nodeVersion": "v18.20.8",
+  "platform": "linux"
+}
+2026-02-01 06:07:11 [[32minfo[39m]: [32mRunning database migrations...[39m
+New database client connected
+2026-02-01 06:07:11 [[32minfo[39m]: [32m✅ Migration applied: 087_seed_warehouses_company_1_from_image_list.sql[39m | {
+  "executionTime": "30ms",
+  "checksum": "LS0gMDg3X3NlZWRfd2FyZWhvdXNlc19j"
+}
+2026-02-01 06:07:11 [[32minfo[39m]: [32m✅ Migration applied: 088_add_cost_centers_description.sql[39m | {
+  "executionTime": "8ms",
+  "checksum": "LS0gQWRkIGRlc2NyaXB0aW9uIGZpZWxk"
+}
+2026-02-01 06:07:11 [[32minfo[39m]: [32m✅ Migration applied: 089_seed_cost_centers_company_1_from_image_list.sql[39m | {
+  "executionTime": "6ms",
+  "checksum": "LS0gU2VlZCBDb3N0IENlbnRlcnMgKENv"
+}
+2026-02-01 06:07:11 [[32minfo[39m]: [32m✅ Migration applied: 090_seed_cost_centers_permissions.sql[39m | {
+  "executionTime": "4ms",
+  "checksum": "LS0gRW5zdXJlIENvc3QgQ2VudGVycyBw"
+}
+2026-02-01 06:07:11 [[32minfo[39m]: [32m✅ Migration applied: 091_link_warehouses_to_cost_centers.sql[39m | {
+  "executionTime": "9ms",
+  "checksum": "LS0gTGluayB3YXJlaG91c2VzIHRvIGNv"
+}
+2026-02-01 06:07:11 [[32minfo[39m]: [32m✅ Migration applied: 092_create_inventory_adjustments.sql[39m | {
+  "executionTime": "28ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-02-01 06:07:11 [[32minfo[39m]: [32m✅ Migration applied: 093_inventory_movements_and_warehouse_pricing.sql[39m | {
+  "executionTime": "30ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-02-01 06:07:11 [[32minfo[39m]: [32m✅ Migration applied: 094_seed_inventory_operations_permissions.sql[39m | {
+  "executionTime": "8ms",
+  "checksum": "LS0gRW5zdXJlIEludmVudG9yeSBPcGVy"
+}
+2026-02-01 06:07:11 [[32minfo[39m]: [32m✅ Migration applied: 095_add_inventory_movements_cost_center_and_updated_by.sql[39m | {
+  "executionTime": "10ms",
+  "checksum": "LS0gQWRkIG1pc3NpbmcgY29sdW1ucyBl"
+}
+2026-02-01 06:07:11 [[32minfo[39m]: [32m✅ Migration applied: 096_create_logistics_shipments_v2.sql[39m | {
+  "executionTime": "137ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-02-01 06:07:11 [[32minfo[39m]: [32m✅ Migration applied: 097_seed_logistics_reference_data.sql[39m | {
+  "executionTime": "13ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-02-01 06:07:11 [[32minfo[39m]: [32m✅ Migration applied: 098_seed_logistics_cost_default_accounts.sql[39m | {
+  "executionTime": "5ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-02-01 06:07:11 [[32minfo[39m]: [32m✅ Migration applied: 099_create_procurement_module.sql[39m | {
+  "executionTime": "364ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-02-01 06:07:11 [[32minfo[39m]: [32m✅ Migration applied: 099a_fix_partner_account_trigger.sql[39m | {
+  "executionTime": "2ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-02-01 06:07:12 [[32minfo[39m]: [32m✅ Migration applied: 100_seed_procurement_data.sql[39m | {
+  "executionTime": "17ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-02-01 06:07:12 [[32minfo[39m]: [32m✅ Migration applied: 101_procurement_enterprise_enhancements.sql[39m | {
+  "executionTime": "98ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-02-01 06:07:12 [[32minfo[39m]: [32m✅ Migration applied: 102_procurement_configuration_layer.sql[39m | {
+  "executionTime": "54ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-02-01 06:07:12 [[32minfo[39m]: [32m✅ Migration applied: 103_sales_customer_master.sql[39m | {
+  "executionTime": "99ms",
+  "checksum": "LS0g4pWU4pWQ4pWQ4pWQ4pWQ4pWQ4pWQ"
+}
+2026-02-01 06:07:12 [[32minfo[39m]: [32m✅ Migration applied: 104_sales_phase2_enhancements.sql[39m | {
+  "executionTime": "286ms",
+  "checksum": "LS0g4pWU4pWQ4pWQ4pWQ4pWQ4pWQ4pWQ"
+}
+2026-02-01 06:07:12 [[32minfo[39m]: [32m✅ Migration applied: 105_add_contract_types_permissions.sql[39m | {
+  "executionTime": "5ms",
+  "checksum": "LS0gTWlncmF0aW9uIDEwNTogQWRkIGNv"
+}
+2026-02-01 06:07:12 [[32minfo[39m]: [32m✅ Migration applied: 106_seed_procurement_enterprise_reference_data.sql[39m | {
+  "executionTime": "11ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-02-01 06:07:12 [[32minfo[39m]: [32m✅ Migration applied: 107_add_vendor_statuses_permissions.sql[39m | {
+  "executionTime": "3ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-02-01 06:07:12 [[32minfo[39m]: [32m✅ Migration applied: 108_add_vendors_external_flag.sql[39m | {
+  "executionTime": "6ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-02-01 06:07:12 [[32minfo[39m]: [32m✅ Migration applied: 109_add_procurement_reports_dashboard_permissions.sql[39m | {
+  "executionTime": "3ms",
+  "checksum": "LS0gTWlncmF0aW9uIDEwOTogQWRkIFBy"
+}
+2026-02-01 06:07:12 [[32minfo[39m]: [32m✅ Migration applied: 110_add_procurement_performance_indexes.sql[39m | {
+  "executionTime": "25ms",
+  "checksum": "LS0gTWlncmF0aW9uIDExMDogQWRkIFBy"
+}
+2026-02-01 06:07:12 [[32minfo[39m]: [32m✅ Migration applied: 111_procurement_reference_data.sql[39m | {
+  "executionTime": "24ms",
+  "checksum": "LS0gTWlncmF0aW9uIDExMTogUHJvY3Vy"
+}
+2026-02-01 06:07:12 [[32minfo[39m]: [32m✅ Migration applied: 112_vendor_defaults.sql[39m | {
+  "executionTime": "12ms",
+  "checksum": "LS0gTWlncmF0aW9uIDExMjogVmVuZG9y"
+}
+2026-02-01 06:07:12 [[32minfo[39m]: [32m✅ Migration applied: 113_invoice_due_dates.sql[39m | {
+  "executionTime": "10ms",
+  "checksum": "LS0gTWlncmF0aW9uIDExMzogUHVyY2hh"
+}
+2026-02-01 06:07:12 [[32minfo[39m]: [32m✅ Migration applied: 114_vendor_payments.sql[39m | {
+  "executionTime": "45ms",
+  "checksum": "LS0gTWlncmF0aW9uIDExNDogVmVuZG9y"
+}
+2026-02-01 06:07:12 [[32minfo[39m]: [32m✅ Migration applied: 115_payment_allocations.sql[39m | {
+  "executionTime": "28ms",
+  "checksum": "LS0gTWlncmF0aW9uIDExNTogUGF5bWVu"
+}
+2026-02-01 06:07:12 [[32minfo[39m]: [32m✅ Migration applied: 116_data_integrity.sql[39m | {
+  "executionTime": "6ms",
+  "checksum": "LS0gTWlncmF0aW9uIDExNjogRGF0YSBJ"
+}
+2026-02-01 06:07:12 [[32minfo[39m]: [32m✅ Migration applied: 117_payment_optimizations.sql[39m | {
+  "executionTime": "30ms",
+  "checksum": "LS0gTWlncmF0aW9uIDExNzogUGVyZm9y"
+}
+2026-02-01 06:07:12 [[32minfo[39m]: [32m✅ Migration applied: 118_approval_matrix.sql[39m | {
+  "executionTime": "70ms",
+  "checksum": "LS0gTWlncmF0aW9uIDExODogQXBwcm92"
+}
+2026-02-01 06:07:12 [[32minfo[39m]: [32m✅ Migration applied: 119_purchase_invoice_master_data.sql[39m | {
+  "executionTime": "68ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-02-01 06:07:12 [[32minfo[39m]: [32m✅ Migration applied: 119_sales_approval_workflows.sql[39m | {
+  "executionTime": "4ms",
+  "checksum": "LS0g4pWQ4pWQ4pWQ4pWQ4pWQ4pWQ4pWQ"
+}
+2026-02-01 06:07:12 [[32minfo[39m]: [32m✅ Migration applied: 120_items_enhancements.sql[39m | {
+  "executionTime": "41ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-02-01 06:07:13 [[31merror[39m]: [31m❌ Migration failed: 121_stock_movements_architecture.sql function pg_catalog.extract(unknown, integer) does not exist[39m | {
+  "length": 232,
+  "name": "error",
+  "severity": "ERROR",
+  "code": "42883",
+  "hint": "No function matches the given name and argument types. You might need to add explicit type casts.",
+  "position": "12176",
+  "file": "parse_func.c",
+  "line": "629",
+  "routine": "ParseFuncOrColumn"
+}
+2026-02-01 06:07:13 [[31merror[39m]: [31mMigration runner error function pg_catalog.extract(unknown, integer) does not exist[39m | {
+  "length": 232,
+  "name": "error",
+  "severity": "ERROR",
+  "code": "42883",
+  "hint": "No function matches the given name and argument types. You might need to add explicit type casts.",
+  "position": "12176",
+  "file": "parse_func.c",
+  "line": "629",
+  "routine": "ParseFuncOrColumn"
+}
+2026-02-01 06:07:13 [[31merror[39m]: [31m❌ Failed to start application function pg_catalog.extract(unknown, integer) does not exist[39m | {
+  "length": 232,
+  "name": "error",
+  "severity": "ERROR",
+  "code": "42883",
+  "hint": "No function matches the given name and argument types. You might need to add explicit type casts.",
+  "position": "12176",
+  "file": "parse_func.c",
+  "line": "629",
+  "routine": "ParseFuncOrColumn"
+}
+
+> slms-backend@0.1.0 dev
+> ts-node-dev --respawn --transpile-only src/index.ts
+
+[INFO] 06:08:00 ts-node-dev ver. 2.0.0 (using ts-node ver. 10.9.2, typescript ver. 5.9.3)
+✅ Environment configuration loaded:
+   - NODE_ENV: development
+   - PORT: 4000
+   - JWT_SECRET: your-sup... (46 chars)
+   - DATABASE_URL: postgres:5432/slms_db
+   - CORS_ORIGINS: http://localhost:3000, http://localhost:3001
+ℹ️  Sentry disabled - no SENTRY_DSN configured (dev mode OK)
+2026-02-01 06:08:05 [[32minfo[39m]: [32m🚀 Application starting...[39m | {
+  "nodeEnv": "development",
+  "port": 4000
+}
+2026-02-01 06:08:05 [[32minfo[39m]: [32m🚀 Starting SLMS Backend...[39m | {
+  "nodeVersion": "v18.20.8",
+  "platform": "linux"
+}
+2026-02-01 06:08:05 [[32minfo[39m]: [32mRunning database migrations...[39m
+New database client connected
+2026-02-01 06:08:05 [[32minfo[39m]: [32m✅ Migration applied: 121_stock_movements_architecture.sql[39m | {
+  "executionTime": "90ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-02-01 06:08:05 [[32minfo[39m]: [32m✅ Migration applied: 122_seed_harvest_schedules.sql[39m | {
+  "executionTime": "6ms",
+  "checksum": "LS0gTWlncmF0aW9uOiAxMjJfc2VlZF9o"
+}
+2026-02-01 06:08:05 [[32minfo[39m]: [32m✅ Migration applied: 122_seed_unit_types_reference_data.sql[39m | {
+  "executionTime": "7ms",
+  "checksum": "LS0gU2VlZCBVbml0IFR5cGVzIGFzIHJl"
+}
+2026-02-01 06:08:05 [[32minfo[39m]: [32m✅ Migration applied: 123_enhanced_project_management.sql[39m | {
+  "executionTime": "122ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-02-01 06:08:05 [[31merror[39m]: [31m❌ Migration failed: 124_seed_project_sample_data.sql insert or update on table "projects" violates foreign key constraint "projects_manager_id_fkey"[39m | {
+  "length": 263,
+  "name": "error",
+  "severity": "ERROR",
+  "code": "23503",
+  "detail": "Key (manager_id)=(9) is not present in table \"users\".",
+  "schema": "public",
+  "table": "projects",
+  "constraint": "projects_manager_id_fkey",
+  "file": "ri_triggers.c",
+  "line": "2596",
+  "routine": "ri_ReportViolation"
+}
+2026-02-01 06:08:05 [[31merror[39m]: [31mMigration runner error insert or update on table "projects" violates foreign key constraint "projects_manager_id_fkey"[39m | {
+  "length": 263,
+  "name": "error",
+  "severity": "ERROR",
+  "code": "23503",
+  "detail": "Key (manager_id)=(9) is not present in table \"users\".",
+  "schema": "public",
+  "table": "projects",
+  "constraint": "projects_manager_id_fkey",
+  "file": "ri_triggers.c",
+  "line": "2596",
+  "routine": "ri_ReportViolation"
+}
+2026-02-01 06:08:05 [[31merror[39m]: [31m❌ Failed to start application insert or update on table "projects" violates foreign key constraint "projects_manager_id_fkey"[39m | {
+  "length": 263,
+  "name": "error",
+  "severity": "ERROR",
+  "code": "23503",
+  "detail": "Key (manager_id)=(9) is not present in table \"users\".",
+  "schema": "public",
+  "table": "projects",
+  "constraint": "projects_manager_id_fkey",
+  "file": "ri_triggers.c",
+  "line": "2596",
+  "routine": "ri_ReportViolation"
+}
+
+> slms-backend@0.1.0 dev
+> ts-node-dev --respawn --transpile-only src/index.ts
+
+[INFO] 06:12:57 ts-node-dev ver. 2.0.0 (using ts-node ver. 10.9.2, typescript ver. 5.9.3)
+✅ Environment configuration loaded:
+   - NODE_ENV: development
+   - PORT: 4000
+   - JWT_SECRET: your-sup... (46 chars)
+   - DATABASE_URL: postgres:5432/slms_db
+   - CORS_ORIGINS: http://localhost:3000, http://localhost:3001
+ℹ️  Sentry disabled - no SENTRY_DSN configured (dev mode OK)
+2026-02-01 06:13:03 [[32minfo[39m]: [32m🚀 Application starting...[39m | {
+  "nodeEnv": "development",
+  "port": 4000
+}
+2026-02-01 06:13:03 [[32minfo[39m]: [32m🚀 Starting SLMS Backend...[39m | {
+  "nodeVersion": "v18.20.8",
+  "platform": "linux"
+}
+2026-02-01 06:13:03 [[32minfo[39m]: [32mRunning database migrations...[39m
+New database client connected
+2026-02-01 06:13:03 [[32minfo[39m]: [32m✅ Migration applied: 124_seed_project_sample_data.sql[39m | {
+  "executionTime": "35ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-02-01 06:13:03 [[32minfo[39m]: [32m✅ Migration applied: 125_add_vendor_and_manager_name_to_projects.sql[39m | {
+  "executionTime": "9ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-02-01 06:13:03 [[32minfo[39m]: [32m✅ Migration applied: 126_seed_external_procurement_projects.sql[39m | {
+  "executionTime": "8ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-02-01 06:13:03 [[32minfo[39m]: [32m✅ Migration applied: 127_add_po_vendor_contract_fields.sql[39m | {
+  "executionTime": "5ms",
+  "checksum": "LS0gQWRkIHZlbmRvciBjb250cmFjdCBy"
+}
+2026-02-01 06:13:03 [[32minfo[39m]: [32m✅ Migration applied: 128_create_customs_declarations.sql[39m | {
+  "executionTime": "194ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-02-01 06:13:03 [[32minfo[39m]: [32m✅ Migration applied: 129_shipment_centric_architecture.sql[39m | {
+  "executionTime": "77ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-02-01 06:13:03 [[32minfo[39m]: [32m✅ Migration applied: 130_add_shipment_ports_and_payment.sql[39m | {
+  "executionTime": "13ms",
+  "checksum": "LS0gTWlncmF0aW9uIDEzMDogQWRkIHBv"
+}
+2026-02-01 06:13:03 [[32minfo[39m]: [32m✅ Migration applied: 131_add_purchase_order_payment_and_project.sql[39m | {
+  "executionTime": "11ms",
+  "checksum": "LS0gTWlncmF0aW9uOiBBZGQgcGF5bWVu"
+}
+2026-02-01 06:13:03 [[32minfo[39m]: [32m✅ Migration applied: 135_make_expected_arrival_date_optional.sql[39m | {
+  "executionTime": "3ms",
+  "checksum": "LS0gTWlncmF0aW9uIDEzNTogTWFrZSBl"
+}
+2026-02-01 06:13:03 [[32minfo[39m]: [32m✅ Migration applied: 136_add_port_of_loading_text.sql[39m | {
+  "executionTime": "6ms",
+  "checksum": "LS0gTWlncmF0aW9uIDEzNjogQWRkIHBv"
+}
+2026-02-01 06:13:03 [[32minfo[39m]: [32m✅ Migration applied: 137_fix_locked_shipment_trigger.sql[39m | {
+  "executionTime": "2ms",
+  "checksum": "LS0gTWlncmF0aW9uIDEzNzogRml4IGxv"
+}
+2026-02-01 06:13:03 [[32minfo[39m]: [32m✅ Migration applied: 138_drop_old_shipment_expense_types.sql[39m | {
+  "executionTime": "4ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-02-01 06:13:03 [[32minfo[39m]: [32m✅ Migration applied: 138_exchange_rates_enhancements.sql[39m | {
+  "executionTime": "10ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-02-01 06:13:03 [[32minfo[39m]: [32m✅ Migration applied: 139_shipment_expenses_v2.sql[39m | {
+  "executionTime": "134ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-02-01 06:13:04 [[32minfo[39m]: [32m✅ Migration applied: 140_add_ports_and_locations_to_purchase_orders.sql[39m | {
+  "executionTime": "24ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-02-01 06:13:04 [[32minfo[39m]: [32m✅ Migration applied: 141_add_master_data_reference_permissions.sql[39m | {
+  "executionTime": "4ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-02-01 06:13:04 [[32minfo[39m]: [32m✅ Migration applied: 143_allow_admin_delete_any_po.sql[39m | {
+  "executionTime": "2ms",
+  "checksum": "LS0gTWlncmF0aW9uIDE0MzogQWxsb3cg"
+}
+2026-02-01 06:13:04 [[32minfo[39m]: [32m✅ Migration applied: 172_add_is_distributed_to_shipment_expenses.sql[39m | {
+  "executionTime": "12ms",
+  "checksum": "LS0gTWlncmF0aW9uOiBBZGQgaXNfZGlz"
+}
+2026-02-01 06:13:04 [[32minfo[39m]: [32m✅ Migration applied: 173_add_uom_to_shipment_items.sql[39m | {
+  "executionTime": "11ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-02-01 06:13:04 [[32minfo[39m]: [32m✅ Migration applied: 174_create_shipping_bills.sql[39m | {
+  "executionTime": "59ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-02-01 06:13:04 [[32minfo[39m]: [32m✅ Migration applied: 175_add_company_country_city_fk.sql[39m | {
+  "executionTime": "10ms",
+  "checksum": "LS0gTWlncmF0aW9uOiBBZGQgY291bnRy"
+}
+2026-02-01 06:13:04 [[32minfo[39m]: [32m✅ Migration applied: 176_add_company_logo_column.sql[39m | {
+  "executionTime": "2ms",
+  "checksum": "LS0gTWlncmF0aW9uOiBBZGQgbG9nbyBj"
+}
+2026-02-01 06:13:04 [[32minfo[39m]: [32m✅ Migration applied: 177_create_requests_module.sql[39m | {
+  "executionTime": "199ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-02-01 06:13:04 [[32minfo[39m]: [32m✅ Migration applied: 178_add_requests_module_permissions.sql[39m | {
+  "executionTime": "6ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-02-01 06:13:04 [[32minfo[39m]: [32m✅ Migration applied: 179_sync_shipment_expenses_to_requests.sql[39m | {
+  "executionTime": "11ms",
+  "checksum": "LS0gTWlncmF0aW9uOiBTeW5jIHNoaXBt"
+}
+2026-02-01 06:13:04 [[32minfo[39m]: [32m✅ Migration applied: 180_add_expense_request_print_template.sql[39m | {
+  "executionTime": "5ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-02-01 06:13:04 [[32minfo[39m]: [32m✅ Migration applied: 181_enhance_chart_of_accounts.sql[39m | {
+  "executionTime": "54ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-02-01 06:13:04 [[32minfo[39m]: [32m✅ Migration applied: 182_accounting_rules_engine.sql[39m | {
+  "executionTime": "94ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-02-01 06:13:04 [[32minfo[39m]: [32m✅ Migration applied: 183_accounting_rules_permissions.sql[39m | {
+  "executionTime": "4ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-02-01 06:13:04 [[32minfo[39m]: [32m✅ Migration applied: 184_seed_default_accounting_rules.sql[39m | {
+  "executionTime": "8ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-02-01 06:13:04 [[32minfo[39m]: [32m✅ Migration applied: 185_link_expense_accounts.sql[39m | {
+  "executionTime": "12ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-02-01 06:13:04 [[32minfo[39m]: [32m✅ Migration applied: 186_add_expense_accounts_8003_8017.sql[39m | {
+  "executionTime": "3ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-02-01 06:13:04 [[32minfo[39m]: [32m✅ Migration applied: 187_create_letters_of_credit_module.sql[39m | {
+  "executionTime": "164ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-02-01 06:13:04 [[32minfo[39m]: [32m✅ Migration applied: 188_fix_lc_number_unique_constraint.sql[39m | {
+  "executionTime": "6ms",
+  "checksum": "LS0gTWlncmF0aW9uOiBGaXggTEMgTnVt"
+}
+2026-02-01 06:13:04 [[32minfo[39m]: [32m✅ Migration applied: 188_shipment_expense_journal_integration.sql[39m | {
+  "executionTime": "27ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-02-01 06:13:04 [[32minfo[39m]: [32m✅ Migration applied: 189_add_customs_declaration_columns.sql[39m | {
+  "executionTime": "6ms",
+  "checksum": "LS0gTWlncmF0aW9uOiBBZGQgbWlzc2lu"
+}
+2026-02-01 06:13:04 [[32minfo[39m]: [32m✅ Migration applied: 189_items_enterprise_enhancements.sql[39m | {
+  "executionTime": "126ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-02-01 06:13:04 [[32minfo[39m]: [32m✅ Migration applied: 190_add_print_columns_to_expense_requests.sql[39m | {
+  "executionTime": "6ms",
+  "checksum": "LS0gTWlncmF0aW9uOiBBZGQgcHJpbnQg"
+}
+2026-02-01 06:13:04 [[31merror[39m]: [31m❌ Migration failed: 190_items_enhanced_audit_trail.sql syntax error at or near "DESC"[39m | {
+  "length": 95,
+  "name": "error",
+  "severity": "ERROR",
+  "code": "42601",
+  "position": "1799",
+  "file": "scan.l",
+  "line": "1188",
+  "routine": "scanner_yyerror"
+}
+2026-02-01 06:13:04 [[31merror[39m]: [31mMigration runner error syntax error at or near "DESC"[39m | {
+  "length": 95,
+  "name": "error",
+  "severity": "ERROR",
+  "code": "42601",
+  "position": "1799",
+  "file": "scan.l",
+  "line": "1188",
+  "routine": "scanner_yyerror"
+}
+2026-02-01 06:13:04 [[31merror[39m]: [31m❌ Failed to start application syntax error at or near "DESC"[39m | {
+  "length": 95,
+  "name": "error",
+  "severity": "ERROR",
+  "code": "42601",
+  "position": "1799",
+  "file": "scan.l",
+  "line": "1188",
+  "routine": "scanner_yyerror"
+}
+
+> slms-backend@0.1.0 dev
+> ts-node-dev --respawn --transpile-only src/index.ts
+
+[INFO] 06:13:51 ts-node-dev ver. 2.0.0 (using ts-node ver. 10.9.2, typescript ver. 5.9.3)
+✅ Environment configuration loaded:
+   - NODE_ENV: development
+   - PORT: 4000
+   - JWT_SECRET: your-sup... (46 chars)
+   - DATABASE_URL: postgres:5432/slms_db
+   - CORS_ORIGINS: http://localhost:3000, http://localhost:3001
+ℹ️  Sentry disabled - no SENTRY_DSN configured (dev mode OK)
+2026-02-01 06:13:56 [[32minfo[39m]: [32m🚀 Application starting...[39m | {
+  "nodeEnv": "development",
+  "port": 4000
+}
+2026-02-01 06:13:56 [[32minfo[39m]: [32m🚀 Starting SLMS Backend...[39m | {
+  "nodeVersion": "v18.20.8",
+  "platform": "linux"
+}
+2026-02-01 06:13:56 [[32minfo[39m]: [32mRunning database migrations...[39m
+New database client connected
+2026-02-01 06:13:56 [[31merror[39m]: [31m❌ Migration failed: 190_items_enhanced_audit_trail.sql column i.item_name does not exist[39m | {
+  "length": 169,
+  "name": "error",
+  "severity": "ERROR",
+  "code": "42703",
+  "hint": "Perhaps you meant to reference the column \"i.item_type\".",
+  "position": "6406",
+  "file": "parse_relation.c",
+  "line": "3665",
+  "routine": "errorMissingColumn"
+}
+2026-02-01 06:13:56 [[31merror[39m]: [31mMigration runner error column i.item_name does not exist[39m | {
+  "length": 169,
+  "name": "error",
+  "severity": "ERROR",
+  "code": "42703",
+  "hint": "Perhaps you meant to reference the column \"i.item_type\".",
+  "position": "6406",
+  "file": "parse_relation.c",
+  "line": "3665",
+  "routine": "errorMissingColumn"
+}
+2026-02-01 06:13:56 [[31merror[39m]: [31m❌ Failed to start application column i.item_name does not exist[39m | {
+  "length": 169,
+  "name": "error",
+  "severity": "ERROR",
+  "code": "42703",
+  "hint": "Perhaps you meant to reference the column \"i.item_type\".",
+  "position": "6406",
+  "file": "parse_relation.c",
+  "line": "3665",
+  "routine": "errorMissingColumn"
+}

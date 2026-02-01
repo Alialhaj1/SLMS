@@ -1,38 +1,33 @@
-import { useState } from 'react';
-import axios from 'axios';
+/**
+ * Home/Landing Page
+ * Redirects to login or dashboard based on auth state
+ */
 
-export default function LoginPage() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [status, setStatus] = useState<string | null>(null);
+import { useEffect } from 'react';
+import { useRouter } from 'next/router';
+import { useAuth } from '../contexts/AuthContext';
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setStatus('Logging in...');
-    try {
-      const api = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-      const resp = await axios.post(`${api}/api/auth/login`, { email, password });
-      const { accessToken, refreshToken } = resp.data;
-      localStorage.setItem('accessToken', accessToken);
-      localStorage.setItem('refreshToken', refreshToken);
-      setStatus('Login successful — tokens stored in localStorage');
-    } catch (err: any) {
-      setStatus(err?.response?.data?.message || 'Login failed');
+export default function HomePage() {
+  const router = useRouter();
+  const { isAuthenticated, loading } = useAuth();
+
+  useEffect(() => {
+    if (loading) return;
+
+    if (isAuthenticated) {
+      router.replace('/dashboard');
+    } else {
+      router.replace('/auth/login');
     }
-  }
+  }, [isAuthenticated, loading, router]);
 
+  // Show loading while checking auth
   return (
-    <div style={{ maxWidth: 420, margin: '5rem auto', fontFamily: 'Arial, sans-serif' }}>
-      <h1>SLMS — Login</h1>
-      <form onSubmit={onSubmit}>
-        <label style={{ display: 'block', marginBottom: 8 }}>Email</label>
-        <input value={email} onChange={(e) => setEmail(e.target.value)} style={{ width: '100%', padding: 8 }} />
-        <label style={{ display: 'block', margin: '12px 0 8px' }}>Password</label>
-        <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} style={{ width: '100%', padding: 8 }} />
-        <button type="submit" style={{ marginTop: 12, padding: '8px 12px' }}>Login</button>
-      </form>
-      {status && <p style={{ marginTop: 12 }}>{status}</p>}
-      <p style={{ marginTop: 24, fontSize: 12, color: '#666' }}>This page stores tokens in localStorage for demo purposes only.</p>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-gray-900 dark:to-gray-800">
+      <div className="text-center">
+        <div className="inline-block w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4" />
+        <p className="text-gray-600 dark:text-gray-400">Loading...</p>
+      </div>
     </div>
   );
 }

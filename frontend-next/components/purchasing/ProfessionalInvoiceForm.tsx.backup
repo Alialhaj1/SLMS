@@ -1,0 +1,739 @@
+import React, { useState, useEffect } from 'react';
+import Modal from '../ui/Modal';
+import Button from '../ui/Button';
+import Input from '../ui/Input';
+import Card from '../ui/Card';
+import ItemSelector from '../shared/ItemSelector';
+import WarehouseDropdown from '../shared/WarehouseDropdown';
+import CostCenterDropdown from '../shared/CostCenterDropdown';
+import ProjectDropdown from '../shared/ProjectDropdown';
+import CurrencySelector from '../shared/CurrencySelector';
+import PaymentMethodSelector from '../shared/PaymentMethodSelector';
+import ExpenseAllocationAndDistribution from './ExpenseAllocationAndDistribution';
+import { XMarkIcon, PlusIcon, TrashIcon, PencilIcon, DocumentTextIcon, BanknotesIcon, CalculatorIcon, ArchiveBoxIcon, LinkIcon } from '@heroicons/react/24/outline';
+import clsx from 'clsx';
+import { useTranslation } from '../../hooks/useTranslation';
+
+// Local type definitions for expense allocation
+interface InvoiceExpense {
+  id?: number;
+  expense_type_id: number;
+  expense_type_code?: string;
+  expense_type_name?: string;
+  amount: number;
+  currency_id?: number;
+  currency_code?: string;
+  exchange_rate?: number;
+  notes?: string;
+}
+
+type ExpenseItem = InvoiceItem;
+
+// Interfaces matching backend and components
+export interface InvoiceItem {
+  id?: number;
+  temp_id?: string;
+  item_id: number;
+  item_code: string;
+  item_name: string;
+  item_name_ar?: string;
+  warehouse_id: number;
+  warehouse_code?: string;
+  warehouse_name?: string;
+  uom_id: number;
+  uom_code: string;
+  uom_name?: string;
+  quantity: number;
+  bonus_quantity: number; // Free Qty
+  unit_price: number;
+  discount_percent: number;
+  discount_amount: number;
+  tax_rate_id?: number;
+  tax_percent: number;
+  tax_amount: number;
+  
+  // Extended fields
+  line_total: number;
+  cost_center_id?: number;
+  cost_center_code?: string;
+  project_id?: number;
+  project_code?: string;
+  notes?: string;
+  
+  // Allocated costs (calculated)
+  customs_duty_amount?: number;
+  other_expenses_amount?: number;
+  weight_kg?: number;
+}
+
+interface ProfessionalInvoiceFormProps {
+  isOpen: boolean;
+  onClose: () => void;
+  initialData?: any;
+  onSubmit: (data: any) => void;
+  isLoading?: boolean;
+  companyId: number;
+  locale: string;
+}
+
+const ProfessionalInvoiceForm: React.FC<ProfessionalInvoiceFormProps> = ({
+  isOpen,
+  onClose,
+  initialData,
+  onSubmit,
+  isLoading = false,
+  companyId,
+  locale
+}) => {
+  const { t } = useTranslation();
+  const [activeTab, setActiveTab] = useState<'general' | 'lines' | 'financials' | 'expenses'>('general');
+  
+  // Form State
+  const getTodayDate = () => new Date().toISOString().split('T')[0];
+  const [formData, setFormData] = useState<any>({
+    invoice_number: '',
+    vendor_id: '',
+    vendor_invoice_number: '',
+    vendor_invoice_date: getTodayDate(),
+    invoice_date: getTodayDate(),
+    due_date: getTodayDate(),
+    description: '',
+    currency_id: null,
+    payment_terms_id: null,
+    delivery_terms_id: null,
+    project_id: null,
+    cost_center_id: null,
+    default_warehouse_id: 1, 
+    notes: '',
+    
+    // Type
+    invoice_type: 'local', // 'local' or 'import'
+    
+    // References
+    purchase_order_id: null,
+    quotation_id: null,
+    
+    items: [] as InvoiceItem[],
+    expenses: [] as InvoiceExpense[],
+    
+    // Financials
+    subtotal: 0,
+    discount_amount: 0,
+    tax_amount: 0,
+    total_amount: 0,
+    
+    // Payment Method details
+    payment_method_id: null,
+    bank_account_id: null,
+    cash_box_id: null,
+    cheque_number: '',
+    cheque_date: '',
+  });
+
+  // Reference Data State
+  const [vendors, setVendors] = useState<any[]>([]);
+  const [vendorSearch, setVendorSearch] = useState('');
+  const [paymentTerms, setPaymentTerms] = useState<any[]>([]);
+  const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
+  const [quotations, setQuotations] = useState<any[]>([]); // Placeholder for quotes
+  const [loadingRefs, setLoadingRefs] = useState(false);
+
+  // Filter vendors by search term
+  const filteredVendors = vendors.filter(v => {
+    if (!vendorSearch) return true;
+    const search = vendorSearch.toLowerCase();
+    const name = (locale === 'ar' ? (v.name_ar || v.name) : v.name).toLowerCase();
+    const code = (v.code || '').toLowerCase();
+    return name.includes(search) || code.includes(search);
+  });
+
+  // Initialize form when opening/editing
+  useEffect(() => {
+    if (isOpen) {
+        fetchReferenceData();
+        if (initialData && initialData.id) {
+            // Editing existing invoice
+            setFormData({
+                ...initialData,
+                items: initialData.items || [],
+                expenses: initialData.expenses || []
+            });
+        } else {
+            // Creating new invoice - fetch next invoice number
+            fetchNextInvoiceNumber();
+        }
+    }
+  }, [isOpen, initialData]);
+
+  const fetchNextInvoiceNumber = async () => {
+    try {
+        const token = localStorage.getItem('accessToken');
+        const response = await fetch('http://localhost:4000/api/procurement/invoices/next-number', {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (response.ok) {
+            const result = await response.json();
+            setFormData((prev: any) => ({
+                ...prev,
+                invoice_number: result.data.invoice_number
+            }));
+        }
+    } catch (err) {
+        console.error('Failed to fetch next invoice number:', err);
+    }
+  };
+
+  // Fetch POs/Quotes when Vendor Changes
+  useEffect(() => {
+      if (formData.vendor_id && isOpen) {
+          fetchVendorDocuments(formData.vendor_id);
+      }
+  }, [formData.vendor_id]);
+
+  const fetchReferenceData = async () => {
+    setLoadingRefs(true);
+    try {
+        const headers = { 'Authorization': `Bearer ${localStorage.getItem('accessToken')}` };
+        const [vendorsRes, termsRes] = await Promise.all([
+            fetch('http://localhost:4000/api/procurement/vendors', { headers }),
+            fetch('http://localhost:4000/api/procurement/vendors/payment-terms', { headers })
+        ]);
+
+        if (vendorsRes.ok) {
+            const data = await vendorsRes.json();
+            setVendors(data.data || []);
+        }
+        if (termsRes.ok) {
+            const data = await termsRes.json();
+            setPaymentTerms(data.data || []);
+        }
+    } catch (err) {
+        console.error("Failed to fetch reference data", err);
+    } finally {
+        setLoadingRefs(false);
+    }
+  };
+
+  const fetchVendorDocuments = async (vendorId: number) => {
+      try {
+        const headers = { 'Authorization': `Bearer ${localStorage.getItem('accessToken')}` };
+        const res = await fetch(`http://localhost:4000/api/procurement/purchase-orders?company_id=${companyId}&vendor_id=${vendorId}&status=approved`, { headers });
+        if (res.ok) {
+            const data = await res.json();
+            setPurchaseOrders(data.data || []);
+        }
+      } catch (err) {
+          console.error("Failed to fetch POs", err);
+      }
+  };
+
+  const loadItemsFromPO = async (poId: number) => {
+      // Mock implementation - usually would fetch `/api/procurement/purchase-orders/${poId}` and map items
+      // For now we assume we can just find it in the list if details were loaded, or fetch details.
+      alert(locale === 'ar' ? 'سيتم تحميل الأصناف من أمر الشراء (محاكاة)' : 'Items would be loaded from PO (Simulated)');
+  };
+
+  // Recalculate totals
+  useEffect(() => {
+    const items = formData.items || [];
+    const subtotal = items.reduce((sum: number, item: InvoiceItem) => sum + (item.quantity * item.unit_price), 0);
+    const totalDiscount = items.reduce((sum: number, item: InvoiceItem) => sum + (item.discount_amount || 0), 0);
+    const totalTax = items.reduce((sum: number, item: InvoiceItem) => sum + (item.tax_amount || 0), 0);
+    const customs = items.reduce((sum: number, item: InvoiceItem) => sum + (item.customs_duty_amount || 0), 0);
+    
+    // Expenses distribution
+    const distributedExpenses = items.reduce((sum: number, item: InvoiceItem) => sum + (item.other_expenses_amount || 0), 0);
+    // Or if expenses are added on top of line items totals or just affect COGS... 
+    // Usually purchasing invoice total = Vendor Bill Amount.
+    // Customs/Freight paid to other vendors are NOT part of THIS invoice total, but part of Landed Cost.
+    // However, if the freight is on the SAME invoice, it should be a line item or an expense added to total.
+    // We will assume "Expenses" tab tracks LANDED COST components (paid to others or this vendor).
+    
+    // For the "Invoice Total" (Amount to Pay Vendor), we only sum the lines + tax.
+    // If expenses are marked as "Paid to Vendor", they should be added. We'll simplify for now: Item Lines Total is the Invoice Total.
+    
+    const total = subtotal - totalDiscount + totalTax; 
+    
+    setFormData(prev => ({
+        ...prev,
+        subtotal,
+        discount_amount: totalDiscount,
+        tax_amount: totalTax,
+        total_amount: total
+    }));
+  }, [formData.items]);
+
+  const handleCreate = () => {
+      if (!formData.vendor_id) return alert(locale === 'ar' ? 'يرجى اختيار المورد' : 'Please select a vendor');
+      if (formData.items.length === 0) return alert(locale === 'ar' ? 'يرجى إضافة أصناف' : 'Please add items');
+      onSubmit(formData);
+  };
+
+  // New Item State
+  const [newItem, setNewItem] = useState<Partial<InvoiceItem>>({ 
+      quantity: 1, 
+      bonus_quantity: 0,
+      unit_price: 0, 
+      discount_percent: 0, 
+      tax_percent: 15 
+  });
+  
+  const addItem = () => {
+      if (!newItem.item_id) return;
+      
+      const qty = newItem.quantity || 0;
+      const price = newItem.unit_price || 0;
+      const discountPct = newItem.discount_percent || 0;
+      
+      const baseTotal = qty * price;
+      const discountAmt = baseTotal * (discountPct / 100);
+      const afterDiscount = baseTotal - discountAmt;
+      
+      const taxPct = formData.invoice_type === 'local' ? (newItem.tax_percent || 0) : 0; // No VAT on import usually (paid at customs) or different logic
+      const taxAmt = afterDiscount * (taxPct / 100);
+      
+      const itemToAdd: InvoiceItem = {
+          ...newItem as InvoiceItem,
+          warehouse_id: newItem.warehouse_id || formData.default_warehouse_id || 1,
+          temp_id: Math.random().toString(36).substr(2, 9),
+          discount_amount: discountAmt,
+          tax_amount: taxAmt,
+          line_total: afterDiscount + taxAmt,
+          bonus_quantity: newItem.bonus_quantity || 0
+      };
+      
+      setFormData(prev => ({ ...prev, items: [...prev.items, itemToAdd] }));
+      setNewItem({ quantity: 1, bonus_quantity: 0, unit_price: 0, discount_percent: 0, tax_percent: 15, item_id: 0, item_code: '', item_name: '' }); 
+  };
+
+  const removeItem = (index: number) => {
+      const newItems = [...formData.items];
+      newItems.splice(index, 1);
+      setFormData(prev => ({ ...prev, items: newItems }));
+  };
+
+  const handleExpenseDistributionChange = (updatedItems: ExpenseItem[], updatedExpenses: InvoiceExpense[]) => {
+      setFormData(prev => ({ ...prev, items: updatedItems, expenses: updatedExpenses }));
+  };
+
+  const tabs = [
+    { id: 'general', label: locale === 'ar' ? 'عام' : 'General', icon: DocumentTextIcon },
+    { id: 'lines', label: locale === 'ar' ? 'الأصناف' : 'Lines', icon: ArchiveBoxIcon },
+    { id: 'expenses', label: locale === 'ar' ? 'توزيع المصاريف' : 'Expenses', icon: CalculatorIcon },
+    { id: 'financials', label: locale === 'ar' ? 'المالية' : 'Financials', icon: BanknotesIcon },
+  ];
+
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={initialData 
+        ? (locale === 'ar' ? 'تعديل فاتورة شراء' : 'Edit Purchase Invoice') 
+        : (locale === 'ar' ? 'فاتورة شراء مهنية' : 'Professional Purchase Invoice')}
+      size="xl"
+    >
+      <div className="flex flex-col h-[80vh]">
+        {/* Tabs Header */}
+        <div className="flex border-b border-gray-200 dark:border-gray-700 mb-4 bg-gray-50 dark:bg-slate-800/50 -mx-6 px-6 pt-2">
+            {tabs.map(tab => (
+                <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id as any)}
+                    className={clsx(
+                        "flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors",
+                        activeTab === tab.id
+                            ? "border-blue-500 text-blue-600 dark:text-blue-400"
+                            : "border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                    )}
+                >
+                    <tab.icon className="w-5 h-5" />
+                    {tab.label}
+                </button>
+            ))}
+        </div>
+
+        {/* Scrollable Content */}
+        <div className="flex-1 overflow-y-auto px-1">
+            
+            {/* TAB: GENERAL */}
+            {activeTab === 'general' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-4">
+                    <div className="space-y-4">
+                        {/* Vendor & Type Row */}
+                        <div className="flex gap-2">
+                            <div className="flex-1">
+                                <label className="block text-sm font-medium mb-1">{locale === 'ar' ? 'المورد' : 'Vendor'} <span className="text-red-500">*</span></label>
+                                
+                                {/* Searchable vendor input */}
+                                <input
+                                    type="text"
+                                    className="input w-full dark:bg-slate-700 dark:border-slate-600 mb-1"
+                                    placeholder={locale === 'ar' ? '🔍 ابحث بالاسم أو الكود...' : '🔍 Search by name or code...'}
+                                    value={vendorSearch}
+                                    onChange={(e) => setVendorSearch(e.target.value)}
+                                />
+                                
+                                <select 
+                                    className="input w-full dark:bg-slate-700 dark:border-slate-600"
+                                    value={formData.vendor_id}
+                                    onChange={e => {
+                                        setFormData({...formData, vendor_id: Number(e.target.value)});
+                                        // Clear search after selection
+                                        setVendorSearch('');
+                                    }}
+                                    size={8}
+                                    style={{ height: '180px', overflow: 'auto' }}
+                                >
+                                    <option value="">{locale === 'ar' ? 'اختر المورد...' : 'Select Vendor...'}</option>
+                                    {filteredVendors.length === 0 && !vendorSearch && (
+                                        <option disabled>{locale === 'ar' ? 'جاري التحميل...' : 'Loading...'}</option>
+                                    )}
+                                    {filteredVendors.map(v => (
+                                        <option key={v.id} value={v.id}>
+                                            {locale === 'ar' ? (v.name_ar || v.name) : v.name} ({v.code})
+                                        </option>
+                                    ))}
+                                </select>
+                                {filteredVendors.length === 0 && vendorSearch && (
+                                    <p className="text-xs text-red-500 mt-1">
+                                        {locale === 'ar' ? '❌ لم يتم العثور على موردين' : '❌ No vendors found'}
+                                    </p>
+                                )}
+                            </div>
+                            <div className="w-1/3">
+                                <label className="block text-sm font-medium mb-1">{locale === 'ar' ? 'نوع الفاتورة' : 'Type'}</label>
+                                <select 
+                                    className="input w-full dark:bg-slate-700 dark:border-slate-600 bg-gray-50"
+                                    value={formData.invoice_type}
+                                    onChange={e => setFormData({...formData, invoice_type: e.target.value})}
+                                >
+                                    <option value="local">{locale === 'ar' ? 'محلي' : 'Local'}</option>
+                                    <option value="import">{locale === 'ar' ? 'استيراد' : 'Import'}</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-4">
+                            <Input 
+                                label={locale === 'ar' ? 'رقم فاتورة المورد' : 'Vendor Invoice #'}
+                                value={formData.vendor_invoice_number}
+                                onChange={e => setFormData({...formData, vendor_invoice_number: e.target.value})}
+                                placeholder="INV-001"
+                            />
+                             <Input 
+                                type="date"
+                                label={locale === 'ar' ? 'تاريخ الفاتورة' : 'Invoice Date'}
+                                value={formData.invoice_date}
+                                onChange={e => setFormData({...formData, invoice_date: e.target.value})}
+                            />
+                        </div>
+
+                        {/* Reference Documents */}
+                        {formData.vendor_id && (
+                            <div className="bg-blue-50 dark:bg-slate-800 p-3 rounded-lg border border-blue-100 dark:border-gray-700">
+                                <div className="flex items-center gap-2 mb-2 text-blue-800 dark:text-blue-300">
+                                    <LinkIcon className="w-4 h-4" />
+                                    <span className="text-sm font-bold">{locale === 'ar' ? 'ربط مع مستندات' : 'Link references'}</span>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <select 
+                                        className="input text-sm py-1"
+                                        value={formData.purchase_order_id || ''}
+                                        onChange={(e) => {
+                                            const id = Number(e.target.value);
+                                            setFormData({...formData, purchase_order_id: id});
+                                            if(id) loadItemsFromPO(id);
+                                        }}
+                                    >
+                                        <option value="">{locale === 'ar' ? 'اختر أمر شراء...' : 'Select PO...'}</option>
+                                        {purchaseOrders.map(po => (
+                                            <option key={po.id} value={po.id}>{po.po_number}</option>
+                                        ))}
+                                    </select>
+                                    <select 
+                                        className="input text-sm py-1"
+                                        value={formData.quotation_id || ''}
+                                        onChange={(e) => setFormData({...formData, quotation_id: Number(e.target.value)})}
+                                    >
+                                        <option value="">{locale === 'ar' ? 'اختر عرض سعر...' : 'Select Quote...'}</option>
+                                        {quotations.map(q => (
+                                            <option key={q.id} value={q.id}>{q.number}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                        {/* Description/Statement Field */}
+                        <div>
+                            <label className="block text-sm font-medium mb-1">
+                                {locale === 'ar' ? 'البيان / الوصف' : 'Description / Statement'}
+                                <span className="text-gray-400 text-xs ml-2">(optional)</span>
+                            </label>
+                            <textarea
+                                className="input w-full dark:bg-slate-700 dark:border-slate-600"
+                                rows={2}
+                                value={formData.description}
+                                onChange={e => setFormData({...formData, description: e.target.value})}
+                                placeholder={locale === 'ar' ? 'وصف الفاتورة أو البيان' : 'Invoice description or statement'}
+                            />
+                        </div>
+                    </div>
+                    <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                             <Input 
+                                type="date"
+                                label={locale === 'ar' ? 'تاريخ الاستحقاق' : 'Due Date'}
+                                value={formData.due_date}
+                                onChange={e => setFormData({...formData, due_date: e.target.value})}
+                            />
+                            <CostCenterDropdown 
+                                value={formData.cost_center_id}
+                                onChange={(val) => setFormData({...formData, cost_center_id: val})}
+                                label={locale === 'ar' ? 'مركز التكلفة' : 'Cost Center'}
+                                companyId={companyId}
+                            />
+                            <ProjectDropdown 
+                                value={formData.project_id}
+                                onChange={(val) => setFormData({...formData, project_id: val})}
+                                label={locale === 'ar' ? 'المشروع' : 'Project'}
+                                companyId={companyId}
+                            />
+                        </div>
+
+                        <div className="bg-gray-50 dark:bg-slate-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
+                             <label className="block text-sm font-medium mb-2">{locale === 'ar' ? 'المخزن الافتراضي' : 'Default Warehouse'}</label>
+                             <WarehouseDropdown 
+                                value={formData.default_warehouse_id}
+                                onChange={(val) => setFormData({...formData, default_warehouse_id: val})}
+                                companyId={companyId}
+                             />
+                        </div>
+                        
+                        <div>
+                            <label className="block text-sm font-medium mb-1">{locale === 'ar' ? 'ملاحظات' : 'Notes'}</label>
+                            <textarea
+                                className="input w-full dark:bg-slate-700 dark:border-slate-600"
+                                rows={2}
+                                value={formData.notes}
+                                onChange={e => setFormData({...formData, notes: e.target.value})}
+                            />
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* TAB: LINES */}
+            {activeTab === 'lines' && (
+                <div className="space-y-4">
+                    {/* Compact Add Line */}
+                    <Card className="p-3 bg-blue-50 dark:bg-slate-800 border-blue-100 dark:border-slate-700">
+                        <div className="grid grid-cols-12 gap-2 items-end">
+                            <div className="col-span-3">
+                                <label className="text-xs mb-1 block font-medium">Item</label>
+                                <ItemSelector 
+                                    selectedItem={null}
+                                    onSelect={(item) => {
+                                        if (item) {
+                                            setNewItem(prev => ({
+                                                ...prev, 
+                                                item_id: item.id, 
+                                                item_code: item.code, 
+                                                item_name: item.name, 
+                                                uom_code: item.unit_name || 'PCS',
+                                                uom_id: item.unit_id || 1,
+                                                unit_price: item.unit_price || 0
+                                            }));
+                                        }
+                                    }}
+                                    companyId={companyId}
+                                />
+                            </div>
+                            <div className="col-span-2">
+                                <Input label="Qty" type="number" 
+                                    value={newItem.quantity} onChange={e => setNewItem({...newItem, quantity: Number(e.target.value)})} containerClassName="mb-0" />
+                            </div>
+                            <div className="col-span-2">
+                                <Input label="Bonus" type="number" 
+                                    value={newItem.bonus_quantity} onChange={e => setNewItem({...newItem, bonus_quantity: Number(e.target.value)})} containerClassName="mb-0" />
+                            </div>
+                            <div className="col-span-2">
+                                <Input label="Price" type="number" 
+                                    value={newItem.unit_price} onChange={e => setNewItem({...newItem, unit_price: Number(e.target.value)})} containerClassName="mb-0" />
+                            </div>
+                            {formData.invoice_type === 'local' && (
+                                <div className="col-span-2">
+                                    <Input label="Tax %" type="number" 
+                                        value={newItem.tax_percent} onChange={e => setNewItem({...newItem, tax_percent: Number(e.target.value)})} containerClassName="mb-0" />
+                                </div>
+                            )}
+                            <div className={formData.invoice_type === 'local' ? "col-span-1" : "col-span-3"}>
+                                <Button size="sm" onClick={addItem} className="w-full h-10" disabled={!newItem.item_id}>Add</Button>
+                            </div>
+                        </div>
+                    </Card>
+
+                    {/* Lines Table */}
+                    <div className="overflow-x-auto border rounded-lg dark:border-slate-700">
+                        <table className="w-full text-sm text-left">
+                            <thead className="bg-gray-100 dark:bg-slate-700 dark:text-gray-300">
+                                <tr>
+                                    <th className="p-2">#</th>
+                                    <th className="p-2">Item</th>
+                                    <th className="p-2 text-right">Qty</th>
+                                    <th className="p-2 text-center text-green-600">Bonus</th>
+                                    <th className="p-2 text-right">Price</th>
+                                    <th className="p-2 text-right">Tax</th>
+                                    <th className="p-2 text-right">Total</th>
+                                    <th className="p-2 w-10"></th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-200 dark:divide-slate-700">
+                                {formData.items.map((item: InvoiceItem, idx: number) => (
+                                    <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-slate-800">
+                                        <td className="p-2">{idx + 1}</td>
+                                        <td className="p-2">
+                                            <div className="font-medium">{item.item_name}</div>
+                                            <div className="text-xs text-gray-500">{item.item_code}</div>
+                                        </td>
+                                        <td className="p-2 text-right">{item.quantity} {item.uom_code}</td>
+                                        <td className="p-2 text-center font-bold text-green-600">{item.bonus_quantity > 0 ? `+${item.bonus_quantity}` : '-'}</td>
+                                        <td className="p-2 text-right">{item.unit_price.toFixed(2)}</td>
+                                        <td className="p-2 text-right">{item.tax_amount.toFixed(2)}</td>
+                                        <td className="p-2 text-right font-medium">{item.line_total?.toFixed(2)}</td>
+                                        <td className="p-2">
+                                            <button onClick={() => removeItem(idx)} className="text-red-500 hover:text-red-700">
+                                                <TrashIcon className="w-4 h-4" />
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                                {formData.items.length === 0 && (
+                                    <tr>
+                                        <td colSpan={8} className="p-4 text-center text-gray-500 dark:text-gray-400">No items added</td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            )}
+
+            {/* TAB: EXPENSES */}
+            {activeTab === 'expenses' && (
+                <div className="space-y-4">
+                    <p className="text-sm text-gray-500 italic mb-2">
+                        {locale === 'ar' 
+                            ? 'توزيع المصاريف (الشحن، الجمارك، إلخ) على أصناف الفاتورة لتحديد التكلفة النهائية'
+                            : 'Distribute Landing Costs (Freight, Customs, etc.) to items to determine Final Cost'}
+                    </p>
+                    <ExpenseAllocationAndDistribution 
+                        items={formData.items}
+                        expenses={formData.expenses}
+                        onAllocationsChange={(allocations) => {
+                            // Update items with allocated amounts
+                            console.log('Allocations updated:', allocations);
+                        }}
+                        currencySymbol={formData.currency_code || 'SAR'}
+                        companyId={companyId}
+                    />
+                </div>
+            )}
+
+            {/* TAB: FINANCIALS */}
+            {activeTab === 'financials' && (
+                <div className="space-y-6">
+                    <div className="grid grid-cols-2 gap-6">
+                        <CurrencySelector 
+                            companyId={companyId}
+                            value={formData.currency_id}
+                            onChange={(val) => setFormData({...formData, currency_id: val})}
+                            label={locale === 'ar' ? 'العملة' : 'Currency'}
+                        />
+                        
+                        <div>
+                             <label className="block text-sm font-medium mb-1">{locale === 'ar' ? 'شروط الدفع' : 'Payment Terms'}</label>
+                             <select className="input w-full dark:bg-slate-700 dark:border-slate-600"
+                                value={formData.payment_terms_id || ''}
+                                onChange={e => setFormData({...formData, payment_terms_id: Number(e.target.value)})}
+                             >
+                                 <option value="">None</option>
+                                 {paymentTerms.map(t => (
+                                     <option key={t.id} value={t.id}>{t.name} ({t.due_days} days)</option>
+                                 ))}
+                             </select>
+                        </div>
+                    </div>
+
+                    <div className="border-t pt-4 dark:border-gray-700">
+                        <h4 className="font-medium mb-3 flex items-center gap-2">
+                            <BanknotesIcon className="w-5 h-5 text-green-600" />
+                            {locale === 'ar' ? 'وسيلة الدفع' : 'Payment Method'}
+                        </h4>
+                        
+                        <PaymentMethodSelector 
+                            paymentMethodId={formData.payment_method_id}
+                            bankAccountId={formData.bank_account_id}
+                            cashBoxId={formData.cash_box_id}
+                            onPaymentMethodChange={(methodId, type) => setFormData({
+                                ...formData, 
+                                payment_method_id: methodId
+                                // Type logic handled in selector or here if needed to clear
+                            })}
+                            onBankAccountChange={(id) => setFormData({...formData, bank_account_id: id})}
+                            onCashBoxChange={(id) => setFormData({...formData, cash_box_id: id})}
+                            companyId={companyId}
+                            locale={locale}
+                        />
+
+                        {/* Cheque Details if needed - Logic usually depends on Payment Type "CHEQUE" */}
+                        <div className="grid grid-cols-2 gap-4 mt-4 bg-gray-50 dark:bg-slate-800 p-3 rounded">
+                            <Input 
+                                label={locale === 'ar' ? 'رقم الشيك / المرجع' : 'Cheque # / Reference'} 
+                                value={formData.cheque_number} 
+                                onChange={e => setFormData({...formData, cheque_number: e.target.value})}
+                                placeholder="Ref No..."
+                            />
+                            <Input 
+                                type="date"
+                                label={locale === 'ar' ? 'تاريخ الشيك' : 'Cheque Date'} 
+                                value={formData.cheque_date} 
+                                onChange={e => setFormData({...formData, cheque_date: e.target.value})}
+                            />
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+
+        {/* Footer Totals & Actions */}
+        <div className="mt-4 border-t border-gray-200 dark:border-gray-700 pt-4 bg-gray-50 dark:bg-slate-900 rounded-lg p-4">
+            <div className="flex justify-between items-center mb-4">
+                <div className="text-sm space-y-1 sm:space-y-0 sm:flex sm:items-center">
+                    <span className="text-gray-500">{locale === 'ar' ? 'المجموع الفرعي:' : 'Subtotal:'}</span> 
+                    <span className="font-bold mx-2">{formData.subtotal.toFixed(2)}</span>
+                    
+                    {formData.invoice_type === 'local' && (
+                        <>
+                            <span className="hidden sm:inline mx-2 text-gray-300">|</span>
+                            <span className="text-gray-500">{locale === 'ar' ? 'الضريبة:' : 'Tax:'}</span> 
+                            <span className="font-bold mx-2">{formData.tax_amount.toFixed(2)}</span>
+                        </>
+                    )}
+                    
+                    <span className="hidden sm:inline mx-2 text-gray-300">|</span>
+                    <span className="text-gray-500 text-lg">{locale === 'ar' ? 'الإجمالي:' : 'Total:'}</span> 
+                    <span className="text-xl font-bold text-blue-600 mx-2">{formData.total_amount.toFixed(2)}</span>
+                </div>
+                <div className="flex gap-2">
+                    <Button variant="secondary" onClick={onClose}>{locale === 'ar' ? 'إلغاء' : 'Cancel'}</Button>
+                    <Button onClick={handleCreate} loading={isLoading}>{locale === 'ar' ? 'حفظ الفاتورة' : 'Save Invoice'}</Button>
+                </div>
+            </div>
+        </div>
+      </div>
+    </Modal>
+  );
+};
+
+export default ProfessionalInvoiceForm;

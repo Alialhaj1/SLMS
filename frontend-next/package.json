@@ -5,17 +5,38 @@
   "scripts": {
     "dev": "next dev -p 3001",
     "build": "next build",
-    "start": "next start -p 3001"
+    "start": "next start -p 3001",
+    "routes:audit": "npx ts-node --compiler-options \"{\\\"module\\\":\\\"CommonJS\\\"}\" scripts/audit-routes.ts",
+    "pages:create-missing": "npx ts-node --compiler-options \"{\\\"module\\\":\\\"CommonJS\\\"}\" scripts/create-missing-pages.ts",
+    "menu:fix-translations": "npx ts-node --compiler-options \"{\\\"module\\\":\\\"CommonJS\\\"}\" scripts/fix-menu-translations.ts",
+    "menu:validate": "npx ts-node --compiler-options \"{\\\"module\\\":\\\"CommonJS\\\"}\" scripts/validate-menu.ts",
+    "comingsoon:audit": "npx ts-node --compiler-options \"{\\\"module\\\":\\\"CommonJS\\\"}\" scripts/audit-coming-soon-pages.ts",
+    "permissions:validate": "npx ts-node --compiler-options \"{\\\"module\\\":\\\"CommonJS\\\"}\" scripts/validate-permissions.ts",
+    "permissions:sync": "npx ts-node --compiler-options \"{\\\"module\\\":\\\"CommonJS\\\"}\" scripts/validate-permissions-sync.ts"
   },
   "dependencies": {
+    "@headlessui/react": "^2.2.9",
+    "@heroicons/react": "^2.2.0",
+    "@hookform/resolvers": "^5.2.2",
     "axios": "^1.4.0",
-    "next": "^13.4.0",
-    "react": "^18.0.0",
-    "react-dom": "^18.0.0"
+    "clsx": "^2.1.1",
+    "date-fns": "^3.6.0",
+    "next": "13.5.6",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-hook-form": "^7.71.0",
+    "xlsx": "^0.18.5",
+    "zod": "^4.3.5"
   },
   "devDependencies": {
-    "@types/node": "^25.0.1",
-    "@types/react": "^19.2.7",
-    "typescript": "^5.9.3"
+    "@types/glob": "^8.1.0",
+    "@types/node": "25.0.2",
+    "@types/react": "19.2.7",
+    "autoprefixer": "^10.4.14",
+    "glob": "^13.0.0",
+    "postcss": "^8.4.24",
+    "tailwindcss": "^3.2.7",
+    "ts-node": "^10.9.2",
+    "typescript": "5.9.3"
   }
 }

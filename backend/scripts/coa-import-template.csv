@@ -1,0 +1,14 @@
+code,name,name_ar,parent_code,level,is_group,allow_posting,account_type_code,default_key
+1000,Assets,الأصول,,1,true,false,CASH,
+1100,Current Assets,الأصول المتداولة,1000,2,true,false,CASH,
+1110,Cash and Bank,النقدية والبنوك,1100,3,true,false,CASH,
+1111,Petty Cash,الصندوق,1110,4,false,true,CASH,CASH
+1200,Receivables,المدينون,1100,3,true,false,RECEIVABLE,
+1201,Accounts Receivable - Trade,ذمم العملاء,1200,4,false,true,RECEIVABLE,AR_TRADE
+2000,Liabilities,الالتزامات,,1,true,false,PAYABLE,
+2100,Current Liabilities,الالتزامات المتداولة,2000,2,true,false,PAYABLE,
+2101,Accounts Payable - Trade,ذمم الموردين,2100,3,false,true,PAYABLE,AP_TRADE
+4000,Revenue,الإيرادات,,1,true,false,REVENUE,
+4101,Domestic Sales,مبيعات محلية,4000,2,false,true,REVENUE,SALES
+1210,VAT Receivable,ضريبة قيمة مضافة مدينة,1200,4,false,true,TAX_RECEIVABLE,VAT_INPUT
+2201,VAT Output,ضريبة القيمة المضافة - مخرجات,2200,4,false,true,TAX_PAYABLE,VAT_OUTPUT

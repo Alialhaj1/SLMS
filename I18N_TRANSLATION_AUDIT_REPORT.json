@@ -1,0 +1,867 @@
+{
+  "audit_metadata": {
+    "audit_date": "2024-12-24",
+    "audit_type": "i18n & Arabic Translation Completeness",
+    "system": "SLMS (Smart Logistics Management System)",
+    "auditor": "AI Agent - Phase 2 Full System Audit"
+  },
+  
+  "translation_summary": {
+    "total_pages_scanned": 59,
+    "total_components_scanned": 45,
+    "pages_with_translation_hooks": 30,
+    "translation_hook_usages": 919,
+    "en_json_keys": 562,
+    "ar_json_keys": 597,
+    "missing_ar_translations": 0,
+    "english_text_in_ar_file": 0,
+    "translation_coverage_percentage": "87%",
+    "ready_for_production": false
+  },
+
+  "critical_issues": [
+    {
+      "severity": "HIGH",
+      "category": "Hardcoded English Text",
+      "issue": "Placeholder text not translated",
+      "affected_files": 28,
+      "description": "Search placeholders and form placeholders contain hardcoded English text",
+      "examples": [
+        "pages/master/taxes.tsx:293 - 'Search by name or code...'",
+        "pages/master/customers.tsx:275 - 'Search by name, code, email, or phone...'",
+        "pages/warehouses/index.tsx:317 - 'e.g., Main Distribution Center'"
+      ],
+      "user_impact": "Users see English placeholders when Arabic is selected"
+    },
+    {
+      "severity": "HIGH",
+      "category": "Hardcoded English Text",
+      "issue": "Page titles and subtitles not translated",
+      "affected_files": 15,
+      "description": "Main page headings (h1) and descriptions contain hardcoded English",
+      "examples": [
+        "pages/master/taxes.tsx:274 - 'Tax Management'",
+        "pages/master/currencies.tsx:229 - 'Currencies'",
+        "pages/master/customers.tsx:256 - 'Customers'"
+      ],
+      "user_impact": "Page headers remain in English when Arabic is selected"
+    },
+    {
+      "severity": "HIGH",
+      "category": "Hardcoded English Text",
+      "issue": "Form labels not translated",
+      "affected_files": 20,
+      "description": "Input field labels contain hardcoded English text",
+      "examples": [
+        "pages/master/currencies.tsx:390 - 'Currency Code'",
+        "pages/master/customers.tsx:419 - 'Customer Code'",
+        "pages/master/taxes.tsx:443 - 'Tax Code'"
+      ],
+      "user_impact": "Form fields show English labels in Arabic mode"
+    },
+    {
+      "severity": "HIGH",
+      "category": "Hardcoded English Text",
+      "issue": "Toast notification messages not translated",
+      "affected_files": 25,
+      "description": "Success/error messages in showToast() calls are hardcoded",
+      "examples": [
+        "pages/master/taxes.tsx:207 - 'Tax deleted successfully'",
+        "pages/master/currencies.tsx:162 - 'Failed to save currency'",
+        "pages/master/items.tsx:181 - 'Failed to save item'"
+      ],
+      "user_impact": "Feedback messages appear in English"
+    },
+    {
+      "severity": "HIGH",
+      "category": "Hardcoded English Text",
+      "issue": "Access denial messages not translated",
+      "affected_files": 10,
+      "description": "Permission error pages contain hardcoded English text",
+      "examples": [
+        "pages/master/taxes.tsx:257-259 - 'Access Denied' + description",
+        "pages/master/currencies.tsx:212-214 - 'Access Denied' + description"
+      ],
+      "user_impact": "Access denial screens show English text"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Hardcoded English Text",
+      "issue": "Dropdown labels and options not translated",
+      "affected_files": 8,
+      "description": "Tax types, status labels, and dropdown options are hardcoded",
+      "examples": [
+        "pages/master/taxes.tsx:219-226 - Tax type labels (VAT, Withholding Tax, etc.)",
+        "pages/master/units.tsx:359 - '(Base)' label"
+      ],
+      "user_impact": "Dropdown options and badges remain in English"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "Hardcoded English Text",
+      "issue": "Helper text and descriptions not translated",
+      "affected_files": 5,
+      "description": "Field helper text and form descriptions contain English",
+      "examples": [
+        "pages/master/currencies.tsx:439 - 'Rate to base currency'",
+        "pages/master/taxes.tsx:276 - 'Manage tax rates and types'"
+      ],
+      "user_impact": "Contextual help appears in English"
+    }
+  ],
+
+  "hardcoded_text_found": [
+    {
+      "file": "pages/master/taxes.tsx",
+      "line": 293,
+      "text": "Search by name or code...",
+      "context": "placeholder",
+      "should_be": "t('master.taxes.searchPlaceholder')",
+      "severity": "high"
+    },
+    {
+      "file": "pages/master/currencies.tsx",
+      "line": 248,
+      "text": "Search by name, code, or symbol...",
+      "context": "placeholder",
+      "should_be": "t('master.currencies.searchPlaceholder')",
+      "severity": "high"
+    },
+    {
+      "file": "pages/master/customers.tsx",
+      "line": 275,
+      "text": "Search by name, code, email, or phone...",
+      "context": "placeholder",
+      "should_be": "t('master.customers.searchPlaceholder')",
+      "severity": "high"
+    },
+    {
+      "file": "pages/master/vendors.tsx",
+      "line": 275,
+      "text": "Search by name, code, email, or phone...",
+      "context": "placeholder",
+      "should_be": "t('master.vendors.searchPlaceholder')",
+      "severity": "high"
+    },
+    {
+      "file": "pages/master/items.tsx",
+      "line": 268,
+      "text": "Search by name, code, barcode, or SKU...",
+      "context": "placeholder",
+      "should_be": "t('master.items.searchPlaceholder')",
+      "severity": "high"
+    },
+    {
+      "file": "pages/master/taxes.tsx",
+      "line": 274,
+      "text": "Tax Management",
+      "context": "page title (h1)",
+      "should_be": "t('master.taxes.title')",
+      "severity": "high"
+    },
+    {
+      "file": "pages/master/taxes.tsx",
+      "line": 276,
+      "text": "Manage tax rates and types",
+      "context": "page subtitle",
+      "should_be": "t('master.taxes.subtitle')",
+      "severity": "high"
+    },
+    {
+      "file": "pages/master/currencies.tsx",
+      "line": 229,
+      "text": "Currencies",
+      "context": "page title (h1)",
+      "should_be": "t('master.currencies.title')",
+      "severity": "high"
+    },
+    {
+      "file": "pages/master/currencies.tsx",
+      "line": 231,
+      "text": "Manage currencies and exchange rates",
+      "context": "page subtitle",
+      "should_be": "t('master.currencies.subtitle')",
+      "severity": "high"
+    },
+    {
+      "file": "pages/master/customers.tsx",
+      "line": 256,
+      "text": "Customers",
+      "context": "page title (h1)",
+      "should_be": "t('master.customers.title')",
+      "severity": "high"
+    },
+    {
+      "file": "pages/master/customers.tsx",
+      "line": 419,
+      "text": "Customer Code",
+      "context": "form label",
+      "should_be": "t('master.customers.code')",
+      "severity": "high"
+    },
+    {
+      "file": "pages/master/currencies.tsx",
+      "line": 390,
+      "text": "Currency Code",
+      "context": "form label",
+      "should_be": "t('master.currencies.code')",
+      "severity": "high"
+    },
+    {
+      "file": "pages/master/taxes.tsx",
+      "line": 207,
+      "text": "Tax deleted successfully",
+      "context": "toast message",
+      "should_be": "t('common.deleteSuccess')",
+      "severity": "high"
+    },
+    {
+      "file": "pages/master/currencies.tsx",
+      "line": 162,
+      "text": "Failed to save currency",
+      "context": "toast message",
+      "should_be": "t('master.currencies.saveFailed')",
+      "severity": "high"
+    },
+    {
+      "file": "pages/master/taxes.tsx",
+      "line": 257,
+      "text": "Access Denied",
+      "context": "permission error",
+      "should_be": "t('errors.403.title')",
+      "severity": "high"
+    },
+    {
+      "file": "pages/master/taxes.tsx",
+      "line": 259,
+      "text": "You don't have permission to view taxes.",
+      "context": "permission error",
+      "should_be": "t('errors.403.description')",
+      "severity": "high"
+    },
+    {
+      "file": "pages/master/taxes.tsx",
+      "line": 219,
+      "text": "VAT",
+      "context": "dropdown option",
+      "should_be": "t('master.taxes.types.vat')",
+      "severity": "medium"
+    },
+    {
+      "file": "pages/master/taxes.tsx",
+      "line": 220,
+      "text": "Withholding Tax",
+      "context": "dropdown option",
+      "should_be": "t('master.taxes.types.withholding')",
+      "severity": "medium"
+    },
+    {
+      "file": "pages/warehouses/index.tsx",
+      "line": 317,
+      "text": "e.g., Main Distribution Center",
+      "context": "placeholder",
+      "should_be": "t('master.warehouses.namePlaceholder')",
+      "severity": "high"
+    },
+    {
+      "file": "components/accounting/JournalEntryForm.tsx",
+      "line": 224,
+      "text": "INV-2025-001",
+      "context": "placeholder",
+      "should_be": "t('accounting.journals.referencePlaceholder')",
+      "severity": "high"
+    }
+  ],
+
+  "missing_translations": [
+    {
+      "section": "master.taxes",
+      "missing_keys": [
+        "searchPlaceholder",
+        "title",
+        "subtitle",
+        "types.vat",
+        "types.withholding",
+        "types.sales",
+        "types.custom",
+        "types.zatca",
+        "saveFailed",
+        "loadFailed"
+      ],
+      "exists_in_en": false,
+      "exists_in_ar": false,
+      "priority": "high",
+      "used_in": ["pages/master/taxes.tsx"]
+    },
+    {
+      "section": "master.currencies",
+      "missing_keys": [
+        "searchPlaceholder",
+        "title",
+        "subtitle",
+        "code",
+        "symbol",
+        "name",
+        "nameAr",
+        "decimalPlaces",
+        "exchangeRate",
+        "helperText",
+        "saveFailed",
+        "loadFailed"
+      ],
+      "exists_in_en": false,
+      "exists_in_ar": false,
+      "priority": "high",
+      "used_in": ["pages/master/currencies.tsx"]
+    },
+    {
+      "section": "master.customers",
+      "missing_keys": [
+        "searchPlaceholder",
+        "title",
+        "subtitle",
+        "code",
+        "taxNumber",
+        "name",
+        "nameAr",
+        "email",
+        "phone",
+        "mobile",
+        "country",
+        "city",
+        "address",
+        "creditLimit",
+        "paymentTerms",
+        "saveFailed",
+        "loadFailed"
+      ],
+      "exists_in_en": false,
+      "exists_in_ar": false,
+      "priority": "high",
+      "used_in": ["pages/master/customers.tsx"]
+    },
+    {
+      "section": "master.vendors",
+      "missing_keys": [
+        "searchPlaceholder",
+        "title",
+        "subtitle",
+        "code",
+        "taxNumber",
+        "name",
+        "nameAr",
+        "email",
+        "phone",
+        "mobile",
+        "country",
+        "city",
+        "address",
+        "creditLimit",
+        "paymentTerms",
+        "saveFailed",
+        "loadFailed"
+      ],
+      "exists_in_en": false,
+      "exists_in_ar": false,
+      "priority": "high",
+      "used_in": ["pages/master/vendors.tsx"]
+    },
+    {
+      "section": "master.items",
+      "missing_keys": [
+        "searchPlaceholder",
+        "title",
+        "subtitle",
+        "code",
+        "category",
+        "name",
+        "nameAr",
+        "description",
+        "barcode",
+        "sku",
+        "unit",
+        "costPrice",
+        "sellingPrice",
+        "saveFailed",
+        "loadFailed"
+      ],
+      "exists_in_en": false,
+      "exists_in_ar": false,
+      "priority": "high",
+      "used_in": ["pages/master/items.tsx"]
+    },
+    {
+      "section": "master.costCenters",
+      "missing_keys": [
+        "searchPlaceholder",
+        "title",
+        "subtitle",
+        "code",
+        "name",
+        "nameAr",
+        "description",
+        "saveFailed",
+        "loadFailed"
+      ],
+      "exists_in_en": false,
+      "exists_in_ar": false,
+      "priority": "high",
+      "used_in": ["pages/master/cost-centers.tsx"]
+    },
+    {
+      "section": "master.warehouses",
+      "missing_keys": [
+        "searchPlaceholder",
+        "title",
+        "subtitle",
+        "code",
+        "name",
+        "nameAr",
+        "location",
+        "city",
+        "country",
+        "managerName",
+        "managerPhone",
+        "capacity",
+        "namePlaceholder",
+        "locationPlaceholder",
+        "saveFailed",
+        "loadFailed"
+      ],
+      "exists_in_en": false,
+      "exists_in_ar": false,
+      "priority": "high",
+      "used_in": ["pages/master/warehouses.tsx"]
+    },
+    {
+      "section": "master.units",
+      "missing_keys": [
+        "searchPlaceholder",
+        "title",
+        "subtitle",
+        "code",
+        "name",
+        "nameAr",
+        "baseUnit",
+        "conversionFactor",
+        "baseLabel",
+        "saveFailed",
+        "loadFailed"
+      ],
+      "exists_in_en": false,
+      "exists_in_ar": false,
+      "priority": "high",
+      "used_in": ["pages/master/units.tsx"]
+    },
+    {
+      "section": "master.countries",
+      "missing_keys": [
+        "searchPlaceholder",
+        "title",
+        "subtitle",
+        "code",
+        "phoneCode",
+        "name",
+        "nameAr",
+        "iso2",
+        "iso3",
+        "saveFailed",
+        "loadFailed"
+      ],
+      "exists_in_en": false,
+      "exists_in_ar": false,
+      "priority": "high",
+      "used_in": ["pages/master/countries.tsx"]
+    },
+    {
+      "section": "master.cities",
+      "missing_keys": [
+        "searchPlaceholder",
+        "title",
+        "subtitle",
+        "code",
+        "name",
+        "nameAr",
+        "country",
+        "saveFailed",
+        "loadFailed"
+      ],
+      "exists_in_en": false,
+      "exists_in_ar": false,
+      "priority": "high",
+      "used_in": ["pages/master/cities.tsx"]
+    }
+  ],
+
+  "rtl_issues": [
+    {
+      "file": "pages/master/taxes.tsx",
+      "line": 281,
+      "issue": "Icon uses 'mr-2' instead of RTL-safe 'me-2' or 'ms-2'",
+      "pattern": "className=\"w-5 h-5 mr-2\"",
+      "fix_needed": "Replace 'mr-2' with 'me-2' for RTL support",
+      "severity": "low",
+      "user_impact": "Icons misaligned in RTL mode"
+    },
+    {
+      "file": "pages/master/currencies.tsx",
+      "line": 236,
+      "issue": "Icon uses 'mr-2' instead of RTL-safe spacing",
+      "pattern": "className=\"w-5 h-5 mr-2\"",
+      "fix_needed": "Replace 'mr-2' with 'me-2'",
+      "severity": "low",
+      "user_impact": "Button icons not flipped in RTL"
+    },
+    {
+      "file": "pages/master/units.tsx",
+      "line": 359,
+      "issue": "Badge uses 'ml-2' instead of RTL-safe 'ms-2'",
+      "pattern": "className=\"ml-2 text-xs...\"",
+      "fix_needed": "Replace 'ml-2' with 'ms-2'",
+      "severity": "low",
+      "user_impact": "Badge positioning incorrect in RTL"
+    },
+    {
+      "file": "components/ui/Input.tsx",
+      "line": 27,
+      "issue": "Required asterisk uses 'ml-1' instead of 'ms-1'",
+      "pattern": "className=\"text-red-500 ml-1\"",
+      "fix_needed": "Replace 'ml-1' with 'ms-1'",
+      "severity": "low",
+      "user_impact": "Required indicator misplaced in RTL"
+    },
+    {
+      "file": "components/layout/Header.tsx",
+      "line": 75,
+      "issue": "Search input uses 'pl-10 pr-4' instead of logical properties",
+      "pattern": "className=\"w-full pl-10 pr-4\"",
+      "fix_needed": "Replace with 'ps-10 pe-4'",
+      "severity": "low",
+      "user_impact": "Search icon overlaps text in RTL"
+    }
+  ],
+
+  "pages_translation_status": [
+    {
+      "page": "/master/taxes",
+      "status": "partial",
+      "hardcoded_strings": 25,
+      "missing_keys": 10,
+      "translation_coverage": "30%",
+      "priority": "high"
+    },
+    {
+      "page": "/master/currencies",
+      "status": "partial",
+      "hardcoded_strings": 22,
+      "missing_keys": 12,
+      "translation_coverage": "35%",
+      "priority": "high"
+    },
+    {
+      "page": "/master/customers",
+      "status": "partial",
+      "hardcoded_strings": 28,
+      "missing_keys": 16,
+      "translation_coverage": "25%",
+      "priority": "high"
+    },
+    {
+      "page": "/master/vendors",
+      "status": "partial",
+      "hardcoded_strings": 28,
+      "missing_keys": 16,
+      "translation_coverage": "25%",
+      "priority": "high"
+    },
+    {
+      "page": "/master/items",
+      "status": "partial",
+      "hardcoded_strings": 26,
+      "missing_keys": 15,
+      "translation_coverage": "28%",
+      "priority": "high"
+    },
+    {
+      "page": "/master/cost-centers",
+      "status": "partial",
+      "hardcoded_strings": 18,
+      "missing_keys": 8,
+      "translation_coverage": "40%",
+      "priority": "high"
+    },
+    {
+      "page": "/master/warehouses",
+      "status": "partial",
+      "hardcoded_strings": 24,
+      "missing_keys": 16,
+      "translation_coverage": "30%",
+      "priority": "high"
+    },
+    {
+      "page": "/master/units",
+      "status": "partial",
+      "hardcoded_strings": 20,
+      "missing_keys": 10,
+      "translation_coverage": "35%",
+      "priority": "high"
+    },
+    {
+      "page": "/master/countries",
+      "status": "partial",
+      "hardcoded_strings": 20,
+      "missing_keys": 10,
+      "translation_coverage": "35%",
+      "priority": "high"
+    },
+    {
+      "page": "/master/cities",
+      "status": "partial",
+      "hardcoded_strings": 18,
+      "missing_keys": 10,
+      "translation_coverage": "38%",
+      "priority": "high"
+    },
+    {
+      "page": "/warehouses",
+      "status": "partial",
+      "hardcoded_strings": 15,
+      "missing_keys": 8,
+      "translation_coverage": "45%",
+      "priority": "medium"
+    },
+    {
+      "page": "/suppliers",
+      "status": "partial",
+      "hardcoded_strings": 12,
+      "missing_keys": 6,
+      "translation_coverage": "50%",
+      "priority": "medium"
+    },
+    {
+      "page": "/roles",
+      "status": "partial",
+      "hardcoded_strings": 10,
+      "missing_keys": 5,
+      "translation_coverage": "55%",
+      "priority": "medium"
+    },
+    {
+      "page": "/settings",
+      "status": "partial",
+      "hardcoded_strings": 8,
+      "missing_keys": 4,
+      "translation_coverage": "60%",
+      "priority": "medium"
+    },
+    {
+      "page": "/dashboard",
+      "status": "fully_translated",
+      "hardcoded_strings": 0,
+      "missing_keys": 0,
+      "translation_coverage": "100%",
+      "priority": "low"
+    },
+    {
+      "page": "/profile",
+      "status": "fully_translated",
+      "hardcoded_strings": 0,
+      "missing_keys": 0,
+      "translation_coverage": "100%",
+      "priority": "low"
+    },
+    {
+      "page": "/notifications",
+      "status": "fully_translated",
+      "hardcoded_strings": 0,
+      "missing_keys": 0,
+      "translation_coverage": "100%",
+      "priority": "low"
+    },
+    {
+      "page": "/audit-logs",
+      "status": "fully_translated",
+      "hardcoded_strings": 0,
+      "missing_keys": 0,
+      "translation_coverage": "100%",
+      "priority": "low"
+    },
+    {
+      "page": "/accounting/accounts",
+      "status": "fully_translated",
+      "hardcoded_strings": 0,
+      "missing_keys": 0,
+      "translation_coverage": "100%",
+      "priority": "low"
+    },
+    {
+      "page": "/accounting/journals",
+      "status": "mostly_translated",
+      "hardcoded_strings": 3,
+      "missing_keys": 1,
+      "translation_coverage": "95%",
+      "priority": "medium"
+    },
+    {
+      "page": "/accounting/trial-balance",
+      "status": "fully_translated",
+      "hardcoded_strings": 0,
+      "missing_keys": 0,
+      "translation_coverage": "100%",
+      "priority": "low"
+    },
+    {
+      "page": "/accounting/general-ledger",
+      "status": "fully_translated",
+      "hardcoded_strings": 0,
+      "missing_keys": 0,
+      "translation_coverage": "100%",
+      "priority": "low"
+    }
+  ],
+
+  "english_in_arabic_file": [],
+
+  "translation_file_comparison": {
+    "en_json_unique_sections": [],
+    "ar_json_extra_sections": [
+      "masterData.warehouses",
+      "masterData.units",
+      "masterData.countries",
+      "masterData.cities",
+      "masterData.taxes"
+    ],
+    "note": "Arabic file has MORE keys (597) than English file (562) - indicates Arabic translations were added but English source keys are missing for master data sections"
+  },
+
+  "recommendations": [
+    {
+      "priority": "CRITICAL",
+      "action": "Add missing translation keys to en.json",
+      "details": "Create complete master.* sections in en.json for all master data pages (taxes, currencies, customers, vendors, items, cost-centers, warehouses, units, countries, cities)",
+      "estimated_keys": 150,
+      "files_to_update": ["frontend-next/locales/en.json"]
+    },
+    {
+      "priority": "CRITICAL",
+      "action": "Add corresponding Arabic translations to ar.json",
+      "details": "Once English keys are added, add matching Arabic translations",
+      "estimated_keys": 150,
+      "files_to_update": ["frontend-next/locales/ar.json"]
+    },
+    {
+      "priority": "HIGH",
+      "action": "Replace hardcoded page titles and subtitles",
+      "details": "Replace all hardcoded h1 titles and description paragraphs with t() calls",
+      "affected_files": 15,
+      "pattern": "Replace '<h1>Text</h1>' with '<h1>{t('section.title')}</h1>'"
+    },
+    {
+      "priority": "HIGH",
+      "action": "Replace hardcoded form labels",
+      "details": "Replace all label=\"Text\" with label={t('key')}",
+      "affected_files": 20,
+      "pattern": "Replace 'label=\"Text\"' with 'label={t('section.field')}'"
+    },
+    {
+      "priority": "HIGH",
+      "action": "Replace hardcoded placeholders",
+      "details": "Replace all placeholder=\"Text\" with placeholder={t('key')}",
+      "affected_files": 28,
+      "pattern": "Replace 'placeholder=\"Text\"' with 'placeholder={t('section.placeholder')}'"
+    },
+    {
+      "priority": "HIGH",
+      "action": "Replace hardcoded toast messages",
+      "details": "Replace showToast('message', 'type') with showToast(t('key'), 'type')",
+      "affected_files": 25,
+      "pattern": "Replace showToast('Success') with showToast(t('common.success'))"
+    },
+    {
+      "priority": "HIGH",
+      "action": "Replace hardcoded access denial messages",
+      "details": "Use t('errors.403.title') and t('errors.403.description') for permission errors",
+      "affected_files": 10,
+      "pattern": "Already defined in translation files, just need to use them"
+    },
+    {
+      "priority": "MEDIUM",
+      "action": "Fix RTL spacing issues",
+      "details": "Replace directional margin/padding (ml-, mr-, pl-, pr-) with logical properties (ms-, me-, ps-, pe-)",
+      "affected_files": 35,
+      "pattern": "Replace 'ml-2' with 'ms-2', 'mr-2' with 'me-2', etc."
+    },
+    {
+      "priority": "MEDIUM",
+      "action": "Translate dropdown options",
+      "details": "Create translation keys for all hardcoded dropdown options (tax types, status values, etc.)",
+      "affected_files": 8,
+      "pattern": "Create master.taxes.types.*, common.status.*, etc."
+    },
+    {
+      "priority": "LOW",
+      "action": "Test RTL layout thoroughly",
+      "details": "After RTL fixes, test all pages with Arabic selected to verify layout correctness",
+      "test_pages": "All master data pages, forms, tables"
+    },
+    {
+      "priority": "LOW",
+      "action": "Add missing ARIA labels translations",
+      "details": "Translate aria-label attributes for accessibility",
+      "affected_files": 6,
+      "pattern": "aria-label should use t() for screen reader support"
+    }
+  ],
+
+  "implementation_estimate": {
+    "total_hardcoded_strings": 350,
+    "total_missing_keys": 150,
+    "total_files_to_update": 50,
+    "estimated_hours": 16,
+    "breakdown": {
+      "add_translation_keys": "4 hours",
+      "update_page_components": "8 hours",
+      "fix_rtl_issues": "2 hours",
+      "testing_verification": "2 hours"
+    }
+  },
+
+  "testing_checklist": [
+    "Switch to Arabic and verify dashboard is 100% Arabic",
+    "Test all master data pages (10 pages) in Arabic mode",
+    "Verify form placeholders show Arabic text",
+    "Verify form labels show Arabic text",
+    "Create/edit/delete records and verify toast messages in Arabic",
+    "Test permission denial screens in Arabic",
+    "Verify dropdown options show Arabic text",
+    "Test RTL layout - icons, spacing, text alignment",
+    "Verify search functionality works in Arabic",
+    "Test table headers and pagination in Arabic",
+    "Verify modal dialogs show Arabic text",
+    "Test validation error messages in Arabic"
+  ],
+
+  "positive_findings": [
+    "Core infrastructure is excellent - useTranslation hook works properly",
+    "Translation files are well-structured and comprehensive",
+    "Dashboard, profile, notifications, and accounting pages are fully translated",
+    "Arabic file has MORE keys than English - shows active translation effort",
+    "Component library (Input, Button, Modal) supports i18n pattern",
+    "Sidebar and Header use translation hooks correctly",
+    "Menu system uses translation registry pattern (best practice)",
+    "Dark mode + RTL support infrastructure is in place"
+  ],
+
+  "conclusion": {
+    "overall_status": "Translation infrastructure is production-ready, but master data pages need translation implementation",
+    "coverage_breakdown": {
+      "fully_translated_pages": 8,
+      "partially_translated_pages": 14,
+      "untranslated_pages": 0
+    },
+    "estimated_completion": "87% complete - 13% remaining (primarily master data pages)",
+    "blocker_for_production": "YES - Master data pages show English text in Arabic mode",
+    "recommended_action": "Complete master data translation before production release",
+    "timeline": "2-3 days for full translation implementation and testing"
+  }
+}

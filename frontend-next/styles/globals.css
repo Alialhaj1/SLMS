@@ -1,0 +1,230 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+  
+  html[lang="ar"] {
+    font-family: 'Tajawal', 'Cairo', system-ui, sans-serif;
+  }
+  
+  body {
+    @apply bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100;
+  }
+  
+  /* RTL Support */
+  [dir="rtl"] {
+    text-align: right;
+  }
+  
+  [dir="rtl"] .ltr-only {
+    direction: ltr;
+    text-align: left;
+  }
+}
+
+/* 🎨 Menu Animations */
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0);
+  }
+}
+
+.animate-slide-down {
+  animation: slideDown 0.2s ease-out forwards;
+}
+
+.animate-slide-up {
+  animation: slideUp 0.2s ease-out forwards;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.15s ease-out forwards;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s infinite;
+}
+
+/* Menu hover effects */
+.menu-item-hover {
+  @apply relative overflow-hidden;
+}
+
+.menu-item-hover::before {
+  content: '';
+  @apply absolute inset-0 bg-gradient-to-r from-primary-500/10 to-transparent opacity-0 transition-opacity duration-200;
+}
+
+.menu-item-hover:hover::before {
+  @apply opacity-100;
+}
+
+/* Favorite star animation */
+@keyframes star-pop {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.3);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.star-pop {
+  animation: star-pop 0.3s ease-out;
+}
+
+@layer components {
+  /* Button variants */
+  .btn {
+    @apply px-4 py-2 rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  
+  .btn-primary {
+    @apply bg-primary-600 text-white hover:bg-primary-700 focus:ring-primary-500;
+  }
+  
+  .btn-secondary {
+    @apply bg-gray-200 text-gray-900 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600 focus:ring-gray-500;
+  }
+  
+  .btn-danger {
+    @apply bg-red-600 text-white hover:bg-red-700 focus:ring-red-500;
+  }
+  
+  /* Input styles */
+  .input {
+    @apply w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  
+  .input-error {
+    @apply border-red-500 focus:ring-red-500;
+  }
+  
+  /* Card styles */
+  .card {
+    @apply bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6;
+  }
+  
+  /* Sidebar item */
+  .sidebar-item {
+    @apply flex items-center px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors cursor-pointer;
+  }
+  
+  .sidebar-item-active {
+    @apply bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-400 font-medium;
+  }
+}
+
+/* 🖨️ Print Styles for Professional Invoices */
+@media print {
+  /* Hide everything except modal content */
+  body * {
+    visibility: hidden;
+  }
+  
+  /* Only show modal content */
+  [class*="Modal"] [class*="content"],
+  [class*="Modal"] [class*="content"] * {
+    visibility: visible;
+  }
+  
+  /* Hide print buttons and close buttons */
+  .print\\:hidden {
+    display: none !important;
+  }
+  
+  /* Reset page styling */
+  @page {
+    size: A4;
+    margin: 1cm;
+  }
+  
+  body {
+    background: white !important;
+    color: black !important;
+  }
+  
+  /* Remove shadows and borders for clean print */
+  * {
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+  
+  /* Ensure proper text colors for print */
+  .dark\\:bg-slate-900,
+  .dark\\:bg-slate-800,
+  .dark\\:bg-gray-800 {
+    background: white !important;
+  }
+  
+  .dark\\:text-white,
+  .dark\\:text-gray-300,
+  .dark\\:text-gray-400 {
+    color: black !important;
+  }
+  
+  /* Preserve table styling */
+  table {
+    page-break-inside: avoid;
+  }
+  
+  thead {
+    display: table-header-group;
+  }
+  
+  tr {
+    page-break-inside: avoid;
+  }
+  
+  /* Ensure proper spacing */
+  .print\\:p-8 {
+    padding: 2rem !important;
+  }
+  
+  /* Remove modal backdrop */
+  [class*="Modal-backdrop"],
+  [class*="overlay"] {
+    display: none !important;
+  }
+}

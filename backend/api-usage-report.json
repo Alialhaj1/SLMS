@@ -1,0 +1,122 @@
+{
+  "metadata": {
+    "logFile": "api-2025-12-25.log",
+    "analyzedAt": "2025-12-25T07:58:06.869Z",
+    "totalRequests": 178,
+    "totalErrors": 61,
+    "uniqueEndpoints": 6,
+    "uniqueUsers": 1,
+    "uniqueCompanies": 0,
+    "thresholds": {
+      "lowUsage": 5,
+      "slowEndpoint": 1000,
+      "errorRate": 5
+    }
+  },
+  "summary": {
+    "deadAPIs": 0,
+    "lowUsageAPIs": 1,
+    "slowAPIs": 0,
+    "errorProneAPIs": 2
+  },
+  "deadAPIs": [],
+  "lowUsageAPIs": [
+    {
+      "api": "GET /api/test/sentry/error",
+      "count": 2,
+      "users": 0,
+      "companies": 0,
+      "avgDuration": 11
+    }
+  ],
+  "slowAPIs": [],
+  "errorProneAPIs": [
+    {
+      "api": "GET /api/test/sentry/error",
+      "errorRate": 100,
+      "errors": 2,
+      "total": 2,
+      "statusCodes": {
+        "500": 2
+      }
+    },
+    {
+      "api": "GET /api/dashboard/badges",
+      "errorRate": 55.66,
+      "errors": 59,
+      "total": 106,
+      "statusCodes": {
+        "200": 47,
+        "401": 59
+      }
+    }
+  ],
+  "topAPIs": [
+    {
+      "api": "GET /api/dashboard/badges",
+      "count": 106,
+      "avgDuration": 31,
+      "users": 1,
+      "companies": 0
+    },
+    {
+      "api": "OPTIONS /api/dashboard/badges",
+      "count": 47,
+      "avgDuration": 9,
+      "users": 0,
+      "companies": 0
+    },
+    {
+      "api": "OPTIONS /api/auth/refresh",
+      "count": 9,
+      "avgDuration": 1,
+      "users": 0,
+      "companies": 0
+    },
+    {
+      "api": "POST /api/auth/refresh",
+      "count": 9,
+      "avgDuration": 156,
+      "users": 0,
+      "companies": 0
+    },
+    {
+      "api": "GET /api/health/detailed",
+      "count": 5,
+      "avgDuration": 7,
+      "users": 0,
+      "companies": 0
+    },
+    {
+      "api": "GET /api/test/sentry/error",
+      "count": 2,
+      "avgDuration": 11,
+      "users": 0,
+      "companies": 0
+    }
+  ],
+  "anonymousAPIs": [
+    {
+      "api": "OPTIONS /api/dashboard/badges",
+      "count": 47,
+      "note": "Public endpoint or missing user tracking"
+    },
+    {
+      "api": "OPTIONS /api/auth/refresh",
+      "count": 9,
+      "note": "Public endpoint or missing user tracking"
+    },
+    {
+      "api": "POST /api/auth/refresh",
+      "count": 9,
+      "note": "Public endpoint or missing user tracking"
+    }
+  ],
+  "userActivity": [
+    {
+      "userId": 5,
+      "apiCount": 1
+    }
+  ],
+  "companyActivity": []
+}

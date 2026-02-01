@@ -1,0 +1,22 @@
+{
+  "file": "/app/data/SUPPLIERS.csv",
+  "companyId": 1,
+  "dryRun": true,
+  "totalRows": 775,
+  "processedRows": 757,
+  "insertedVendors": 0,
+  "updatedVendors": 0,
+  "createdAccounts": 0,
+  "updatedAccounts": 0,
+  "skippedRows": 19,
+  "warnings": [
+    "CSV contains duplicate supplier codes; keeping last occurrence per code. Duplicates skipped: 18",
+    "DB connection: db=slms_db schema=public server=172.18.0.4/32:5432"
+  ],
+  "errors": [
+    {
+      "row": 517,
+      "message": "Missing required fields (رقم المورد / اسم المورد)"
+    }
+  ]
+}

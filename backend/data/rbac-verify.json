@@ -1,0 +1,94 @@
+{
+  "migrations": [
+    {
+      "name": "200_rbac_data_model.sql",
+      "run_at": "2026-02-01T06:22:15.453Z"
+    },
+    {
+      "name": "201_rbac_seed_data.sql",
+      "run_at": "2026-02-01T06:22:15.629Z"
+    }
+  ],
+  "recentMigrations": [
+    {
+      "name": "fix_customs_permissions.sql",
+      "run_at": "2026-02-01T06:22:15.636Z"
+    },
+    {
+      "name": "201_rbac_seed_data.sql",
+      "run_at": "2026-02-01T06:22:15.629Z"
+    },
+    {
+      "name": "200_rbac_data_model.sql",
+      "run_at": "2026-02-01T06:22:15.453Z"
+    },
+    {
+      "name": "199_project_hierarchy_strict.sql",
+      "run_at": "2026-02-01T06:15:17.630Z"
+    },
+    {
+      "name": "198_vendor_images_upload.sql",
+      "run_at": "2026-02-01T06:15:17.575Z"
+    },
+    {
+      "name": "197_vendor_documents_and_enhancements.sql",
+      "run_at": "2026-02-01T06:15:17.534Z"
+    },
+    {
+      "name": "196_vendor_360_module.sql",
+      "run_at": "2026-02-01T06:15:17.528Z"
+    },
+    {
+      "name": "195_fix_transfer_requests_shipment_fk.sql",
+      "run_at": "2026-02-01T06:15:17.444Z"
+    },
+    {
+      "name": "194_add_quotation_invoice_to_payments.sql",
+      "run_at": "2026-02-01T06:15:17.425Z"
+    },
+    {
+      "name": "193_add_vendor_payment_to_transfer_requests.sql",
+      "run_at": "2026-02-01T06:15:17.413Z"
+    }
+  ],
+  "rbacMigrationsLike": [
+    {
+      "name": "200_rbac_data_model.sql",
+      "run_at": "2026-02-01T06:22:15.453Z"
+    },
+    {
+      "name": "201_rbac_seed_data.sql",
+      "run_at": "2026-02-01T06:22:15.629Z"
+    }
+  ],
+  "permissionsTotal": 757,
+  "rolesTotal": 6,
+  "superAdminExists": true,
+  "superAdminPermissionLinks": 749,
+  "topRoles": [
+    {
+      "name": "super_admin",
+      "permission_count": 749
+    },
+    {
+      "name": "Admin",
+      "permission_count": 64
+    },
+    {
+      "name": "Accountant",
+      "permission_count": 32
+    },
+    {
+      "name": "Viewer",
+      "permission_count": 6
+    },
+    {
+      "name": "Logistics",
+      "permission_count": 2
+    },
+    {
+      "name": "Warehouse",
+      "permission_count": 0
+    }
+  ]
+}

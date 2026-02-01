@@ -1,0 +1,38 @@
+FROM node:18-alpine
+
+# Install PostgreSQL client for backups
+RUN apk add --no-cache postgresql-client curl
+
+# Create backup directory
+RUN mkdir -p /backups && chmod 755 /backups
+
+WORKDIR /app
+
+# Copy package files
+COPY package.json package-lock.json* ./
+
+# Install production dependencies only
+RUN npm ci --only=production
+
+# Copy application code
+COPY . .
+
+# Build TypeScript
+RUN npm run build
+
+# Create non-root user
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S nodejs -u 1001
+
+# Change ownership
+RUN chown -R nodejs:nodejs /app /backups
+
+USER nodejs
+
+EXPOSE 4000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+  CMD curl -f http://localhost:4000/api/health || exit 1
+
+CMD ["npm", "start"]

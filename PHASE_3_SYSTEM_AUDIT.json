@@ -1,0 +1,1055 @@
+{
+  "audit_date": "2024-12-24",
+  "audit_phase": "Phase 3 - Data Integrity, Performance & API Integration",
+  "system_version": "SLMS v1.0",
+  
+  "database_schema": {
+    "summary": {
+      "total_migrations": 27,
+      "total_tables_created": 65,
+      "tables_with_soft_delete": 45,
+      "tables_with_company_id": 52,
+      "multi_tenant_compliance": "98%",
+      "soft_delete_coverage": "69%"
+    },
+    
+    "migrations_inventory": [
+      {"file": "001_create_roles_and_users.sql", "type": "Core", "tables": ["roles", "users", "user_roles"]},
+      {"file": "002_create_suppliers_products.sql", "type": "Legacy", "tables": ["suppliers", "products"]},
+      {"file": "003_create_refresh_tokens.sql", "type": "Auth", "tables": ["refresh_tokens"]},
+      {"file": "003_system_admin_tables.sql", "type": "Core", "tables": ["companies", "branches", "system_settings", "audit_logs", "permissions", "role_permissions"]},
+      {"file": "004_replace_refresh_tokens.sql", "type": "Auth", "tables": ["refresh_tokens"]},
+      {"file": "005_create_shipments_expenses.sql", "type": "Business", "tables": ["shipments", "expenses"]},
+      {"file": "006_create_super_admin.sql", "type": "Seed", "tables": []},
+      {"file": "007_create_role_templates.sql", "type": "RBAC", "tables": []},
+      {"file": "008_add_user_status.sql", "type": "Enhancement", "tables": ["user_status_history"]},
+      {"file": "009_create_login_history.sql", "type": "Audit", "tables": ["login_history"]},
+      {"file": "010_enhance_roles_table.sql", "type": "Enhancement", "tables": []},
+      {"file": "011_add_performance_indexes.sql", "type": "Performance", "tables": []},
+      {"file": "012_add_soft_delete.sql", "type": "Enhancement", "tables": ["deleted_records"]},
+      {"file": "013_add_soft_delete_permissions.sql", "type": "RBAC", "tables": []},
+      {"file": "014_password_reset_notifications.sql", "type": "Feature", "tables": ["password_reset_requests", "notifications"]},
+      {"file": "015_create_accounting_periods.sql", "type": "Accounting", "tables": ["fiscal_years", "accounting_periods", "period_locks"]},
+      {"file": "016_create_reference_tables.sql", "type": "Master Data", "tables": ["countries", "cities", "currencies", "banks", "exchange_rates", "payment_terms", "payment_methods", "price_lists", "bank_accounts"]},
+      {"file": "017_create_chart_of_accounts.sql", "type": "Accounting", "tables": ["account_types", "account_classes", "accounts", "account_keys", "profit_centers", "projects"]},
+      {"file": "018_create_inventory_tables.sql", "type": "Inventory", "tables": ["uom", "uom_conversions", "item_categories", "item_groups", "brands", "items", "batches", "serial_numbers", "price_lists", "price_list_items", "warehouse_locations", "inventory_balances"]},
+      {"file": "019_create_customers_vendors.sql", "type": "Partners", "tables": ["customer_groups", "customers", "customer_contacts", "customer_addresses", "vendor_groups", "vendors", "vendor_contacts", "vendor_items", "employees"]},
+      {"file": "020_add_soft_delete_constraints_indexes.sql", "type": "Enhancement", "tables": []},
+      {"file": "021_create_permission_system.sql", "type": "RBAC", "tables": ["permission_categories", "permission_sets", "permission_set_permissions"]},
+      {"file": "022_create_balance_tables.sql", "type": "Accounting", "tables": ["account_balances", "customer_balances", "vendor_balances", "inventory_balances", "bank_balances", "period_summary"]},
+      {"file": "023_create_journal_engine.sql", "type": "Accounting", "tables": ["journal_entries", "journal_lines", "general_ledger"]},
+      {"file": "024_create_number_series.sql", "type": "System", "tables": ["number_series", "number_series_history"]},
+      {"file": "025_add_user_companies.sql", "type": "Multi-tenant", "tables": ["user_companies", "journal_audit_log", "failed_login_attempts"]},
+      {"file": "026_master_data_soft_delete.sql", "type": "Enhancement", "tables": ["taxes", "units", "warehouses", "cost_centers"]}
+    ],
+    
+    "soft_delete_implementation": {
+      "tables_with_deleted_at": [
+        "users", "roles", "companies", "branches", "accounts", "customers", "vendors", 
+        "items", "warehouses", "cost_centers", "employees", "taxes", "units", 
+        "countries", "cities", "currencies"
+      ],
+      "tables_missing_soft_delete": [
+        "shipments", "expenses", "suppliers", "products", "refresh_tokens", 
+        "login_history", "audit_logs", "notifications", "password_reset_requests",
+        "fiscal_years", "accounting_periods", "journal_entries", "journal_lines", 
+        "general_ledger"
+      ],
+      "soft_delete_pattern": "deleted_at TIMESTAMP, deleted_by INTEGER REFERENCES users(id)",
+      "implementation_quality": "Good - uses nullable timestamp, includes deleted_by audit trail",
+      "recommendation": "Add soft delete to transactional tables (shipments, expenses) for compliance"
+    },
+    
+    "multi_tenant_architecture": {
+      "company_id_coverage": "98% of business tables",
+      "tables_with_company_id": [
+        "branches", "users (via user_companies)", "roles", "accounts", "customers", "vendors",
+        "items", "warehouses", "cost_centers", "fiscal_years", "accounting_periods",
+        "journal_entries", "taxes", "units", "bank_accounts", "employees"
+      ],
+      "tables_without_company_id": [
+        "countries", "cities", "currencies", "banks", "uom", "permissions", 
+        "permission_categories", "account_types", "account_classes"
+      ],
+      "shared_reference_data": "Correctly implemented - countries, currencies are shared across tenants",
+      "isolation_mechanism": "ON DELETE CASCADE on company references",
+      "data_isolation_score": "9/10 - Excellent"
+    },
+    
+    "foreign_key_relationships": {
+      "customers": {
+        "links_to": ["companies", "customer_groups", "countries", "cities", "payment_terms", "price_lists", "currencies", "accounts", "banks", "users"],
+        "child_tables": ["customer_contacts", "customer_addresses"],
+        "cascade_behavior": "ON DELETE CASCADE to companies (deletes all customer data when company deleted)",
+        "risk_level": "HIGH - Company deletion cascades to customers"
+      },
+      "vendors": {
+        "links_to": ["companies", "vendor_groups", "countries", "cities", "payment_terms", "currencies", "accounts", "banks", "users"],
+        "child_tables": ["vendor_contacts", "vendor_items"],
+        "cascade_behavior": "ON DELETE CASCADE to companies",
+        "risk_level": "HIGH - Company deletion cascades to vendors"
+      },
+      "items": {
+        "links_to": ["companies", "item_categories", "item_groups", "brands", "uom", "accounts (3 FKs)"],
+        "child_tables": ["item_barcodes", "item_images", "batches", "serial_numbers", "price_list_items", "vendor_items"],
+        "cascade_behavior": "ON DELETE CASCADE to companies",
+        "risk_level": "HIGH - Company deletion cascades to items"
+      },
+      "warehouses": {
+        "links_to": ["companies", "branches", "cities", "countries"],
+        "child_tables": ["warehouse_locations", "inventory_balances"],
+        "cascade_behavior": "ON DELETE CASCADE to companies",
+        "risk_level": "MEDIUM"
+      },
+      "journal_entries": {
+        "links_to": ["companies", "branches", "fiscal_years", "accounting_periods", "users"],
+        "child_tables": ["journal_lines", "general_ledger (via post_journal_to_gl function)"],
+        "cascade_behavior": "journal_lines CASCADE on entry deletion",
+        "risk_level": "MEDIUM - Protected by status checks in code"
+      }
+    },
+    
+    "cascade_delete_warnings": [
+      {
+        "table": "companies",
+        "cascades_to": ["branches", "fiscal_years", "accounting_periods", "accounts", "customers", "vendors", "items", "warehouses", "cost_centers", "journal_entries", "user_companies"],
+        "risk": "CRITICAL",
+        "impact": "Deleting a company removes ALL associated data across the entire system",
+        "mitigation": "Soft delete implemented on companies table. Hard delete should be admin-only and require confirmation.",
+        "recommendation": "Add database-level safeguard: prevent DELETE on companies if posted journal entries exist"
+      },
+      {
+        "table": "users",
+        "cascades_to": ["refresh_tokens", "login_history", "user_status_history", "user_companies"],
+        "risk": "LOW",
+        "impact": "Deleting user removes auth sessions and login history",
+        "mitigation": "Soft delete implemented. Login history preserved via ON DELETE CASCADE (acceptable for audit cleanup)"
+      },
+      {
+        "table": "customers",
+        "cascades_to": ["customer_contacts", "customer_addresses"],
+        "risk": "LOW",
+        "impact": "Deleting customer removes related contacts and addresses only",
+        "mitigation": "Soft delete implemented. Business logic should prevent deletion if transactions exist."
+      },
+      {
+        "table": "vendors",
+        "cascades_to": ["vendor_contacts", "vendor_items"],
+        "risk": "LOW",
+        "impact": "Deleting vendor removes related contacts and preferred items",
+        "mitigation": "Soft delete implemented."
+      },
+      {
+        "table": "items",
+        "cascades_to": ["item_barcodes", "item_images", "batches", "serial_numbers", "price_list_items"],
+        "risk": "MEDIUM",
+        "impact": "Deleting item removes tracking data, but inventory transactions should prevent deletion",
+        "mitigation": "Soft delete implemented. Need business rule to prevent deletion if inventory transactions exist."
+      },
+      {
+        "table": "journal_entries",
+        "cascades_to": ["journal_lines"],
+        "risk": "HIGH",
+        "impact": "Deleting journal entry removes all line items (proper behavior if unposted)",
+        "mitigation": "Code prevents deletion of posted entries. Status check enforced in delete routes."
+      }
+    ],
+    
+    "data_integrity_constraints": {
+      "unique_constraints": [
+        "companies(code), companies(email)",
+        "branches(company_id, code)",
+        "users(email)",
+        "roles(name) - SHOULD BE (company_id, name)",
+        "accounts(company_id, code)",
+        "customers(company_id, code)",
+        "vendors(company_id, code)",
+        "items(company_id, code)",
+        "warehouses(company_id, code)",
+        "cost_centers(company_id, code)",
+        "currencies(code), countries(code)",
+        "journal_entries(company_id, entry_number)"
+      ],
+      "not_null_constraints": {
+        "properly_enforced": [
+          "users.email", "users.password_hash",
+          "companies.name", "companies.code",
+          "accounts.company_id", "accounts.code", "accounts.name",
+          "customers.company_id", "customers.code", "customers.name",
+          "journal_entries.company_id", "journal_entries.entry_date"
+        ],
+        "missing_critical": [
+          "users.company_id - allows NULL (multi-company access via user_companies table is correct)",
+          "roles.company_id - allows NULL (global roles like super_admin)"
+        ]
+      },
+      "check_constraints": [
+        "accounts.level >= 1 AND level <= 5",
+        "journal_entries.status IN ('draft', 'posted', 'cancelled', 'reversed')",
+        "users.status IN ('active', 'inactive', 'locked', 'disabled')"
+      ],
+      "missing_check_constraints": [
+        "credit_limit >= 0 on customers/vendors",
+        "quantity >= 0 on inventory tables",
+        "debit_amount >= 0 AND credit_amount >= 0 on journal_lines",
+        "start_date <= end_date on fiscal_years, accounting_periods"
+      ]
+    },
+    
+    "indexes_analysis": {
+      "total_indexes_created": 180,
+      "performance_indexes": [
+        "idx_users_email (UNIQUE) - Login performance",
+        "idx_users_deleted_at, idx_users_status - Filtering active users",
+        "idx_companies_deleted_at - Tenant filtering",
+        "idx_accounts_company, idx_accounts_parent, idx_accounts_type - Chart of accounts queries",
+        "idx_customers_company, idx_customers_code, idx_customers_name, idx_customers_status - List/search",
+        "idx_vendors_company, idx_vendors_code, idx_vendors_name - List/search",
+        "idx_items_company, idx_items_category, idx_items_group - Inventory queries",
+        "idx_journal_entries_company, idx_journal_entries_date, idx_journal_entries_period, idx_journal_entries_status - Journal reports",
+        "idx_journal_lines_entry, idx_journal_lines_account - Journal detail queries",
+        "idx_gl_company, idx_gl_account, idx_gl_account_date, idx_gl_period - General ledger reports",
+        "idx_audit_logs_user_id, idx_audit_logs_resource, idx_audit_logs_created_at - Audit trail"
+      ],
+      "composite_indexes": [
+        "idx_journal_entries_number(company_id, entry_number) - Entry lookup",
+        "idx_account_balances_lookup(company_id, account_id, fiscal_year_id, period_id) - Balance queries",
+        "idx_number_series_active(company_id, document_type) WHERE is_active - Document numbering"
+      ],
+      "partial_indexes": [
+        "idx_companies_is_active ON companies(is_active) WHERE deleted_at IS NULL",
+        "idx_branches_is_active ON branches(is_active) WHERE deleted_at IS NULL",
+        "idx_accounts_is_deleted ON accounts(is_deleted) WHERE is_deleted = FALSE",
+        "idx_customers_is_deleted ON customers(is_deleted) WHERE is_deleted = FALSE",
+        "idx_taxes_company_id ON taxes(company_id) WHERE deleted_at IS NULL"
+      ],
+      "missing_indexes": [
+        "items.name - for search queries",
+        "vendors.name - for search queries (only has idx_vendors_code)",
+        "employees.first_name, employees.last_name - for name search",
+        "notifications.target_user_id - for user notification queries",
+        "password_reset_requests.user_id - for user request history"
+      ],
+      "index_coverage_score": "8.5/10 - Excellent coverage with room for search optimization"
+    },
+    
+    "audit_trail_implementation": {
+      "audit_logs_table": {
+        "columns": ["id", "user_id", "user_email", "resource_type", "resource_id", "action", "changes", "ip_address", "user_agent", "created_at"],
+        "triggers": "Middleware-based (not database triggers)",
+        "coverage": "POST/PUT/DELETE routes only",
+        "retention": "No automatic cleanup defined"
+      },
+      "created_updated_pattern": {
+        "tables_with_full_audit": ["companies", "branches", "accounts", "customers", "vendors", "items", "journal_entries"],
+        "columns": ["created_at", "updated_at", "created_by", "updated_by"],
+        "implementation": "Consistent across core tables"
+      },
+      "soft_delete_audit": {
+        "columns": ["deleted_at", "deleted_by"],
+        "deleted_records_table": "Tracks soft delete history with before_delete snapshot"
+      },
+      "journal_audit": {
+        "special_table": "journal_audit_log",
+        "tracks": "post, unpost, reverse, delete operations",
+        "includes_snapshots": true
+      },
+      "recommendation": "Add database triggers for audit_logs to catch direct SQL modifications"
+    }
+  },
+  
+  "api_integration": {
+    "summary": {
+      "total_frontend_pages": 59,
+      "total_backend_routes": 164,
+      "apis_called_by_frontend": 72,
+      "unused_backend_apis": 92,
+      "missing_apis": 5,
+      "integration_coverage": "44%"
+    },
+    
+    "frontend_pages": {
+      "authenticated_pages": 52,
+      "public_pages": 7,
+      "pages_without_api_calls": 15,
+      "pages_with_api_calls": 44,
+      "api_usage_pattern": "Fetch API (native) - 95%, Axios - 5%"
+    },
+    
+    "backend_routes_breakdown": {
+      "auth_routes": 9,
+      "user_management": 12,
+      "role_management": 11,
+      "company_management": 5,
+      "branch_management": 5,
+      "master_data": 60,
+      "accounting": 18,
+      "reports": 12,
+      "dashboard": 4,
+      "notifications": 8,
+      "audit_logs": 5,
+      "settings": 4,
+      "health_check": 1,
+      "shipments_expenses": 10
+    },
+    
+    "api_coverage_by_module": {
+      "authentication": {
+        "frontend_uses": ["/api/auth/login", "/api/auth/logout", "/api/auth/me", "/api/auth/change-password", "/api/auth/request-password-reset"],
+        "backend_provides": ["/api/auth/register", "/api/auth/login", "/api/auth/logout", "/api/auth/refresh", "/api/auth/change-password", "/api/auth/me", "/api/me/language", "/api/auth/request-password-reset"],
+        "unused": ["/api/auth/register", "/api/auth/refresh"],
+        "coverage": "62%"
+      },
+      "users": {
+        "frontend_uses": [],
+        "backend_provides": ["GET /users", "GET /users/:id", "POST /users", "PUT /users/:id", "DELETE /users/:id", "PATCH /users/:id/disable", "PATCH /users/:id/enable", "POST /users/:id/restore", "DELETE /users/:id/force", "GET /users/by-company/:companyId", "GET /users/deleted", "GET /users/disabled", "GET /users/profile"],
+        "unused": "ALL (12 routes)",
+        "coverage": "0% - USER MANAGEMENT PAGE MISSING",
+        "status": "CRITICAL GAP"
+      },
+      "companies": {
+        "frontend_uses": ["/api/companies (GET/POST)", "/api/companies/:id (DELETE)"],
+        "backend_provides": ["GET /companies", "GET /companies/:id", "POST /companies", "PUT /companies/:id", "DELETE /companies/:id"],
+        "coverage": "60%"
+      },
+      "branches": {
+        "frontend_uses": ["/api/branches (GET/POST)", "/api/branches/:id (DELETE)"],
+        "backend_provides": ["GET /branches", "GET /branches/:id", "POST /branches", "PUT /branches/:id", "DELETE /branches/:id"],
+        "coverage": "60%"
+      },
+      "roles": {
+        "frontend_uses": ["/api/roles (GET)", "/api/roles/:id (DELETE)"],
+        "backend_provides": ["GET /roles", "GET /roles/:id", "GET /roles/:id/permissions", "POST /roles", "GET /roles/templates", "GET /roles/permissions", "PUT /roles/:id", "POST /roles/:id/permissions/assign", "DELETE /roles/:id/permissions/:permissionId", "POST /roles/:id/restore", "POST /roles/:id/clone", "GET /roles/:id/users"],
+        "unused": ["templates", "permissions management", "clone", "users lookup"],
+        "coverage": "18%",
+        "status": "INCOMPLETE - Role management UI basic"
+      },
+      "master_data_countries": {
+        "frontend_uses": ["/api/master/countries (GET/POST)", "/api/master/countries/:id (PUT/DELETE)", "/api/master/countries/:id/restore (POST)"],
+        "backend_provides": ["Same as above + GET /countries/:id"],
+        "coverage": "80%"
+      },
+      "master_data_currencies": {
+        "frontend_uses": ["/api/master/currencies (GET/POST)", "/api/master/currencies/:id (PUT/DELETE)", "/api/master/currencies/:id/restore (POST)"],
+        "backend_provides": ["Same as above + GET /currencies/:id"],
+        "coverage": "80%"
+      },
+      "master_data_cities": {
+        "frontend_uses": ["/api/master/cities (GET/POST)", "/api/master/cities/:id (PUT/DELETE)", "/api/master/cities/:id/restore (POST)"],
+        "backend_provides": ["Same as above"],
+        "coverage": "100%"
+      },
+      "master_data_customers": {
+        "frontend_uses": ["/api/master/customers (GET/POST)", "/api/master/customers/:id (PUT/DELETE)", "/api/master/customers/:id/restore (POST)"],
+        "backend_provides": ["Same as above + GET /customers/:id"],
+        "coverage": "80%"
+      },
+      "master_data_vendors": {
+        "frontend_uses": ["/api/master/vendors (GET/POST)", "/api/master/vendors/:id (PUT/DELETE)", "/api/master/vendors/:id/restore (POST)"],
+        "backend_provides": ["Same as above + GET /vendors/:id"],
+        "coverage": "80%"
+      },
+      "master_data_items": {
+        "frontend_uses": ["/api/master/items (GET/POST)", "/api/master/items/:id (PUT/DELETE)", "/api/master/items/:id/restore (POST)"],
+        "backend_provides": ["Same as above + GET /items/:id"],
+        "coverage": "80%"
+      },
+      "master_data_warehouses": {
+        "frontend_uses": ["/api/master/warehouses (GET/POST)", "/api/master/warehouses/:id (PUT/DELETE)", "/api/master/warehouses/:id/restore (POST)"],
+        "backend_provides": ["Same as above"],
+        "coverage": "100%"
+      },
+      "master_data_cost_centers": {
+        "frontend_uses": ["/api/master/cost-centers (GET/POST)", "/api/master/cost-centers/:id (PUT/DELETE)", "/api/master/cost-centers/:id/restore (POST)"],
+        "backend_provides": ["Same as above"],
+        "coverage": "100%"
+      },
+      "master_data_units": {
+        "frontend_uses": ["/api/master/units (GET/POST)", "/api/master/units/:id (PUT/DELETE)", "/api/master/units/:id/restore (POST)"],
+        "backend_provides": ["Same as above"],
+        "coverage": "100%"
+      },
+      "master_data_taxes": {
+        "frontend_uses": ["/api/master/taxes (GET/POST)", "/api/master/taxes/:id (PUT/DELETE)", "/api/master/taxes/:id/restore (POST)", "/api/accounting/accounts (GET for dropdown)"],
+        "backend_provides": ["Same as above + GET /taxes/:id"],
+        "coverage": "80%"
+      },
+      "accounting_accounts": {
+        "frontend_uses": ["/api/accounting/accounts (GET for dropdowns in taxes page)"],
+        "backend_provides": ["GET /accounts", "GET /accounts/tree", "GET /accounts/:id", "POST /accounts", "PUT /accounts/:id", "DELETE /accounts/:id", "GET /accounts/:id/children", "GET /accounts/types"],
+        "unused": ["tree view", "CRUD operations", "children lookup"],
+        "coverage": "12%",
+        "status": "MAJOR GAP - Chart of Accounts UI missing"
+      },
+      "accounting_journals": {
+        "frontend_uses": ["/api/journals/export (frontend-next/pages/accounting/journals/index.tsx)"],
+        "backend_provides": ["GET /journals", "GET /journals/:id", "POST /journals", "POST /journals/:id/post", "POST /journals/:id/reverse"],
+        "coverage": "20%",
+        "status": "INCOMPLETE - Journal Entry UI exists but minimal integration"
+      },
+      "reports_trial_balance": {
+        "frontend_uses": ["/api/reports/trial-balance (GET)", "/api/reports/trial-balance/summary (GET)", "/api/reports/trial-balance/export (GET)"],
+        "backend_provides": ["Same"],
+        "coverage": "100%"
+      },
+      "reports_general_ledger": {
+        "frontend_uses": ["/api/reports/general-ledger/export (POST)"],
+        "backend_provides": ["GET /reports/general-ledger", "GET /reports/general-ledger/accounts", "GET /reports/general-ledger/:accountId", "GET /reports/general-ledger/:accountId/transactions", "POST /reports/general-ledger/export"],
+        "coverage": "20%"
+      },
+      "reports_income_statement": {
+        "frontend_uses": [],
+        "backend_provides": ["GET /reports/income-statement", "GET /reports/income-statement/comparative", "POST /reports/income-statement/export"],
+        "coverage": "0%"
+      },
+      "reports_balance_sheet": {
+        "frontend_uses": [],
+        "backend_provides": ["GET /reports/balance-sheet", "GET /reports/balance-sheet/comparative"],
+        "coverage": "0%"
+      },
+      "dashboard": {
+        "frontend_uses": ["/api/dashboard/badges", "/api/dashboard/stats", "/api/dashboard/activity"],
+        "backend_provides": ["/api/dashboard/badges", "/api/dashboard/stats", "/api/dashboard/activity", "/api/dashboard/login-trends"],
+        "coverage": "75%"
+      },
+      "notifications": {
+        "frontend_uses": ["/api/notifications (GET)", "/api/notifications/unread-count (GET)", "/api/notifications/:id/read (POST)", "/api/notifications/read-all (POST)", "/api/notifications/:id/dismiss (POST)"],
+        "backend_provides": ["Same + DELETE /notifications/:id", "GET /notifications/statistics", "POST /notifications/cleanup"],
+        "coverage": "62%"
+      },
+      "audit_logs": {
+        "frontend_uses": ["/api/audit-logs (GET with query params)"],
+        "backend_provides": ["GET /audit-logs", "GET /audit-logs/resources", "GET /audit-logs/actions", "GET /audit-logs/users", "GET /audit-logs/:id"],
+        "coverage": "20%"
+      },
+      "settings": {
+        "frontend_uses": ["/api/settings (GET/PUT)", "/api/settings/:key (PUT)"],
+        "backend_provides": ["GET /settings", "GET /settings/public", "PUT /settings (bulk)", "PUT /settings/:key"],
+        "coverage": "75%"
+      },
+      "shipments_expenses": {
+        "frontend_uses": ["/api/shipments (GET/POST)", "/api/shipments/:id (GET/PUT/DELETE)", "/api/shipments/:id/expenses (POST/GET)", "/api/expenses/:id (PUT/DELETE)"],
+        "backend_provides": ["Same"],
+        "coverage": "100%"
+      },
+      "password_reset": {
+        "frontend_uses": ["/api/auth/request-password-reset (POST)"],
+        "backend_provides": ["/api/password-reset/request", "/api/password-reset/requests (GET)", "/api/password-reset/requests/:id (GET)", "/api/password-reset/requests/:id/approve (POST)", "/api/password-reset/requests/:id/reject (POST)", "/api/password-reset/requests/:id/cancel (POST)"],
+        "coverage": "16%",
+        "status": "Admin approval workflow not implemented in UI"
+      }
+    },
+    
+    "dead_apis": [
+      "POST /api/auth/register - Registration disabled in UI",
+      "POST /api/auth/refresh - Token refresh not implemented in frontend",
+      "All 12 user management routes - No user management page",
+      "Chart of Accounts CRUD - No UI for account management",
+      "Role cloning API - Not exposed in UI",
+      "Role permissions management - Basic UI only",
+      "Password reset approval workflow - Admin UI missing",
+      "Notification statistics/cleanup - Admin features not exposed",
+      "Audit log detail view - Only list view implemented",
+      "Financial report comparatives - UI shows single period only",
+      "Warehouse locations - Not implemented",
+      "Item barcode/batch/serial management - Not in UI"
+    ],
+    
+    "missing_apis": [
+      "Frontend calls /api/warehouses but backend only has /api/master/warehouses (resolved with alias)",
+      "Frontend calls /api/suppliers but backend doesn't have suppliers routes (legacy table)",
+      "Frontend accounting reports pages call /api/reports/* which are commented out in app.ts",
+      "Some pages call http://localhost:4000 directly instead of using env variable"
+    ],
+    
+    "response_consistency": {
+      "success_pattern": {
+        "standard": "{ success: true, data: [...], total: 10 }",
+        "compliance": "60% - Many routes use { data: [...] } without success flag",
+        "pagination": "Uses sendPaginated() helper - { data, pagination: { page, limit, total } }"
+      },
+      "error_pattern": {
+        "standard": "{ success: false, error: 'message' }",
+        "compliance": "50% - Some routes return { error }, others throw and rely on error handler",
+        "http_status_codes": "Mostly correct (400 validation, 401 auth, 403 forbidden, 404 not found, 500 server)"
+      },
+      "issues": [
+        "Inconsistent use of 'success' flag",
+        "Some routes return { message } on success, others return { data }",
+        "Pagination format varies (some use total, some use pagination object)",
+        "Error messages not consistently translated"
+      ],
+      "recommendation": "Standardize all responses to { success: boolean, data?: any, error?: string, pagination?: object }"
+    },
+    
+    "error_handling": {
+      "frontend": {
+        "pattern": "try-catch with showToast('error', message)",
+        "issues": [
+          "Many useEffect calls fetch data without proper error handling",
+          "Some pages show generic 'Failed to load' instead of specific error",
+          "No retry mechanism for failed requests",
+          "No offline detection"
+        ],
+        "score": "6/10"
+      },
+      "backend": {
+        "pattern": "Global error handler middleware catches all errors",
+        "logging": "console.error() - not production-ready",
+        "sanitization": "Errors properly sanitized before sending to client",
+        "score": "7/10"
+      }
+    }
+  },
+  
+  "performance": {
+    "database_queries": {
+      "n_plus_1_queries": {
+        "found": 2,
+        "instances": [
+          {
+            "location": "backend/src/routes/accounts.ts",
+            "description": "Loops through accounts.forEach() to build tree hierarchy",
+            "impact": "LOW - Only affects chart of accounts tree view, typically <1000 accounts",
+            "recommendation": "Already optimized with single query + in-memory tree building"
+          },
+          {
+            "location": "backend/src/routes/journals.ts",
+            "description": "Loops through journal lines to validate accounts",
+            "impact": "LOW - Validation only, not in hot path",
+            "recommendation": "Could batch account lookups with IN clause"
+          }
+        ],
+        "status": "ACCEPTABLE - No critical N+1 patterns"
+      },
+      
+      "pagination_implementation": {
+        "helper_function": "getPaginationParams(req.query)",
+        "default_limit": 20,
+        "max_limit": "Not enforced - SECURITY RISK",
+        "routes_with_pagination": [
+          "/api/users", "/api/companies", "/api/branches", "/api/roles", 
+          "/api/audit-logs", "/api/notifications", "/api/shipments",
+          "/api/password-reset/requests", "/api/journals"
+        ],
+        "routes_missing_pagination": [
+          "/api/accounts/tree - Returns full chart (could be 1000+ accounts)",
+          "/api/settings - Returns all settings (acceptable, typically <50)",
+          "/api/dashboard/* - Dashboard APIs return fixed limits (10-20 records)"
+        ],
+        "recommendation": [
+          "Add MAX_LIMIT=1000 check in getPaginationParams()",
+          "Consider implementing cursor-based pagination for audit logs (could be millions)"
+        ]
+      },
+      
+      "missing_indexes": [
+        {
+          "table": "items",
+          "column": "name",
+          "query_pattern": "WHERE name ILIKE '%search%'",
+          "impact": "MEDIUM - Item search will be slow with >10k items",
+          "recommendation": "CREATE INDEX idx_items_name_gin ON items USING gin(name gin_trgm_ops)"
+        },
+        {
+          "table": "vendors",
+          "column": "name",
+          "query_pattern": "WHERE name ILIKE '%search%'",
+          "impact": "LOW - Vendors typically <1000",
+          "recommendation": "CREATE INDEX idx_vendors_name ON vendors(name)"
+        },
+        {
+          "table": "notifications",
+          "column": "target_user_id",
+          "query_pattern": "WHERE target_user_id = $1 ORDER BY created_at DESC",
+          "impact": "MEDIUM - User notification queries without index",
+          "recommendation": "CREATE INDEX idx_notifications_target_user ON notifications(target_user_id, created_at DESC)"
+        }
+      ],
+      
+      "heavy_queries": [
+        {
+          "route": "GET /api/reports/trial-balance",
+          "description": "Aggregates all account balances for period",
+          "execution_time": "Estimated 2-5 seconds for 1000 accounts",
+          "optimization": "Uses account_balances materialized table - GOOD",
+          "recommendation": "Add MATERIALIZED VIEW refresh job"
+        },
+        {
+          "route": "GET /api/reports/general-ledger",
+          "description": "Returns all GL entries for account/period",
+          "execution_time": "Estimated 5-10 seconds for 100k entries",
+          "optimization": "Uses composite index idx_gl_account_date - GOOD",
+          "recommendation": "Consider partitioning general_ledger by fiscal_year_id"
+        },
+        {
+          "route": "GET /api/audit-logs",
+          "description": "Returns filtered audit logs",
+          "execution_time": "Slow with >1M records",
+          "optimization": "Has indexes on user_id, created_at",
+          "recommendation": "Implement archival strategy (move old logs to audit_logs_archive)"
+        }
+      ],
+      
+      "query_optimization_score": "8/10 - Very good coverage, minor improvements needed"
+    },
+    
+    "connection_pool": {
+      "configuration": {
+        "implementation": "pg.Pool with DATABASE_URL connection string",
+        "max_connections": "NOT CONFIGURED - Uses pg default (10)",
+        "idle_timeout": "NOT CONFIGURED - Uses pg default (10000ms)",
+        "connection_timeout": "NOT CONFIGURED - Uses pg default (0 = disabled)"
+      },
+      "issues": [
+        "No max pool size configured - could exhaust database connections",
+        "No connection error handling - could crash on connection loss",
+        "No query timeout configured - long queries could hang server"
+      ],
+      "recommendations": [
+        "Add pool configuration: { max: 20, idleTimeoutMillis: 30000, connectionTimeoutMillis: 2000 }",
+        "Add query timeout: statement_timeout = 30s in PostgreSQL",
+        "Add connection retry logic with exponential backoff",
+        "Add pool monitoring to track connection usage"
+      ],
+      "critical": true,
+      "production_blocker": true
+    },
+    
+    "frontend_performance": {
+      "unnecessary_rerenders": {
+        "pattern": "useEffect with missing dependencies",
+        "instances": [
+          "Most pages fetch data in useEffect(() => { fetchData() }, []) - CORRECT",
+          "Some pages pass props without memoization - LOW IMPACT"
+        ],
+        "score": "8/10 - Generally good"
+      },
+      
+      "data_fetching": {
+        "pattern": "Fetch on component mount, store in local state",
+        "caching": "NO CACHING - Every page mount triggers API call",
+        "issues": [
+          "No React Query or SWR - data refetched on every navigation",
+          "Master data (countries, currencies) fetched repeatedly",
+          "No optimistic updates - UI waits for API response",
+          "No background refetch - stale data visible"
+        ],
+        "recommendations": [
+          "Implement React Query for automatic caching and refetching",
+          "Cache reference data (countries, currencies) in context",
+          "Add optimistic updates for mutations",
+          "Implement infinite scroll for large lists instead of pagination"
+        ],
+        "impact": "MEDIUM - Works but inefficient",
+        "production_ready": false
+      },
+      
+      "bundle_size": {
+        "status": "NOT ANALYZED - No webpack-bundle-analyzer configured",
+        "recommendation": "Add bundle analysis to identify large dependencies"
+      }
+    }
+  },
+  
+  "production_readiness": {
+    "score": "6.5/10",
+    "grade": "C - Functional but needs hardening",
+    
+    "environment_configuration": {
+      "env_file": ".env with hardcoded development values",
+      "documented": "Partially - no .env.example file",
+      "secrets_management": "INSECURE - JWT_SECRET in plain .env file",
+      "validation": "GOOD - config/env.ts validates on startup",
+      "issues": [
+        "JWT_SECRET should be generated per environment",
+        "No .env.example file for reference",
+        "Email configuration present but not used",
+        "Redis URL configured but Redis not used",
+        "CORS_ORIGINS includes localhost only"
+      ],
+      "recommendations": [
+        "Create .env.example with placeholder values",
+        "Use secrets manager (AWS Secrets Manager, Azure Key Vault) for production",
+        "Document all environment variables in README",
+        "Add environment-specific .env files (.env.production, .env.staging)"
+      ]
+    },
+    
+    "cors_configuration": {
+      "current": "cors({ origin: ['http://localhost:3000', 'http://localhost:3001'], credentials: true })",
+      "production_ready": false,
+      "issues": [
+        "Hardcoded localhost origins",
+        "credentials: true requires specific origin (not wildcard)",
+        "No production domain configured"
+      ],
+      "recommendations": [
+        "Use environment variable for CORS_ORIGINS",
+        "Validate origin against whitelist",
+        "Add preflight caching: maxAge: 600"
+      ]
+    },
+    
+    "rate_limiting": {
+      "implementation": "express-rate-limit middleware",
+      "configured_limits": {
+        "authRateLimiter": "5 requests per 15 min (login, password reset)",
+        "settingsRateLimiter": "5 requests per 1 hour (password change)",
+        "passwordResetRateLimiter": "3 requests per 1 hour",
+        "apiRateLimiter": "100 requests per 15 min (general API)"
+      },
+      "storage": "In-memory (MemoryStore)",
+      "issues": [
+        "In-memory store resets on server restart",
+        "Not suitable for multi-instance deployment",
+        "No distributed rate limiting"
+      ],
+      "recommendations": [
+        "Use Redis for rate limit storage (rate-limit-redis)",
+        "Add per-user rate limiting (currently by IP only)",
+        "Add rate limit headers (X-RateLimit-Limit, X-RateLimit-Remaining)",
+        "Consider implementing API key system for programmatic access"
+      ],
+      "production_ready": "Partially - works for single instance"
+    },
+    
+    "logging": {
+      "current": "console.log(), console.error()",
+      "structured_logging": false,
+      "log_levels": false,
+      "log_aggregation": false,
+      "issues": [
+        "No log levels (debug, info, warn, error)",
+        "No structured JSON logging",
+        "No correlation IDs for request tracking",
+        "No log rotation or retention policy",
+        "Sensitive data could be logged"
+      ],
+      "recommendations": [
+        "Implement Winston or Pino for structured logging",
+        "Add correlation IDs via middleware (req.id)",
+        "Log format: { timestamp, level, correlationId, userId, message, ...meta }",
+        "Add log sanitization to remove passwords, tokens",
+        "Integrate with ELK, Splunk, or CloudWatch for aggregation"
+      ],
+      "critical": true,
+      "production_blocker": true
+    },
+    
+    "monitoring": {
+      "health_check": "GET /api/health - returns 200 OK",
+      "metrics": "NONE",
+      "alerting": "NONE",
+      "apm": "NONE",
+      "recommendations": [
+        "Enhance health check to test database connectivity",
+        "Add /api/health/ready (readiness probe) and /api/health/live (liveness probe)",
+        "Implement Prometheus metrics (prom-client)",
+        "Track: request count, response times, error rates, connection pool usage",
+        "Add alerting for: high error rates, slow queries, connection pool exhaustion",
+        "Integrate APM tool: New Relic, Datadog, or AWS X-Ray"
+      ],
+      "production_blocker": true
+    },
+    
+    "security": {
+      "helmet": "CONFIGURED - CSP, HSTS, XSS protection enabled",
+      "bcrypt_rounds": "10 (acceptable for development, consider 12 for production)",
+      "jwt_expiration": "15min access, 30day refresh - GOOD",
+      "sql_injection": "PROTECTED - Parameterized queries throughout",
+      "xss": "PARTIAL - Helmet enabled, but no output sanitization",
+      "csrf": "NOT PROTECTED - No CSRF tokens",
+      "issues": [
+        "No CSRF protection on state-changing operations",
+        "No input validation library (no Zod, Joi, or similar)",
+        "No output encoding/sanitization",
+        "No request body size limit (has 1mb limit - GOOD)",
+        "JWT secret in .env file (not secure for production)"
+      ],
+      "recommendations": [
+        "Add csurf middleware for CSRF protection",
+        "Implement Zod schemas for request validation",
+        "Add DOMPurify or similar for sanitizing HTML inputs",
+        "Use secrets manager for JWT_SECRET in production",
+        "Add Helmet's referrerPolicy and permissionsPolicy",
+        "Implement security.txt in /.well-known/"
+      ],
+      "score": "7/10 - Good foundation, needs hardening"
+    },
+    
+    "testing": {
+      "unit_tests": 0,
+      "integration_tests": 0,
+      "e2e_tests": 0,
+      "test_framework": "NONE",
+      "ci_cd": "NO",
+      "issues": [
+        "No test files found (*.test.ts, *.spec.ts)",
+        "No test framework installed (Jest, Mocha, Vitest)",
+        "No test coverage reports",
+        "No CI/CD pipeline for automated testing"
+      ],
+      "recommendations": [
+        "Add Jest for backend unit tests",
+        "Test critical paths: auth, RBAC, journal posting, soft delete",
+        "Add Supertest for API integration tests",
+        "Add Playwright or Cypress for E2E tests",
+        "Set up GitHub Actions or similar for CI/CD",
+        "Target 80% code coverage for business logic"
+      ],
+      "critical": true,
+      "production_blocker": true
+    },
+    
+    "database_backup": {
+      "strategy": "NOT CONFIGURED",
+      "recommendations": [
+        "Implement automated daily backups",
+        "Use pg_dump for full database backups",
+        "Store backups in separate storage (S3, Azure Blob)",
+        "Test restore procedure regularly",
+        "Implement point-in-time recovery (PITR) with WAL archiving",
+        "Document RTO (Recovery Time Objective) and RPO (Recovery Point Objective)"
+      ],
+      "production_blocker": true
+    },
+    
+    "error_tracking": {
+      "current": "console.error() only",
+      "recommendation": "Integrate Sentry, Rollbar, or similar for error tracking and alerting"
+    },
+    
+    "blockers": [
+      {
+        "issue": "No connection pool configuration",
+        "impact": "CRITICAL - Could exhaust database connections under load",
+        "effort": "1 hour",
+        "priority": "URGENT"
+      },
+      {
+        "issue": "No structured logging",
+        "impact": "CRITICAL - Cannot debug production issues",
+        "effort": "4 hours",
+        "priority": "URGENT"
+      },
+      {
+        "issue": "No monitoring/metrics",
+        "impact": "CRITICAL - Cannot detect outages or performance issues",
+        "effort": "8 hours",
+        "priority": "HIGH"
+      },
+      {
+        "issue": "No automated tests",
+        "impact": "HIGH - Risk of breaking changes in production",
+        "effort": "40 hours",
+        "priority": "HIGH"
+      },
+      {
+        "issue": "No database backup strategy",
+        "impact": "CRITICAL - Data loss risk",
+        "effort": "4 hours",
+        "priority": "URGENT"
+      }
+    ],
+    
+    "warnings": [
+      "Rate limiting uses in-memory store (not suitable for multiple instances)",
+      "Frontend has no caching strategy (React Query recommended)",
+      "Missing CSRF protection",
+      "No input validation library",
+      "Secrets in .env file (use secrets manager)",
+      "User management UI missing (12 APIs unused)",
+      "Chart of Accounts UI missing (8 APIs unused)",
+      "Financial reports partially implemented"
+    ],
+    
+    "recommendations": [
+      {
+        "category": "Critical (Pre-Production)",
+        "items": [
+          "Configure database connection pool with limits",
+          "Implement structured logging (Winston/Pino)",
+          "Set up monitoring and health checks",
+          "Implement database backup strategy",
+          "Add automated tests for critical paths",
+          "Use secrets manager for sensitive config"
+        ]
+      },
+      {
+        "category": "High Priority (Launch Week)",
+        "items": [
+          "Add React Query for frontend caching",
+          "Implement CSRF protection",
+          "Add input validation library (Zod)",
+          "Set up error tracking (Sentry)",
+          "Configure Redis for rate limiting",
+          "Complete user management UI",
+          "Add chart of accounts UI"
+        ]
+      },
+      {
+        "category": "Medium Priority (Post-Launch)",
+        "items": [
+          "Add bundle size analysis",
+          "Implement infinite scroll for large lists",
+          "Add API documentation (Swagger/OpenAPI)",
+          "Implement audit log archival",
+          "Add performance monitoring (APM)",
+          "Complete financial reports UI"
+        ]
+      }
+    ]
+  },
+  
+  "data_integrity_risks": {
+    "high_risk": [
+      {
+        "issue": "Company deletion cascades to all data",
+        "impact": "Accidental company deletion would delete all customers, vendors, items, journal entries",
+        "mitigation": "Soft delete implemented, but hard delete needs additional safeguards",
+        "recommendation": "Add CHECK constraint: prevent DELETE on companies if posted journal entries exist"
+      },
+      {
+        "issue": "No check constraints on amounts",
+        "impact": "Negative credit limits, quantities, amounts could be inserted",
+        "mitigation": "Application-level validation only",
+        "recommendation": "Add CHECK (credit_limit >= 0), CHECK (quantity >= 0), CHECK (debit_amount >= 0)"
+      },
+      {
+        "issue": "Journal entry deletion when posted",
+        "impact": "Could delete posted journal entries breaking audit trail",
+        "mitigation": "Code checks status before deletion",
+        "recommendation": "Add database trigger to prevent deletion when status = 'posted'"
+      }
+    ],
+    
+    "medium_risk": [
+      {
+        "issue": "Soft delete without unique constraint exclusion",
+        "impact": "Cannot recreate record with same code after soft delete",
+        "mitigation": "Most tables have UNIQUE(company_id, code)",
+        "recommendation": "Change to UNIQUE(company_id, code) WHERE deleted_at IS NULL"
+      },
+      {
+        "issue": "Orphaned records on cascade delete",
+        "impact": "Customer deletion cascades to contacts/addresses (acceptable), but no audit trail",
+        "mitigation": "Soft delete prevents this in normal operations",
+        "recommendation": "Log to deleted_records table before cascade"
+      }
+    ],
+    
+    "low_risk": [
+      {
+        "issue": "No foreign key to users.company_id",
+        "impact": "Users can belong to multiple companies (by design via user_companies)",
+        "mitigation": "Multi-company architecture intentionally allows this",
+        "recommendation": "None - design is correct"
+      }
+    ]
+  },
+  
+  "summary_metrics": {
+    "database_health": "8.5/10 - Excellent schema design, minor constraint gaps",
+    "api_integration": "4.5/10 - Many unused APIs, several UI gaps",
+    "performance": "7/10 - Good indexing, needs connection pool config",
+    "production_readiness": "5/10 - Functional but missing critical operational features",
+    "overall_score": "6.25/10 - C+ Grade",
+    
+    "strengths": [
+      "Comprehensive multi-tenant architecture with proper isolation",
+      "Excellent soft delete implementation across most tables",
+      "Strong RBAC system with granular permissions",
+      "Well-indexed database with good query performance",
+      "Proper audit logging for compliance",
+      "Clean separation of concerns (migrations, routes, middleware)"
+    ],
+    
+    "critical_gaps": [
+      "No database connection pool configuration",
+      "No structured logging or monitoring",
+      "Zero automated tests",
+      "No database backup strategy",
+      "Missing user management UI (12 unused APIs)",
+      "Missing chart of accounts UI (8 unused APIs)",
+      "No production-grade error tracking"
+    ],
+    
+    "next_steps": [
+      {
+        "phase": "Immediate (Week 1)",
+        "tasks": [
+          "Configure database connection pool (4 hours)",
+          "Implement Winston logging (4 hours)",
+          "Add health check with DB test (2 hours)",
+          "Set up database backup script (4 hours)",
+          "Configure Sentry for error tracking (2 hours)"
+        ],
+        "effort": "16 hours / 2 days"
+      },
+      {
+        "phase": "Pre-Production (Week 2-3)",
+        "tasks": [
+          "Write tests for critical paths (24 hours)",
+          "Build user management UI (16 hours)",
+          "Build chart of accounts UI (16 hours)",
+          "Add React Query caching (8 hours)",
+          "Implement CSRF protection (4 hours)",
+          "Add input validation (Zod) (8 hours)"
+        ],
+        "effort": "76 hours / 10 days"
+      },
+      {
+        "phase": "Production Hardening (Week 4)",
+        "tasks": [
+          "Set up monitoring (Prometheus) (8 hours)",
+          "Configure Redis for rate limiting (4 hours)",
+          "Add API documentation (8 hours)",
+          "Security audit and fixes (8 hours)",
+          "Load testing (8 hours)",
+          "Documentation (8 hours)"
+        ],
+        "effort": "44 hours / 5.5 days"
+      }
+    ],
+    
+    "estimated_time_to_production_ready": "3-4 weeks with dedicated team"
+  },
+  
+  "recommendations_by_priority": {
+    "p0_critical": [
+      "Configure database connection pool with max: 20, timeout: 30s",
+      "Implement Winston for structured logging",
+      "Set up automated database backups",
+      "Add Sentry for error tracking",
+      "Write integration tests for auth and RBAC"
+    ],
+    
+    "p1_high": [
+      "Build user management UI",
+      "Build chart of accounts UI",
+      "Add Prometheus metrics",
+      "Configure Redis for rate limiting",
+      "Implement React Query for caching",
+      "Add CSRF protection",
+      "Add Zod for input validation"
+    ],
+    
+    "p2_medium": [
+      "Complete financial reports UI",
+      "Add API documentation (Swagger)",
+      "Implement audit log archival",
+      "Add bundle size optimization",
+      "Implement password reset approval workflow UI",
+      "Add role cloning in UI"
+    ],
+    
+    "p3_nice_to_have": [
+      "Add GraphQL API layer",
+      "Implement real-time updates (WebSocket)",
+      "Add advanced search with Elasticsearch",
+      "Build mobile app",
+      "Add data export/import wizards"
+    ]
+  }
+}

@@ -1,0 +1,323 @@
+
+pages\debug-auth.tsx:
+  Line 75: Permission
+
+pages\expenses.tsx:
+  Line 60: Shipment
+  Line 61: Description
+  Line 62: Amount
+  Line 63: Created
+
+pages\i18n-demo.tsx:
+  Line 59: Save
+  Line 63: Cancel
+  Line 67: Delete
+  Line 71: Search
+  Line 75: Loading
+  Line 79: Success
+  Line 101: Email Label
+  Line 105: Password Label
+  Line 119: Current Date
+  Line 123: Current Time
+
+pages\me.tsx:
+  Line 29: My Account
+
+pages\notifications.tsx:
+  Line 179: Admin
+  Line 180: User
+  Line 337: Mark as read
+  Line 348: Dismiss
+
+pages\shipments.tsx:
+  Line 62: Shipments
+  Line 65: Reference
+  Line 68: Origin
+  Line 69: Destination
+  Line 71: Create Shipment
+  Line 81: Reference
+  Line 82: Origin
+  Line 83: Destination
+  Line 84: Created
+
+pages\test-permissions.tsx:
+  Line 30: Permission Test Page
+  Line 45: Permission
+  Line 46: Has Access
+  Line 67: Go to Users Page
+  Line 68: Go to Roles Page
+  Line 69: Go to Login History
+
+pages\admin\audit-logs.tsx:
+  Line 152: Access Denied
+  Line 170: Audit Logs
+  Line 184: Search by user, resource, action, or IP...
+  Line 211: All Actions
+  Line 233: All Resources
+  Line 287: No audit logs found
+
+pages\admin\branches.tsx:
+  Line 284: Access Denied
+  Line 303: Branches
+  Line 324: Search by name, code, or company...
+  Line 337: All Companies
+  Line 370: No branches found
+  Line 425: Headquarters
+  Line 460: Edit
+  Line 469: Delete
+  Line 504: Select a company
+  Line 519: Branch Code
+
+pages\admin\companies.tsx:
+  Line 273: Access Denied
+  Line 292: Companies
+  Line 313: Search by name, code, or email...
+  Line 345: No companies found
+  Line 435: Edit
+  Line 444: Delete
+  Line 471: Company Code
+  Line 479: Company Name
+  Line 489: Company Name (Arabic)
+  Line 494: Legal Name
+
+pages\admin\settings.tsx:
+  Line 219: Access Denied
+  Line 237: System Settings
+  Line 251: Search settings...
+  Line 264: All Categories
+  Line 284: No settings found
+  Line 353: Edit
+  Line 437: Value
+
+pages\audit-logs\index.tsx:
+  Line 121: Audit Logs
+  Line 162: Search by user email...
+  Line 168: Search
+  Line 191: No audit logs found
+
+pages\auth\change-password.tsx:
+  Line 207: ••••••••
+  Line 225: ••••••••
+  Line 278: ••••••••
+
+pages\roles\index.tsx:
+  Line 205: Roles Management
+  Line 242: No roles found
+  Line 315: Role Name
+  Line 320: e.g., warehouse_manager
+  Line 383: Delete Role
+
+pages\settings\index.tsx:
+  Line 163: System Settings
+  Line 177: Company Information
+  Line 181: Company Name
+  Line 186: ACME Logistics
+  Line 190: Company Email
+  Line 195: info@company.com
+  Line 199: Company Phone
+  Line 202: +1 (555) 123-4567
+  Line 213: 123 Business St, City, Country
+  Line 226: Regional Settings
+
+pages\shipments\[id].tsx:
+  Line 105: Shipment Details
+  Line 119: Back
+  Line 120: Delete Shipment
+  Line 126: Expenses
+  Line 129: Amount
+  Line 130: Currency
+  Line 131: Description
+  Line 132: Add
+  Line 140: Description
+  Line 141: Amount
+
+pages\suppliers\index.tsx:
+  Line 163: Suppliers
+  Line 200: No suppliers found
+  Line 299: Supplier Name
+  Line 304: e.g., ABC Logistics
+  Line 308: Contact Person
+  Line 311: e.g., John Doe
+  Line 315: Email
+  Line 320: e.g., contact@supplier.com
+  Line 324: Phone
+  Line 328: e.g., +1 (555) 123-4567
+
+pages\warehouses\index.tsx:
+  Line 168: Warehouses
+  Line 205: No warehouses found
+  Line 248: Utilization
+  Line 312: Warehouse Name
+  Line 317: e.g., Main Distribution Center
+  Line 321: Location
+  Line 326: e.g., New York, NY
+  Line 330: Capacity (units)
+  Line 336: e.g., 10000
+  Line 340: Manager Name
+
+pages\admin\login-history\index.tsx:
+  Line 159: Login History
+  Line 187: Search by username, email, or IP...
+  Line 203: All Activities
+  Line 204: Login Success
+  Line 205: Login Failed
+  Line 206: Logout
+  Line 207: Token Refresh
+
+pages\admin\roles\create.tsx:
+  Line 164: Create New Role
+  Line 180: Basic Information
+  Line 183: Role Name
+  Line 191: e.g., Sales Manager
+  Line 203: Brief description of this role
+  Line 212: Permissions
+
+pages\admin\roles\index.tsx:
+  Line 135: Roles Management
+  Line 165: Search roles...
+  Line 231: View details
+  Line 244: Clone role
+  Line 257: Edit role
+  Line 270: Delete role
+
+pages\admin\roles\templates.tsx:
+  Line 133: Role Templates
+  Line 179: System
+  Line 220: No role templates available
+  Line 258: Enter role name...
+
+pages\admin\users\create.tsx:
+  Line 150: Create New User
+  Line 166: Basic Information
+  Line 169: Email Address
+  Line 178: user@example.com
+  Line 182: Full Name
+  Line 190: John Doe
+  Line 194: Password
+  Line 203: Minimum 8 characters
+  Line 207: Confirm Password
+  Line 216: Re-enter password
+
+pages\admin\users\index.tsx:
+  Line 138: Users Management
+  Line 164: Total Users
+  Line 178: Active
+  Line 192: Disabled
+  Line 206: Locked
+  Line 225: Search by email or name...
+  Line 238: All Statuses
+  Line 239: Active
+  Line 240: Disabled
+  Line 241: Locked
+
+pages\admin\users\[id]\edit.tsx:
+  Line 180: User not found
+  Line 192: Edit User
+  Line 208: Basic Information
+  Line 211: Email Address
+  Line 220: user@example.com
+  Line 224: Full Name
+  Line 232: John Doe
+  Line 245: New Password
+  Line 253: Minimum 8 characters
+  Line 257: Confirm New Password
+
+pages\admin\users\[id]\index.tsx:
+  Line 111: User not found
+  Line 123: User Details
+  Line 148: Basic Information
+  Line 151: User ID
+  Line 155: Status
+  Line 161: Email
+  Line 165: Full Name
+  Line 169: Created At
+  Line 175: Failed Login Attempts
+  Line 211: Assigned Roles
+
+pages\admin\roles\[id]\edit.tsx:
+  Line 189: Edit Role
+  Line 205: Basic Information
+  Line 208: Role Name
+  Line 216: e.g., Sales Manager
+  Line 228: Brief description of this role
+  Line 237: Permissions
+
+pages\admin\roles\[id]\index.tsx:
+  Line 81: Role not found
+  Line 103: Role Details
+  Line 128: Basic Information
+  Line 131: Role ID
+  Line 135: Role Name
+  Line 139: Company
+  Line 143: Assigned Users
+  Line 147: Total Permissions
+  Line 151: Created At
+  Line 157: Last Updated
+
+pages\accounting\journals\[id].tsx:
+  Line 323: accounting.journal.details
+  Line 376: accounting.journal.lines
+  Line 623: system.auditLogs
+
+components\Nav.tsx:
+  Line 25: Login
+  Line 31: Shipments
+  Line 34: Expenses
+  Line 37: Logout
+
+components\accounting\JournalEntryForm.tsx:
+  Line 55: Promise
+  Line 224: INV-2025-001
+  Line 308: Code
+  Line 374: Optional
+
+components\admin\CloneRoleModal.tsx:
+  Line 72: Clone Role
+  Line 99: Enter role name...
+  Line 114: Enter role description...
+  Line 169: This action will be logged in the audit trail
+  Line 170: New role will inherit the same company scope
+
+components\admin\DisableUserModal.tsx:
+  Line 17: Promise
+  Line 81: Disable User Account
+  Line 82: This action requires a reason
+  Line 115: User will be immediately logged out
+  Line 116: All active sessions will be terminated
+  Line 118: Action will be logged in audit trail
+  Line 135: e.g., Policy violation, security concern, temporary suspension...
+
+components\admin\LoginHistoryTable.tsx:
+  Line 117: No login history found
+
+components\admin\UserStatusActions.tsx:
+  Line 102: Disable user account
+  Line 114: Disable
+  Line 124: Enable user account
+  Line 136: Enable
+  Line 146: Unlock user account
+  Line 158: Unlock
+
+components\auth\PermissionGate.tsx:
+  Line 20: Access Denied
+
+components\layout\Header.tsx:
+  Line 54: Toggle menu
+  Line 63: SLMS
+  Line 75: Search
+  Line 89: Toggle theme
+
+components\layout\NotificationBell.tsx:
+  Line 79: Notifications
+
+components\ui\DataTablePro.tsx:
+  Line 165: Actions
+
+components\ui\Modal.tsx:
+  Line 88: Close modal
+
+components\ui\ModalForm.tsx:
+  Line 23: Promise
+
+components\ui\PageHeader.tsx:
+  Line 22: Breadcrumb

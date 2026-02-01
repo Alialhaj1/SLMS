@@ -1,7 +1,6 @@
 import jwt from 'jsonwebtoken';
 import { Request, Response, NextFunction } from 'express';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'replace-me';
+import { config } from '../config/env';
 
 export function authenticate(req: Request, res: Response, next: NextFunction) {
   const auth = req.headers.authorization as string | undefined;
@@ -10,8 +9,12 @@ export function authenticate(req: Request, res: Response, next: NextFunction) {
   if (parts.length !== 2) return res.status(401).json({ error: 'invalid auth header' });
   const token = parts[1];
   try {
-    const payload = jwt.verify(token, JWT_SECRET) as any;
-    (req as any).user = payload;
+    const payload = jwt.verify(token, config.JWT_SECRET) as any;
+    // Map 'sub' to 'id' for compatibility with routes expecting req.user.id
+    (req as any).user = {
+      ...payload,
+      id: payload.sub
+    };
     next();
   } catch (e) {
     return res.status(401).json({ error: 'invalid token' });
