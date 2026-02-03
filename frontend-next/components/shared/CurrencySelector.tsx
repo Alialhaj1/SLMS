@@ -55,9 +55,10 @@ export default function CurrencySelector({
       setLoading(true);
       try {
         const token = localStorage.getItem('accessToken');
+        const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
         const url = companyId 
-          ? `http://localhost:4000/api/finance/currencies?company_id=${companyId}&is_active=true`
-          : `http://localhost:4000/api/finance/currencies?is_active=true`;
+          ? `${API_BASE_URL}/api/finance/currencies?company_id=${companyId}&is_active=true`
+          : `${API_BASE_URL}/api/finance/currencies?is_active=true`;
           
         const response = await fetch(url, {
           headers: { Authorization: `Bearer ${token}` },

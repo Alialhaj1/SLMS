@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { withPermission } from '../../utils/withPermission';
+import { MenuPermissions } from '../../config/menu.permissions';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import MainLayout from '@/components/layout/MainLayout';
@@ -22,7 +24,9 @@ interface Role {
   created_at: string;
 }
 
-export default function RolesPage() {
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+
+function RolesPage() {
   const { hasPermission } = usePermissions();
   const { showToast } = useToast();
   const { t } = useTranslation();
@@ -58,7 +62,7 @@ export default function RolesPage() {
   const fetchRoles = async () => {
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:4000/api/roles', {
+      const response = await fetch(`${API_BASE_URL}/api/roles`, {
         headers: authHeaders(),
       });
       if (response.ok) {
@@ -94,8 +98,8 @@ export default function RolesPage() {
     setSaving(true);
     try {
       const url = editingId
-        ? `http://localhost:4000/api/roles/${editingId}`
-        : 'http://localhost:4000/api/roles';
+        ? `${API_BASE_URL}/api/roles/${editingId}`
+        : `${API_BASE_URL}/api/roles`;
 
       const payload = {
         name: formData.name.trim(),
@@ -141,7 +145,7 @@ export default function RolesPage() {
 
     setDeleting(true);
     try {
-      const response = await fetch(`http://localhost:4000/api/roles/${deleteId}`, {
+      const response = await fetch(`${API_BASE_URL}/api/roles/${deleteId}`, {
         method: 'DELETE',
         headers: authHeaders(),
       });
@@ -415,3 +419,5 @@ export default function RolesPage() {
     </MainLayout>
   );
 }
+
+export default withPermission(MenuPermissions.Roles.View, RolesPage);

@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { withPermission } from '../../utils/withPermission';
+import { MenuPermissions } from '../../config/menu.permissions';
 import Head from 'next/head';
 import MainLayout from '@/components/layout/MainLayout';
 import Button from '@/components/ui/Button';
@@ -19,7 +21,7 @@ interface Permission {
   created_at: string;
 }
 
-export default function PermissionsPage() {
+function PermissionsPage() {
   const { hasPermission } = usePermissions();
   const { showToast } = useToast();
   const { t } = useTranslation();
@@ -46,7 +48,8 @@ export default function PermissionsPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const response = await fetch('http://localhost:4000/api/roles/permissions', {
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const response = await fetch(`${API_BASE_URL}/api/roles/permissions`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (response.ok) {
@@ -76,9 +79,10 @@ export default function PermissionsPage() {
 
     try {
       const token = localStorage.getItem('accessToken');
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
       const url = editingId
-        ? `http://localhost:4000/api/roles/permissions/${editingId}`
-        : 'http://localhost:4000/api/roles/permissions';
+        ? `${API_BASE_URL}/api/roles/permissions/${editingId}`
+        : `${API_BASE_URL}/api/roles/permissions`;
 
       const response = await fetch(url, {
         method: editingId ? 'PUT' : 'POST',
@@ -114,7 +118,8 @@ export default function PermissionsPage() {
 
     try {
       const token = localStorage.getItem('accessToken');
-      const response = await fetch(`http://localhost:4000/api/roles/permissions/${deleteId}`, {
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const response = await fetch(`${API_BASE_URL}/api/roles/permissions/${deleteId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -234,3 +239,5 @@ export default function PermissionsPage() {
     </MainLayout>
   );
 }
+
+export default withPermission(MenuPermissions.System.Permissions.View, PermissionsPage);
