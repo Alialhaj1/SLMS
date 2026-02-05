@@ -76,7 +76,7 @@ interface GoodsReceiptItem {
 type Vendor = SharedVendor;
 type Warehouse = SharedWarehouse;
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
 
 function GoodsReceiptsPage() {
   const { hasPermission } = usePermissions();

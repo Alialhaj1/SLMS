@@ -139,7 +139,7 @@ function DeductionsPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch('http://localhost:4000/api/deductions', {
+      const res = await fetch('/api/deductions', {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -186,8 +186,8 @@ function DeductionsPage() {
     try {
       const token = localStorage.getItem('accessToken');
       const url = editingItem 
-        ? `http://localhost:4000/api/deductions/${editingItem.id}`
-        : 'http://localhost:4000/api/deductions';
+        ? `/api/deductions/${editingItem.id}`
+        : '/api/deductions';
       
       const res = await fetch(url, {
         method: editingItem ? 'PUT' : 'POST',
@@ -249,7 +249,7 @@ function DeductionsPage() {
     setIsDeleting(true);
     try {
       const token = localStorage.getItem('accessToken');
-      await fetch(`http://localhost:4000/api/deductions/${deletingId}`, {
+      await fetch(`/api/deductions/${deletingId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });

@@ -201,7 +201,7 @@ function NewShippingBillPage() {
   const fetchShipmentDetails = async (shipmentId: string) => {
     const token = localStorage.getItem('accessToken');
     try {
-      const res = await fetch(`http://localhost:4000/api/logistics-shipments/${shipmentId}`, {
+      const res = await fetch(`/api/logistics-shipments/${shipmentId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
@@ -236,11 +236,11 @@ function NewShippingBillPage() {
     try {
       // Fetch all in parallel
       const [billTypesRes, carriersRes, portsRes, shipmentsRes, projectsRes] = await Promise.all([
-        fetch('http://localhost:4000/api/bill-types', { headers }),
-        fetch('http://localhost:4000/api/shipping-agents', { headers }),
-        fetch('http://localhost:4000/api/ports', { headers }),
-        fetch('http://localhost:4000/api/logistics-shipments?limit=100', { headers }),
-        fetch('http://localhost:4000/api/projects?limit=100', { headers }),
+        fetch('/api/bill-types', { headers }),
+        fetch('/api/shipping-agents', { headers }),
+        fetch('/api/ports', { headers }),
+        fetch('/api/logistics-shipments?limit=100', { headers }),
+        fetch('/api/projects?limit=100', { headers }),
       ]);
 
       if (billTypesRes.ok) {
@@ -347,7 +347,7 @@ function NewShippingBillPage() {
         internal_notes: formData.internal_notes || null,
       };
 
-      const res = await fetch('http://localhost:4000/api/shipping-bills', {
+      const res = await fetch('/api/shipping-bills', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

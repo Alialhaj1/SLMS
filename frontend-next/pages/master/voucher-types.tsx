@@ -135,7 +135,7 @@ function VoucherTypesPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch('http://localhost:4000/api/voucher-types', {
+      const res = await fetch('/api/voucher-types', {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -179,8 +179,8 @@ function VoucherTypesPage() {
     try {
       const token = localStorage.getItem('accessToken');
       const url = editingItem 
-        ? `http://localhost:4000/api/voucher-types/${editingItem.id}`
-        : 'http://localhost:4000/api/voucher-types';
+        ? `/api/voucher-types/${editingItem.id}`
+        : '/api/voucher-types';
       
       const res = await fetch(url, {
         method: editingItem ? 'PUT' : 'POST',
@@ -226,7 +226,7 @@ function VoucherTypesPage() {
     setIsDeleting(true);
     try {
       const token = localStorage.getItem('accessToken');
-      await fetch(`http://localhost:4000/api/voucher-types/${deletingId}`, {
+      await fetch(`/api/voucher-types/${deletingId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });

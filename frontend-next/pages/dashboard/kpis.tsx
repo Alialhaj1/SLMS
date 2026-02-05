@@ -45,13 +45,13 @@ function KPIsPage() {
 
       // Fetch stats from multiple endpoints
       const [shipmentsRes, inventoryRes, itemsRes] = await Promise.all([
-        fetch('http://localhost:4000/api/shipments', {
+        fetch('/api/shipments', {
           headers: { Authorization: `Bearer ${token}` },
         }),
-        fetch('http://localhost:4000/api/warehouses', {
+        fetch('/api/warehouses', {
           headers: { Authorization: `Bearer ${token}` },
         }),
-        fetch('http://localhost:4000/api/items', {
+        fetch('/api/items', {
           headers: { Authorization: `Bearer ${token}` },
         }),
       ]);

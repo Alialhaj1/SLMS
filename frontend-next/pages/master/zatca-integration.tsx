@@ -107,7 +107,7 @@ function ZATCAIntegrationPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch('http://localhost:4000/api/zatca/config', {
+      const res = await fetch('/api/zatca/config', {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -161,8 +161,8 @@ function ZATCAIntegrationPage() {
     try {
       const token = localStorage.getItem('accessToken');
       const url = editingItem 
-        ? `http://localhost:4000/api/zatca/config/${editingItem.id}`
-        : 'http://localhost:4000/api/zatca/config';
+        ? `/api/zatca/config/${editingItem.id}`
+        : '/api/zatca/config';
       
       const res = await fetch(url, {
         method: editingItem ? 'PUT' : 'POST',
@@ -202,7 +202,7 @@ function ZATCAIntegrationPage() {
     setIsDeleting(true);
     try {
       const token = localStorage.getItem('accessToken');
-      await fetch(`http://localhost:4000/api/zatca/config/${deletingId}`, {
+      await fetch(`/api/zatca/config/${deletingId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -218,7 +218,7 @@ function ZATCAIntegrationPage() {
     setTestStatus('testing');
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch('http://localhost:4000/api/zatca/test-connection', {
+      const res = await fetch('/api/zatca/test-connection', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       });

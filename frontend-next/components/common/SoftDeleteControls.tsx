@@ -114,7 +114,7 @@ export function SoftDeleteActions({
   const restorePermission = `${resource}:restore`;
   const permanentDeletePermission = `${resource}:permanent_delete`;
   
-  const baseUrl = apiEndpoint || `http://localhost:4000/api/${resource}`;
+  const baseUrl = apiEndpoint || `/api/${resource}`;
   
   const handleRestore = async () => {
     if (!can(restorePermission)) {

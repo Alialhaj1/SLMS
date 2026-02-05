@@ -156,7 +156,7 @@ export default function UsersPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || '';
 
       const [usersRes, rolesRes] = await Promise.all([
         fetch(`${baseUrl}/api/users?limit=500&page=1`, { headers: authHeaders() }),
@@ -260,7 +260,7 @@ export default function UsersPage() {
   const openEditModal = async (user: User) => {
     try {
       // Fetch full user details including role_ids
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || '';
       const res = await fetch(`${baseUrl}/api/users/${user.id}`, { headers: authHeaders() });
       if (res.ok) {
         const json = await res.json();
@@ -309,7 +309,7 @@ export default function UsersPage() {
     setSaving(true);
 
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || '';
       const url = editingUser
         ? `${baseUrl}/api/users/${editingUser.id}`
         : `${baseUrl}/api/users`;
@@ -353,7 +353,7 @@ export default function UsersPage() {
     setSaving(true);
 
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || '';
       const res = await fetch(`${baseUrl}/api/users/${deleteUserId}`, {
         method: 'DELETE',
         headers: authHeaders(),
@@ -380,7 +380,7 @@ export default function UsersPage() {
     setSaving(true);
 
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || '';
       const res = await fetch(`${baseUrl}/api/users/${disableUserId}/disable`, {
         method: 'PATCH',
         headers: authHeaders(),
@@ -407,7 +407,7 @@ export default function UsersPage() {
   const handleEnable = async (userId: number) => {
     setSaving(true);
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || '';
       const res = await fetch(`${baseUrl}/api/users/${userId}/enable`, {
         method: 'PATCH',
         headers: authHeaders(),
@@ -431,7 +431,7 @@ export default function UsersPage() {
   const handleUnlock = async (userId: number) => {
     setSaving(true);
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || '';
       const res = await fetch(`${baseUrl}/api/users/${userId}/unlock`, {
         method: 'PATCH',
         headers: authHeaders(),
@@ -471,7 +471,7 @@ export default function UsersPage() {
     setSaving(true);
 
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || '';
       const res = await fetch(`${baseUrl}/api/users/${resetPasswordUserId}/reset-password`, {
         method: 'PATCH',
         headers: authHeaders(),

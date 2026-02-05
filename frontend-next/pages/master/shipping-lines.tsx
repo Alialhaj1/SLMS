@@ -98,7 +98,7 @@ function ShippingLinesPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch('http://localhost:4000/api/shipping-lines', {
+      const res = await fetch('/api/shipping-lines', {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -142,8 +142,8 @@ function ShippingLinesPage() {
     try {
       const token = localStorage.getItem('accessToken');
       const url = editingItem 
-        ? `http://localhost:4000/api/shipping-lines/${editingItem.id}`
-        : 'http://localhost:4000/api/shipping-lines';
+        ? `/api/shipping-lines/${editingItem.id}`
+        : '/api/shipping-lines';
       
       const res = await fetch(url, {
         method: editingItem ? 'PUT' : 'POST',
@@ -183,7 +183,7 @@ function ShippingLinesPage() {
     setIsDeleting(true);
     try {
       const token = localStorage.getItem('accessToken');
-      await fetch(`http://localhost:4000/api/shipping-lines/${deletingId}`, {
+      await fetch(`/api/shipping-lines/${deletingId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });

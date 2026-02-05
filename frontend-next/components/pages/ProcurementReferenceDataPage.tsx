@@ -68,7 +68,7 @@ export default function ProcurementReferenceDataPage({ type, title, apiEndpoint,
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const response = await fetch(`http://localhost:4000/api/procurement/reference/${apiEndpoint}`, {
+      const response = await fetch(`/api/procurement/reference/${apiEndpoint}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
@@ -101,8 +101,8 @@ export default function ProcurementReferenceDataPage({ type, title, apiEndpoint,
     try {
       const token = localStorage.getItem('accessToken');
       const url = editingItem
-        ? `http://localhost:4000/api/procurement/reference/${apiEndpoint}/${editingItem.id}`
-        : `http://localhost:4000/api/procurement/reference/${apiEndpoint}`;
+        ? `/api/procurement/reference/${apiEndpoint}/${editingItem.id}`
+        : `/api/procurement/reference/${apiEndpoint}`;
 
       const response = await fetch(url, {
         method: editingItem ? 'PUT' : 'POST',
@@ -141,7 +141,7 @@ export default function ProcurementReferenceDataPage({ type, title, apiEndpoint,
     try {
       const token = localStorage.getItem('accessToken');
       const response = await fetch(
-        `http://localhost:4000/api/procurement/reference/${apiEndpoint}/${itemToDelete.id}`,
+        `/api/procurement/reference/${apiEndpoint}/${itemToDelete.id}`,
         {
           method: 'DELETE',
           headers: { Authorization: `Bearer ${token}` }

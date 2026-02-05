@@ -114,7 +114,7 @@ function ContainerTypesPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch('http://localhost:4000/api/container-types', {
+      const res = await fetch('/api/container-types', {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -165,8 +165,8 @@ function ContainerTypesPage() {
     try {
       const token = localStorage.getItem('accessToken');
       const url = editingItem 
-        ? `http://localhost:4000/api/container-types/${editingItem.id}`
-        : 'http://localhost:4000/api/container-types';
+        ? `/api/container-types/${editingItem.id}`
+        : '/api/container-types';
       
       const res = await fetch(url, {
         method: editingItem ? 'PUT' : 'POST',
@@ -207,7 +207,7 @@ function ContainerTypesPage() {
     setIsDeleting(true);
     try {
       const token = localStorage.getItem('accessToken');
-      await fetch(`http://localhost:4000/api/container-types/${deletingId}`, {
+      await fetch(`/api/container-types/${deletingId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });

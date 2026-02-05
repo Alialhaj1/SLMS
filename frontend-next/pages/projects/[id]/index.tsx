@@ -186,7 +186,7 @@ const formatDate = (dateStr?: string, locale?: string) => {
 // API
 // =============================================
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
 
 async function fetchWithAuth(url: string, token: string, options: RequestInit = {}) {
   const res = await fetch(url, {

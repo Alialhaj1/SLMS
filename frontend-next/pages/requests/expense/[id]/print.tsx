@@ -228,7 +228,7 @@ export default function ExpenseRequestPrintPage() {
     const fetchCompany = async () => {
       try {
         const token = localStorage.getItem('accessToken');
-        const response = await fetch('http://localhost:4000/api/master/companies', {
+        const response = await fetch('/api/master/companies', {
           headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         });
         if (response.ok) {
@@ -246,7 +246,7 @@ export default function ExpenseRequestPrintPage() {
       try {
         setLoading(true);
         const token = localStorage.getItem('accessToken');
-        const response = await fetch(`http://localhost:4000/api/expense-requests/${id}`, {
+        const response = await fetch(`/api/expense-requests/${id}`, {
           headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         });
         if (!response.ok) throw new Error('Failed to fetch expense request');
@@ -285,7 +285,7 @@ export default function ExpenseRequestPrintPage() {
     const amountNum = typeof request.total_amount === 'string' ? parseFloat(request.total_amount) : request.total_amount;
     const blNumber = request.source_bl_number || request.bl_number || request.shipment_bl_number;
     const entity = getEntityInfo();
-    const logoUrl = company?.logo ? (company.logo.startsWith('http') ? company.logo : `http://localhost:4000${company.logo}`) : '';
+    const logoUrl = company?.logo || '';
     const shipmentItems = request.shipment_items || [];
     const currencyCode = request.currency_code || 'SAR';
     

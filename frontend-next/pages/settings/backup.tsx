@@ -148,7 +148,10 @@ function BackupSettingsPage() {
     try {
       const token = localStorage.getItem('accessToken');
       const companyId = localStorage.getItem('activeCompanyId');
-      const url = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/api/backup-settings/${item.id}/execute`;
+      // Normalize API_URL: strip trailing /api to avoid /api/api duplication
+      const rawUrl = process.env.NEXT_PUBLIC_API_URL || '';
+      const apiBase = rawUrl.replace(/\/$/, '').replace(/\/api$/, '');
+      const url = `${apiBase}/api/backup-settings/${item.id}/execute`;
       const res = await fetch(url, {
         method: 'POST',
         headers: {
@@ -182,7 +185,10 @@ function BackupSettingsPage() {
       const token = localStorage.getItem('accessToken');
       const companyId = localStorage.getItem('activeCompanyId');
       const params = new URLSearchParams({ page: String(page), limit: String(runsPagination.pageSize) });
-      const url = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/api/backup-settings/${settingsId}/runs?${params.toString()}`;
+      // Normalize API_URL: strip trailing /api to avoid /api/api duplication
+      const rawUrl = process.env.NEXT_PUBLIC_API_URL || '';
+      const apiBase = rawUrl.replace(/\/$/, '').replace(/\/api$/, '');
+      const url = `${apiBase}/api/backup-settings/${settingsId}/runs?${params.toString()}`;
       const res = await fetch(url, {
         headers: {
           Authorization: `Bearer ${token}`,

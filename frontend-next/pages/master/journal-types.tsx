@@ -119,7 +119,7 @@ function JournalTypesPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch('http://localhost:4000/api/journal-types', {
+      const res = await fetch('/api/journal-types', {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -165,8 +165,8 @@ function JournalTypesPage() {
     try {
       const token = localStorage.getItem('accessToken');
       const url = editingItem 
-        ? `http://localhost:4000/api/journal-types/${editingItem.id}`
-        : 'http://localhost:4000/api/journal-types';
+        ? `/api/journal-types/${editingItem.id}`
+        : '/api/journal-types';
       
       const res = await fetch(url, {
         method: editingItem ? 'PUT' : 'POST',
@@ -212,7 +212,7 @@ function JournalTypesPage() {
     setIsDeleting(true);
     try {
       const token = localStorage.getItem('accessToken');
-      await fetch(`http://localhost:4000/api/journal-types/${deletingId}`, {
+      await fetch(`/api/journal-types/${deletingId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });

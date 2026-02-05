@@ -135,7 +135,7 @@ function CustomerClassificationsPage() {
         setItems([]);
         return;
       }
-      const res = await fetch('http://localhost:4000/api/customer-classifications', {
+      const res = await fetch('/api/customer-classifications', {
         headers: {
           Authorization: `Bearer ${token}`,
           'X-Company-Id': String(companyId),
@@ -184,8 +184,8 @@ function CustomerClassificationsPage() {
         return;
       }
       const url = editingItem 
-        ? `http://localhost:4000/api/customer-classifications/${editingItem.id}`
-        : 'http://localhost:4000/api/customer-classifications';
+        ? `/api/customer-classifications/${editingItem.id}`
+        : '/api/customer-classifications';
       
       const res = await fetch(url, {
         method: editingItem ? 'PUT' : 'POST',
@@ -229,7 +229,7 @@ function CustomerClassificationsPage() {
         return;
       }
 
-      const res = await fetch(`http://localhost:4000/api/customer-classifications/${deletingId}`, {
+      const res = await fetch(`/api/customer-classifications/${deletingId}`, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${token}`,

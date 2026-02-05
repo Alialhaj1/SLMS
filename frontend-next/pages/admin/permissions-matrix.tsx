@@ -98,7 +98,7 @@ function PermissionsMatrixPage() {
   const loadBaseData = async () => {
     setLoading(true);
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || '';
 
       const [rolesRes, permsRes] = await Promise.all([
         fetch(`${baseUrl}/api/roles?limit=500&page=1`, { headers: authHeaders() }),
@@ -123,7 +123,7 @@ function PermissionsMatrixPage() {
   const loadRole = async (roleId: number) => {
     setLoading(true);
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || '';
       const res = await fetch(`${baseUrl}/api/roles/${roleId}`, { headers: authHeaders() });
       if (!res.ok) throw new Error('Failed to load role');
       const json = await res.json();
@@ -266,7 +266,7 @@ function PermissionsMatrixPage() {
     if (!canEdit || !selectedRole) return;
     setSaving(true);
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || '';
       const res = await fetch(`${baseUrl}/api/roles/${selectedRole.id}`, {
         method: 'PUT',
         headers: authHeaders(),

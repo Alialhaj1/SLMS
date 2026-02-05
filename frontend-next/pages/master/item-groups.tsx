@@ -118,7 +118,7 @@ function ItemGroupsPage() {
       }
 
       warnedMissingCompany.current = false;
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
       const [groupsRes, categoriesRes] = await Promise.all([
         fetch(`${apiUrl}/api/master/item-groups`, {
           headers: {
@@ -175,7 +175,7 @@ function ItemGroupsPage() {
     try {
       const token = localStorage.getItem('accessToken');
       const companyId = companyStore.getActiveCompanyId();
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
       if (!token) throw new Error('Not authenticated');
       const url = editingItem 
         ? `${apiUrl}/api/master/item-groups/${editingItem.id}`
@@ -212,7 +212,7 @@ function ItemGroupsPage() {
     try {
       const token = localStorage.getItem('accessToken');
       const companyId = companyStore.getActiveCompanyId();
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
       const res = await fetch(`${apiUrl}/api/master/item-groups/${deletingId}`, {
         method: 'DELETE',
         headers: {

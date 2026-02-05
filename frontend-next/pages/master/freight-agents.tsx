@@ -77,7 +77,7 @@ export default function FreightAgentsPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const response = await fetch('http://localhost:4000/api/shipping-agents', {
+      const response = await fetch('/api/shipping-agents', {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -159,8 +159,8 @@ export default function FreightAgentsPage() {
     try {
       const token = localStorage.getItem('accessToken');
       const url = editMode
-        ? `http://localhost:4000/api/shipping-agents/${selectedAgent?.id}`
-        : 'http://localhost:4000/api/shipping-agents';
+        ? `/api/shipping-agents/${selectedAgent?.id}`
+        : '/api/shipping-agents';
       const method = editMode ? 'PUT' : 'POST';
 
       const response = await fetch(url, {
@@ -197,7 +197,7 @@ export default function FreightAgentsPage() {
     setDeleting(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const response = await fetch(`http://localhost:4000/api/shipping-agents/${selectedAgent.id}`, {
+      const response = await fetch(`/api/shipping-agents/${selectedAgent.id}`, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${token}`,

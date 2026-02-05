@@ -526,8 +526,8 @@ function BankAccountsTab({
     try {
       const token = localStorage.getItem('accessToken');
       const url = editing 
-        ? `http://localhost:4000/api/procurement/vendors/${vendorId}/bank-accounts/${editing.id}`
-        : `http://localhost:4000/api/procurement/vendors/${vendorId}/bank-accounts`;
+        ? `/api/procurement/vendors/${vendorId}/bank-accounts/${editing.id}`
+        : `/api/procurement/vendors/${vendorId}/bank-accounts`;
       
       const res = await fetch(url, {
         method: editing ? 'PUT' : 'POST',
@@ -559,7 +559,7 @@ function BankAccountsTab({
     setDeleting(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`http://localhost:4000/api/procurement/vendors/${vendorId}/bank-accounts/${deleteId}`, {
+      const res = await fetch(`/api/procurement/vendors/${vendorId}/bank-accounts/${deleteId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -1013,8 +1013,8 @@ function DocumentsTab({
     try {
       const token = localStorage.getItem('accessToken');
       const url = editing 
-        ? `http://localhost:4000/api/procurement/vendors/${vendorId}/documents/${editing.id}`
-        : `http://localhost:4000/api/procurement/vendors/${vendorId}/documents`;
+        ? `/api/procurement/vendors/${vendorId}/documents/${editing.id}`
+        : `/api/procurement/vendors/${vendorId}/documents`;
       
       const res = await fetch(url, {
         method: editing ? 'PUT' : 'POST',
@@ -1049,7 +1049,7 @@ function DocumentsTab({
     setDeleting(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`http://localhost:4000/api/procurement/vendors/${vendorId}/documents/${deleteId}`, {
+      const res = await fetch(`/api/procurement/vendors/${vendorId}/documents/${deleteId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -1640,7 +1640,7 @@ function VendorProfilePage() {
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`http://localhost:4000/api/procurement/vendors/${id}/profile`, {
+      const res = await fetch(`/api/procurement/vendors/${id}/profile`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
@@ -1662,7 +1662,7 @@ function VendorProfilePage() {
     setBankAccountsLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`http://localhost:4000/api/procurement/vendors/${id}/bank-accounts`, {
+      const res = await fetch(`/api/procurement/vendors/${id}/bank-accounts`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
@@ -1681,7 +1681,7 @@ function VendorProfilePage() {
     setPosLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`http://localhost:4000/api/procurement/vendors/${id}/purchase-orders?limit=20`, {
+      const res = await fetch(`/api/procurement/vendors/${id}/purchase-orders?limit=20`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
@@ -1700,7 +1700,7 @@ function VendorProfilePage() {
     setInvoicesLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`http://localhost:4000/api/procurement/vendors/${id}/invoices?limit=20`, {
+      const res = await fetch(`/api/procurement/vendors/${id}/invoices?limit=20`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
@@ -1719,7 +1719,7 @@ function VendorProfilePage() {
     setPaymentsLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`http://localhost:4000/api/procurement/vendors/${id}/payments?limit=20`, {
+      const res = await fetch(`/api/procurement/vendors/${id}/payments?limit=20`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
@@ -1738,7 +1738,7 @@ function VendorProfilePage() {
     setDocumentsLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`http://localhost:4000/api/procurement/vendors/${id}/documents`, {
+      const res = await fetch(`/api/procurement/vendors/${id}/documents`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
@@ -1755,7 +1755,7 @@ function VendorProfilePage() {
   const fetchDocumentTypes = useCallback(async () => {
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`http://localhost:4000/api/procurement/vendors/document-types`, {
+      const res = await fetch(`/api/procurement/vendors/document-types`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
@@ -1772,7 +1772,7 @@ function VendorProfilePage() {
     setProjectsLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`http://localhost:4000/api/procurement/vendors/${id}/projects`, {
+      const res = await fetch(`/api/procurement/vendors/${id}/projects`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
@@ -1792,7 +1792,7 @@ function VendorProfilePage() {
   const handleSaveRating = async (ratings: any) => {
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`http://localhost:4000/api/procurement/vendors/${id}/rating`, {
+      const res = await fetch(`/api/procurement/vendors/${id}/rating`, {
         method: 'PUT',
         headers: { 
           'Content-Type': 'application/json',
@@ -1873,7 +1873,7 @@ function VendorProfilePage() {
   const getImageUrl = (url: string | null | undefined): string | null => {
     if (!url) return null;
     if (url.startsWith('http://') || url.startsWith('https://')) return url;
-    if (url.startsWith('/uploads/')) return `http://localhost:4000${url}`;
+    if (url.startsWith('/uploads/')) return url;
     return url;
   };
 

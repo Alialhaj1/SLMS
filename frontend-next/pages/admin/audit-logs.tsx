@@ -129,7 +129,7 @@ function AuditLogsPage() {
 
     try {
       const res = await fetch(
-        `http://localhost:4000/api/audit-logs/export?${params.toString()}`,
+        `/api/audit-logs/export?${params.toString()}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,

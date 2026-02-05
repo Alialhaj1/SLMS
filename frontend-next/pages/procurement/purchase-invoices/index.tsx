@@ -65,7 +65,7 @@ function PurchaseInvoicesPage() {
       const params = new URLSearchParams();
       if (statusFilter !== 'all') params.append('status', statusFilter);
 
-      const res = await fetch(`http://localhost:4000/api/procurement/invoices?${params}`, {
+      const res = await fetch(`/api/procurement/invoices?${params}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 

@@ -92,7 +92,7 @@ function PurchaseOrderDetailPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`http://localhost:4000/api/procurement/purchase-orders/${id}`, {
+      const res = await fetch(`/api/procurement/purchase-orders/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -123,7 +123,7 @@ function PurchaseOrderDetailPage() {
     setActionLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`http://localhost:4000/api/procurement/purchase-orders/${order.id}/approve`, {
+      const res = await fetch(`/api/procurement/purchase-orders/${order.id}/approve`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -151,7 +151,7 @@ function PurchaseOrderDetailPage() {
     setActionLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`http://localhost:4000/api/procurement/purchase-orders/${order.id}/cancel`, {
+      const res = await fetch(`/api/procurement/purchase-orders/${order.id}/cancel`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -193,7 +193,7 @@ function PurchaseOrderDetailPage() {
     setActionLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`http://localhost:4000/api/procurement/purchase-orders/${order.id}/receive`, {
+      const res = await fetch(`/api/procurement/purchase-orders/${order.id}/receive`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,

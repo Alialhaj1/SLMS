@@ -193,7 +193,7 @@ function VendorEditPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`http://localhost:4000/api/procurement/vendors/${id}`, {
+      const res = await fetch(`/api/procurement/vendors/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
@@ -259,14 +259,14 @@ function VendorEditPage() {
 
     try {
       const [typesRes, catRes, classRes, statusRes, currRes, countryRes, payTermRes, bankRes] = await Promise.all([
-        fetch('http://localhost:4000/api/procurement/vendors/vendor-types', { headers }).catch(() => null),
-        fetch('http://localhost:4000/api/procurement/vendors/vendor-categories', { headers }).catch(() => null),
-        fetch('http://localhost:4000/api/procurement/vendors/classifications', { headers }).catch(() => null),
-        fetch('http://localhost:4000/api/procurement/vendors/vendor-statuses', { headers }).catch(() => null),
-        fetch('http://localhost:4000/api/master/currencies', { headers }).catch(() => null),
-        fetch('http://localhost:4000/api/master/countries', { headers }).catch(() => null),
-        fetch('http://localhost:4000/api/procurement/vendors/payment-terms', { headers }).catch(() => null),
-        fetch('http://localhost:4000/api/master/banks', { headers }).catch(() => null),
+        fetch('/api/procurement/vendors/vendor-types', { headers }).catch(() => null),
+        fetch('/api/procurement/vendors/vendor-categories', { headers }).catch(() => null),
+        fetch('/api/procurement/vendors/classifications', { headers }).catch(() => null),
+        fetch('/api/procurement/vendors/vendor-statuses', { headers }).catch(() => null),
+        fetch('/api/master/currencies', { headers }).catch(() => null),
+        fetch('/api/master/countries', { headers }).catch(() => null),
+        fetch('/api/procurement/vendors/payment-terms', { headers }).catch(() => null),
+        fetch('/api/master/banks', { headers }).catch(() => null),
       ]);
 
       setReferenceData({
@@ -300,7 +300,7 @@ function VendorEditPage() {
   const getImageUrl = (url: string | null | undefined): string | null => {
     if (!url) return null;
     if (url.startsWith('http://') || url.startsWith('https://')) return url;
-    if (url.startsWith('/uploads/')) return `http://localhost:4000${url}`;
+    if (url.startsWith('/uploads/')) return url;
     return url;
   };
 
@@ -359,7 +359,7 @@ function VendorEditPage() {
     setSaving(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`http://localhost:4000/api/procurement/vendors/${id}`, {
+      const res = await fetch(`/api/procurement/vendors/${id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -789,7 +789,7 @@ function VendorEditPage() {
                     currentImage={formData.vendor_cover_url ? getImageUrl(formData.vendor_cover_url) : null}
                     onImageSelect={async (base64) => {
                       const token = localStorage.getItem('accessToken');
-                      const res = await fetch(`http://localhost:4000/api/procurement/vendors/${id}/cover/upload`, {
+                      const res = await fetch(`/api/procurement/vendors/${id}/cover/upload`, {
                         method: 'POST',
                         headers: {
                           'Content-Type': 'application/json',
@@ -807,7 +807,7 @@ function VendorEditPage() {
                     }}
                     onImageRemove={async () => {
                       const token = localStorage.getItem('accessToken');
-                      const res = await fetch(`http://localhost:4000/api/procurement/vendors/${id}/cover`, {
+                      const res = await fetch(`/api/procurement/vendors/${id}/cover`, {
                         method: 'DELETE',
                         headers: { Authorization: `Bearer ${token}` },
                       });
@@ -833,7 +833,7 @@ function VendorEditPage() {
                       currentImage={formData.vendor_logo_url ? getImageUrl(formData.vendor_logo_url) : null}
                       onImageSelect={async (base64) => {
                         const token = localStorage.getItem('accessToken');
-                        const res = await fetch(`http://localhost:4000/api/procurement/vendors/${id}/logo/upload`, {
+                        const res = await fetch(`/api/procurement/vendors/${id}/logo/upload`, {
                           method: 'POST',
                           headers: {
                             'Content-Type': 'application/json',
@@ -851,7 +851,7 @@ function VendorEditPage() {
                       }}
                       onImageRemove={async () => {
                         const token = localStorage.getItem('accessToken');
-                        const res = await fetch(`http://localhost:4000/api/procurement/vendors/${id}/logo`, {
+                        const res = await fetch(`/api/procurement/vendors/${id}/logo`, {
                           method: 'DELETE',
                           headers: { Authorization: `Bearer ${token}` },
                         });

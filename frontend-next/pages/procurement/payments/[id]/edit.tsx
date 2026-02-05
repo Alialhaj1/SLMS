@@ -122,7 +122,7 @@ export default function EditVendorPaymentPage() {
 
   const fetchPayment = async () => {
     try {
-      const response = await fetch(`http://localhost:4000/api/procurement/payments/${id}`, {
+      const response = await fetch(`/api/procurement/payments/${id}`, {
         headers: getHeaders()
       });
       if (!response.ok) throw new Error('Failed to fetch payment');
@@ -157,8 +157,8 @@ export default function EditVendorPaymentPage() {
       const headers = getHeaders();
 
       const [refRes, currRes] = await Promise.all([
-        fetch('http://localhost:4000/api/procurement/payments/reference-data/all', { headers }),
-        fetch('http://localhost:4000/api/currencies', { headers })
+        fetch('/api/procurement/payments/reference-data/all', { headers }),
+        fetch('/api/currencies', { headers })
       ]);
 
       const refData = await refRes.json();
@@ -224,7 +224,7 @@ export default function EditVendorPaymentPage() {
 
     setSubmitting(true);
     try {
-      const response = await fetch(`http://localhost:4000/api/procurement/payments/${id}`, {
+      const response = await fetch(`/api/procurement/payments/${id}`, {
         method: 'PUT',
         headers: getHeaders(),
         body: JSON.stringify({

@@ -147,7 +147,7 @@ function DocumentTypesPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch('http://localhost:4000/api/document-types', {
+      const res = await fetch('/api/document-types', {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -194,8 +194,8 @@ function DocumentTypesPage() {
     try {
       const token = localStorage.getItem('accessToken');
       const url = editingItem 
-        ? `http://localhost:4000/api/document-types/${editingItem.id}`
-        : 'http://localhost:4000/api/document-types';
+        ? `/api/document-types/${editingItem.id}`
+        : '/api/document-types';
       
       const res = await fetch(url, {
         method: editingItem ? 'PUT' : 'POST',
@@ -245,7 +245,7 @@ function DocumentTypesPage() {
     setIsDeleting(true);
     try {
       const token = localStorage.getItem('accessToken');
-      await fetch(`http://localhost:4000/api/document-types/${deletingId}`, {
+      await fetch(`/api/document-types/${deletingId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });

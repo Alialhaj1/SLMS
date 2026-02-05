@@ -75,7 +75,7 @@ function PurchaseOrdersPage() {
       const params = new URLSearchParams();
       if (statusFilter !== 'all') params.append('status', statusFilter);
 
-      const res = await fetch(`http://localhost:4000/api/procurement/purchase-orders?${params}`, {
+      const res = await fetch(`/api/procurement/purchase-orders?${params}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 

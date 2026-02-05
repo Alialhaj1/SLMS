@@ -104,7 +104,7 @@ export const DocumentHistory: React.FC<DocumentHistoryProps> = ({
       const docTypePath = documentType.replace(/_/g, '-') + 's';
       
       const response = await fetch(
-        `http://localhost:4000/api/procurement/${docTypePath}/${documentId}/history`,
+        `/api/procurement/${docTypePath}/${documentId}/history`,
         {
           headers: {
             Authorization: `Bearer ${token}`

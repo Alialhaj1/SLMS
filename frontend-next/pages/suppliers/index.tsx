@@ -48,7 +48,7 @@ function SuppliersPage() {
   const fetchSuppliers = async () => {
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch('http://localhost:4000/api/suppliers', {
+      const res = await fetch('/api/suppliers', {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -86,8 +86,8 @@ function SuppliersPage() {
     try {
       const token = localStorage.getItem('accessToken');
       const url = editingSupplier
-        ? `http://localhost:4000/api/suppliers/${editingSupplier.id}`
-        : 'http://localhost:4000/api/suppliers';
+        ? `/api/suppliers/${editingSupplier.id}`
+        : '/api/suppliers';
 
       const res = await fetch(url, {
         method: editingSupplier ? 'PUT' : 'POST',
@@ -116,7 +116,7 @@ function SuppliersPage() {
 
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`http://localhost:4000/api/suppliers/${deleteSupplier.id}`, {
+      const res = await fetch(`/api/suppliers/${deleteSupplier.id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });

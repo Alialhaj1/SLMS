@@ -137,7 +137,7 @@ function AllowancesPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch('http://localhost:4000/api/allowances', {
+      const res = await fetch('/api/allowances', {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -184,8 +184,8 @@ function AllowancesPage() {
     try {
       const token = localStorage.getItem('accessToken');
       const url = editingItem 
-        ? `http://localhost:4000/api/allowances/${editingItem.id}`
-        : 'http://localhost:4000/api/allowances';
+        ? `/api/allowances/${editingItem.id}`
+        : '/api/allowances';
       
       const res = await fetch(url, {
         method: editingItem ? 'PUT' : 'POST',
@@ -239,7 +239,7 @@ function AllowancesPage() {
     setIsDeleting(true);
     try {
       const token = localStorage.getItem('accessToken');
-      await fetch(`http://localhost:4000/api/allowances/${deletingId}`, {
+      await fetch(`/api/allowances/${deletingId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });

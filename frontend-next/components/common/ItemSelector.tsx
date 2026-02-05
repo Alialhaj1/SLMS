@@ -56,7 +56,10 @@ export default function ItemSelector({
 
       const companyId = companyStore.getActiveCompanyId();
 
-      const url = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/api/master/items?search=${searchTerm}&limit=20`;
+      // Normalize API_URL: strip trailing /api to avoid /api/api duplication
+      const rawUrl = process.env.NEXT_PUBLIC_API_URL || '';
+      const apiBase = rawUrl.replace(/\/$/, '').replace(/\/api$/, '');
+      const url = `${apiBase}/api/master/items?search=${searchTerm}&limit=20`;
       
       const response = await fetch(url, {
         headers: {
@@ -85,8 +88,11 @@ export default function ItemSelector({
           const companyId = companyStore.getActiveCompanyId();
           if (!token) return;
 
+          // Normalize API_URL: strip trailing /api to avoid /api/api duplication
+          const rawUrl = process.env.NEXT_PUBLIC_API_URL || '';
+          const apiBase = rawUrl.replace(/\/$/, '').replace(/\/api$/, '');
           const response = await fetch(
-            `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/api/master/items/${value}`,
+            `${apiBase}/api/master/items/${value}`,
             {
               headers: {
                 'Authorization': `Bearer ${token}`,

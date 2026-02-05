@@ -108,7 +108,7 @@ function CompaniesPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch('http://localhost:4000/api/companies', {
+      const res = await fetch('/api/companies', {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -191,8 +191,8 @@ function CompaniesPage() {
     try {
       const token = localStorage.getItem('accessToken');
       const url = editingCompany
-        ? `http://localhost:4000/api/companies/${editingCompany.id}`
-        : 'http://localhost:4000/api/companies';
+        ? `/api/companies/${editingCompany.id}`
+        : '/api/companies';
 
       const res = await fetch(url, {
         method: editingCompany ? 'PUT' : 'POST',
@@ -230,7 +230,7 @@ function CompaniesPage() {
     setDeleting(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`http://localhost:4000/api/companies/${companyToDelete.id}`, {
+      const res = await fetch(`/api/companies/${companyToDelete.id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });

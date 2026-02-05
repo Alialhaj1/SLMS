@@ -87,7 +87,7 @@ function AutoPostingsPage() {
       if (filterStatus) params.append('status', filterStatus);
       if (filterEntity) params.append('entity_type', filterEntity);
 
-      const res = await fetch(`http://localhost:4000/api/accounting-rules/postings?${params}`, {
+      const res = await fetch(`/api/accounting-rules/postings?${params}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 

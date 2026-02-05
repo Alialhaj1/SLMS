@@ -72,7 +72,7 @@ function SettingsPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch('http://localhost:4000/api/settings', {
+      const res = await fetch('/api/settings', {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -147,7 +147,7 @@ function SettingsPage() {
     setSubmitting(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`http://localhost:4000/api/settings/${editingSetting.key}`, {
+      const res = await fetch(`/api/settings/${editingSetting.key}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

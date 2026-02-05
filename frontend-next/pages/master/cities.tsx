@@ -87,7 +87,7 @@ function CitiesPage() {
     try {
       const token = localStorage.getItem('accessToken');
       const companyId = companyStore.getActiveCompanyId();
-      const res = await fetch('http://localhost:4000/api/master/countries', {
+      const res = await fetch('/api/master/countries', {
         headers: {
           Authorization: `Bearer ${token}`,
           ...(companyId ? { 'X-Company-Id': String(companyId) } : {}),
@@ -107,7 +107,7 @@ function CitiesPage() {
     try {
       const token = localStorage.getItem('accessToken');
       const companyId = companyStore.getActiveCompanyId();
-      const res = await fetch('http://localhost:4000/api/master/cities', {
+      const res = await fetch('/api/master/cities', {
         headers: {
           Authorization: `Bearer ${token}`,
           ...(companyId ? { 'X-Company-Id': String(companyId) } : {}),
@@ -169,8 +169,8 @@ function CitiesPage() {
     try {
       const token = localStorage.getItem('accessToken');
       const url = editingCity
-        ? `http://localhost:4000/api/master/cities/${editingCity.id}`
-        : 'http://localhost:4000/api/master/cities';
+        ? `/api/master/cities/${editingCity.id}`
+        : '/api/master/cities';
       const companyId = companyStore.getActiveCompanyId();
       const res = await fetch(url, {
         method: editingCity ? 'PUT' : 'POST',
@@ -207,7 +207,7 @@ function CitiesPage() {
     try {
       const token = localStorage.getItem('accessToken');
       const companyId = companyStore.getActiveCompanyId();
-      const res = await fetch(`http://localhost:4000/api/master/cities/${cityToDelete.id}`, {
+      const res = await fetch(`/api/master/cities/${cityToDelete.id}`, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${token}`,

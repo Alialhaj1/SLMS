@@ -87,9 +87,9 @@ function StockLimitsPage() {
         ...(companyId ? { 'X-Company-Id': String(companyId) } : {}),
       };
       const [limitsRes, itemsRes, whRes] = await Promise.all([
-        fetch('http://localhost:4000/api/stock-limits', { headers }),
-        fetch('http://localhost:4000/api/master/items', { headers }),
-        fetch('http://localhost:4000/api/warehouses', { headers }),
+        fetch('/api/stock-limits', { headers }),
+        fetch('/api/master/items', { headers }),
+        fetch('/api/warehouses', { headers }),
       ]);
       
       if (!limitsRes.ok) throw new Error('Failed to load stock limits');
@@ -132,8 +132,8 @@ function StockLimitsPage() {
       const token = localStorage.getItem('accessToken');
       const companyId = companyStore.getActiveCompanyId();
       const url = editingItem 
-        ? `http://localhost:4000/api/stock-limits/${editingItem.id}`
-        : 'http://localhost:4000/api/stock-limits';
+        ? `/api/stock-limits/${editingItem.id}`
+        : '/api/stock-limits';
       
       const res = await fetch(url, {
         method: editingItem ? 'PUT' : 'POST',
@@ -166,7 +166,7 @@ function StockLimitsPage() {
     try {
       const token = localStorage.getItem('accessToken');
       const companyId = companyStore.getActiveCompanyId();
-      const res = await fetch(`http://localhost:4000/api/stock-limits/${deletingId}`, {
+      const res = await fetch(`/api/stock-limits/${deletingId}`, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${token}`,

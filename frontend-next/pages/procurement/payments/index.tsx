@@ -65,7 +65,7 @@ export default function PaymentsPage() {
       if (filters.unallocatedOnly) params.append('unallocated_only', 'true');
 
       const queryString = params.toString();
-      const url = `http://localhost:4000/api/procurement/payments${queryString ? '?' + queryString : ''}`;
+      const url = `/api/procurement/payments${queryString ? '?' + queryString : ''}`;
       
       const response = await fetch(url, {
         headers: { 
@@ -125,7 +125,7 @@ export default function PaymentsPage() {
       const token = localStorage.getItem('accessToken');
       const companyId = companyStore.getActiveCompanyId() || 1;
       
-      const response = await fetch(`http://localhost:4000/api/procurement/payments/${paymentToDelete.id}`, {
+      const response = await fetch(`/api/procurement/payments/${paymentToDelete.id}`, {
         method: 'DELETE',
         headers: { 
           Authorization: `Bearer ${token}`,
@@ -163,7 +163,7 @@ export default function PaymentsPage() {
       const token = localStorage.getItem('accessToken');
       const companyId = companyStore.getActiveCompanyId() || 1;
       
-      const response = await fetch(`http://localhost:4000/api/procurement/payments/${paymentToUnpost.id}/unpost`, {
+      const response = await fetch(`/api/procurement/payments/${paymentToUnpost.id}/unpost`, {
         method: 'POST',
         headers: { 
           Authorization: `Bearer ${token}`,

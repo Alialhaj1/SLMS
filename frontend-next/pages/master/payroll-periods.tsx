@@ -131,7 +131,7 @@ function PayrollPeriodsPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch('http://localhost:4000/api/payroll-periods', {
+      const res = await fetch('/api/payroll-periods', {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -184,8 +184,8 @@ function PayrollPeriodsPage() {
     try {
       const token = localStorage.getItem('accessToken');
       const url = editingItem 
-        ? `http://localhost:4000/api/payroll-periods/${editingItem.id}`
-        : 'http://localhost:4000/api/payroll-periods';
+        ? `/api/payroll-periods/${editingItem.id}`
+        : '/api/payroll-periods';
       
       const res = await fetch(url, {
         method: editingItem ? 'PUT' : 'POST',
@@ -253,7 +253,7 @@ function PayrollPeriodsPage() {
     setIsDeleting(true);
     try {
       const token = localStorage.getItem('accessToken');
-      await fetch(`http://localhost:4000/api/payroll-periods/${deletingId}`, {
+      await fetch(`/api/payroll-periods/${deletingId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });

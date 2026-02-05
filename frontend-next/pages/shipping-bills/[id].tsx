@@ -139,7 +139,7 @@ function ShippingBillDetailPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`http://localhost:4000/api/shipping-bills/${id}`, {
+      const res = await fetch(`/api/shipping-bills/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -163,7 +163,7 @@ function ShippingBillDetailPage() {
     setDeleteLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`http://localhost:4000/api/shipping-bills/${id}`, {
+      const res = await fetch(`/api/shipping-bills/${id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -187,7 +187,7 @@ function ShippingBillDetailPage() {
     setStatusLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`http://localhost:4000/api/shipping-bills/${id}/status`, {
+      const res = await fetch(`/api/shipping-bills/${id}/status`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',

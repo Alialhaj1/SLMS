@@ -62,7 +62,7 @@ function VendorContractsPage() {
       const params = new URLSearchParams();
       if (statusFilter !== 'all') params.append('status', statusFilter);
 
-      const res = await fetch(`http://localhost:4000/api/procurement/vendor-contracts?${params}`, {
+      const res = await fetch(`/api/procurement/vendor-contracts?${params}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 

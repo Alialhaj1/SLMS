@@ -90,7 +90,7 @@ function ValuationMethodsPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch('http://localhost:4000/api/valuation-methods', {
+      const res = await fetch('/api/valuation-methods', {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -130,8 +130,8 @@ function ValuationMethodsPage() {
     try {
       const token = localStorage.getItem('accessToken');
       const url = editingItem 
-        ? `http://localhost:4000/api/valuation-methods/${editingItem.id}`
-        : 'http://localhost:4000/api/valuation-methods';
+        ? `/api/valuation-methods/${editingItem.id}`
+        : '/api/valuation-methods';
       
       const res = await fetch(url, {
         method: editingItem ? 'PUT' : 'POST',
@@ -171,7 +171,7 @@ function ValuationMethodsPage() {
     setIsDeleting(true);
     try {
       const token = localStorage.getItem('accessToken');
-      await fetch(`http://localhost:4000/api/valuation-methods/${deletingId}`, {
+      await fetch(`/api/valuation-methods/${deletingId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });

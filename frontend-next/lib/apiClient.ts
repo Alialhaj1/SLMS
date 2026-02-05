@@ -23,7 +23,7 @@ function generateRequestId(): string {
 }
 
 // Normalize base URL: strip trailing slashes and a trailing '/api' so we can always prefix endpoints with '/api/...'
-const rawBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const rawBase = process.env.NEXT_PUBLIC_API_URL || '';
 const API_URL = rawBase.replace(/\/$/, '').replace(/\/api$/, '');
 
 interface RequestOptions extends RequestInit {

@@ -105,7 +105,7 @@ function PurchaseInvoiceDetailPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`http://localhost:4000/api/procurement/invoices/${id}`, {
+      const res = await fetch(`/api/procurement/invoices/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -178,7 +178,7 @@ function PurchaseInvoiceDetailPage() {
         payload.matching_override_reason = overrideReason;
       }
 
-      const res = await fetch(`http://localhost:4000/api/procurement/invoices/${invoice.id}/post`, {
+      const res = await fetch(`/api/procurement/invoices/${invoice.id}/post`, {
         method: 'PUT',
         headers: {
           Authorization: `Bearer ${token}`,

@@ -117,7 +117,7 @@ function JobTitlesPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch('http://localhost:4000/api/job-titles', {
+      const res = await fetch('/api/job-titles', {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -175,8 +175,8 @@ function JobTitlesPage() {
     try {
       const token = localStorage.getItem('accessToken');
       const url = editingItem 
-        ? `http://localhost:4000/api/job-titles/${editingItem.id}`
-        : 'http://localhost:4000/api/job-titles';
+        ? `/api/job-titles/${editingItem.id}`
+        : '/api/job-titles';
       
       const res = await fetch(url, {
         method: editingItem ? 'PUT' : 'POST',
@@ -241,7 +241,7 @@ function JobTitlesPage() {
     setIsDeleting(true);
     try {
       const token = localStorage.getItem('accessToken');
-      await fetch(`http://localhost:4000/api/job-titles/${deletingId}`, {
+      await fetch(`/api/job-titles/${deletingId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });

@@ -80,7 +80,7 @@ function CountriesPage() {
     try {
       const token = localStorage.getItem('accessToken');
       const companyId = companyStore.getActiveCompanyId();
-      const res = await fetch('http://localhost:4000/api/master/countries', {
+      const res = await fetch('/api/master/countries', {
         headers: {
           Authorization: `Bearer ${token}`,
           ...(companyId ? { 'X-Company-Id': String(companyId) } : {}),
@@ -142,8 +142,8 @@ function CountriesPage() {
     try {
       const token = localStorage.getItem('accessToken');
       const url = editingCountry
-        ? `http://localhost:4000/api/master/countries/${editingCountry.id}`
-        : 'http://localhost:4000/api/master/countries';
+        ? `/api/master/countries/${editingCountry.id}`
+        : '/api/master/countries';
       const res = await fetch(url, {
         method: editingCountry ? 'PUT' : 'POST',
         headers: {
@@ -180,7 +180,7 @@ function CountriesPage() {
     setDeleting(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`http://localhost:4000/api/master/countries/${countryToDelete.id}`, {
+      const res = await fetch(`/api/master/countries/${countryToDelete.id}`, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${token}`,

@@ -128,7 +128,7 @@ function ContractTemplatesPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch('http://localhost:4000/api/contract-templates', {
+      const res = await fetch('/api/contract-templates', {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -172,8 +172,8 @@ function ContractTemplatesPage() {
     try {
       const token = localStorage.getItem('accessToken');
       const url = editingItem 
-        ? `http://localhost:4000/api/contract-templates/${editingItem.id}`
-        : 'http://localhost:4000/api/contract-templates';
+        ? `/api/contract-templates/${editingItem.id}`
+        : '/api/contract-templates';
       
       const res = await fetch(url, {
         method: editingItem ? 'PUT' : 'POST',
@@ -226,7 +226,7 @@ function ContractTemplatesPage() {
     setIsDeleting(true);
     try {
       const token = localStorage.getItem('accessToken');
-      await fetch(`http://localhost:4000/api/contract-templates/${deletingId}`, {
+      await fetch(`/api/contract-templates/${deletingId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });

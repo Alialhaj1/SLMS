@@ -791,7 +791,7 @@ function VendorsPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch('http://localhost:4000/api/procurement/vendors?limit=1000', {
+      const res = await fetch('/api/procurement/vendors?limit=1000', {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
@@ -813,7 +813,7 @@ function VendorsPage() {
     setStatsLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch('http://localhost:4000/api/procurement/vendors/stats', {
+      const res = await fetch('/api/procurement/vendors/stats', {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
@@ -833,13 +833,13 @@ function VendorsPage() {
 
     try {
       const [typesRes, classRes, statusRes, currRes, countryRes, paymentRes, catRes] = await Promise.all([
-        fetch('http://localhost:4000/api/procurement/vendors/vendor-types', { headers }).catch(() => null),
-        fetch('http://localhost:4000/api/procurement/vendors/classifications', { headers }).catch(() => null),
-        fetch('http://localhost:4000/api/procurement/vendors/vendor-statuses', { headers }).catch(() => null),
-        fetch('http://localhost:4000/api/master/currencies', { headers }).catch(() => null),
-        fetch('http://localhost:4000/api/master/countries', { headers }).catch(() => null),
-        fetch('http://localhost:4000/api/procurement/vendors/payment-terms', { headers }).catch(() => null),
-        fetch('http://localhost:4000/api/procurement/vendors/vendor-categories', { headers }).catch(() => null),
+        fetch('/api/procurement/vendors/vendor-types', { headers }).catch(() => null),
+        fetch('/api/procurement/vendors/classifications', { headers }).catch(() => null),
+        fetch('/api/procurement/vendors/vendor-statuses', { headers }).catch(() => null),
+        fetch('/api/master/currencies', { headers }).catch(() => null),
+        fetch('/api/master/countries', { headers }).catch(() => null),
+        fetch('/api/procurement/vendors/payment-terms', { headers }).catch(() => null),
+        fetch('/api/procurement/vendors/vendor-categories', { headers }).catch(() => null),
       ]);
 
       if (typesRes?.ok) setVendorTypes((await typesRes.json()).data || []);
@@ -1054,8 +1054,8 @@ function VendorsPage() {
     try {
       const token = localStorage.getItem('accessToken');
       const url = editingVendor
-        ? `http://localhost:4000/api/procurement/vendors/${editingVendor.id}`
-        : 'http://localhost:4000/api/procurement/vendors';
+        ? `/api/procurement/vendors/${editingVendor.id}`
+        : '/api/procurement/vendors';
       const res = await fetch(url, {
         method: editingVendor ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -1087,7 +1087,7 @@ function VendorsPage() {
     setDeleting(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`http://localhost:4000/api/procurement/vendors/${vendorToDelete.id}`, {
+      const res = await fetch(`/api/procurement/vendors/${vendorToDelete.id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -1113,7 +1113,7 @@ function VendorsPage() {
     try {
       const token = localStorage.getItem('accessToken');
       const action = vendorToSuspend.is_suspended ? 'activate' : 'suspend';
-      const res = await fetch(`http://localhost:4000/api/procurement/vendors/${vendorToSuspend.id}/${action}`, {
+      const res = await fetch(`/api/procurement/vendors/${vendorToSuspend.id}/${action}`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       });

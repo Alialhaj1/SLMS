@@ -67,7 +67,7 @@ export default function TaxCalculator({
       setLoading(true);
       try {
         const token = localStorage.getItem('accessToken');
-        const response = await fetch(`http://localhost:4000/api/finance/tax-rates?company_id=${companyId}&is_active=true`, {
+        const response = await fetch(`/api/finance/tax-rates?company_id=${companyId}&is_active=true`, {
           headers: { Authorization: `Bearer ${token}` },
         });
 

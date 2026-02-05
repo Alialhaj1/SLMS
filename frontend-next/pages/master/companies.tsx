@@ -109,7 +109,7 @@ export default function CompaniesPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const response = await fetch('http://localhost:4000/api/master/companies', {
+      const response = await fetch('/api/master/companies', {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (response.ok) {
@@ -129,7 +129,7 @@ export default function CompaniesPage() {
   const fetchCountries = async () => {
     try {
       const token = localStorage.getItem('accessToken');
-      const response = await fetch('http://localhost:4000/api/master/countries?is_active=true', {
+      const response = await fetch('/api/master/countries?is_active=true', {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (response.ok) {
@@ -144,7 +144,7 @@ export default function CompaniesPage() {
   const fetchCities = async () => {
     try {
       const token = localStorage.getItem('accessToken');
-      const response = await fetch('http://localhost:4000/api/master/cities?is_active=true', {
+      const response = await fetch('/api/master/cities?is_active=true', {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (response.ok) {
@@ -191,7 +191,7 @@ export default function CompaniesPage() {
 
     try {
       const token = localStorage.getItem('accessToken');
-      const response = await fetch('http://localhost:4000/api/master/companies', {
+      const response = await fetch('/api/master/companies', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -226,7 +226,7 @@ export default function CompaniesPage() {
 
     try {
       const token = localStorage.getItem('accessToken');
-      const response = await fetch(`http://localhost:4000/api/master/companies/${editingId}`, {
+      const response = await fetch(`/api/master/companies/${editingId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -262,7 +262,7 @@ export default function CompaniesPage() {
 
     try {
       const token = localStorage.getItem('accessToken');
-      const response = await fetch(`http://localhost:4000/api/master/companies/${deleteId}`, {
+      const response = await fetch(`/api/master/companies/${deleteId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -334,7 +334,7 @@ export default function CompaniesPage() {
       const formDataUpload = new FormData();
       formDataUpload.append('logo', file);
 
-      const response = await fetch(`http://localhost:4000/api/master/companies/${companyId}/logo`, {
+      const response = await fetch(`/api/master/companies/${companyId}/logo`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: formDataUpload,
@@ -366,7 +366,7 @@ export default function CompaniesPage() {
     setUploadingLogo(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const response = await fetch(`http://localhost:4000/api/master/companies/${companyId}/logo`, {
+      const response = await fetch(`/api/master/companies/${companyId}/logo`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -412,7 +412,7 @@ export default function CompaniesPage() {
       render: (value: string | null, row: Company) => (
         value ? (
           <img
-            src={`http://localhost:4000${value}`}
+            src={value}
             alt={row.name}
             className="w-10 h-10 object-contain rounded"
           />
@@ -810,7 +810,7 @@ export default function CompaniesPage() {
                   <div className="w-20 h-20 border border-gray-300 dark:border-slate-600 rounded-lg overflow-hidden flex items-center justify-center bg-gray-50 dark:bg-slate-700">
                     {currentLogo ? (
                       <img
-                        src={`http://localhost:4000${currentLogo}`}
+                        src={currentLogo}
                         alt="Company logo"
                         className="w-full h-full object-contain"
                       />

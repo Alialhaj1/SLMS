@@ -166,7 +166,7 @@ function VendorStatementPage() {
     if (!id) return;
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`http://localhost:4000/api/procurement/vendors/${id}`, {
+      const res = await fetch(`/api/procurement/vendors/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
@@ -188,9 +188,9 @@ function VendorStatementPage() {
       
       // Fetch POs, Invoices, and Payments in parallel
       const [posRes, invoicesRes, paymentsRes] = await Promise.all([
-        fetch(`http://localhost:4000/api/procurement/vendors/${id}/purchase-orders?limit=500`, { headers }),
-        fetch(`http://localhost:4000/api/procurement/vendors/${id}/invoices?limit=500`, { headers }),
-        fetch(`http://localhost:4000/api/procurement/vendors/${id}/payments?limit=500`, { headers }),
+        fetch(`/api/procurement/vendors/${id}/purchase-orders?limit=500`, { headers }),
+        fetch(`/api/procurement/vendors/${id}/invoices?limit=500`, { headers }),
+        fetch(`/api/procurement/vendors/${id}/payments?limit=500`, { headers }),
       ]);
 
       const [posData, invoicesData, paymentsData] = await Promise.all([

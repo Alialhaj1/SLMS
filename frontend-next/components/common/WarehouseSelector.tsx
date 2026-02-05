@@ -59,7 +59,9 @@ export default function WarehouseSelector({
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      // Normalize API_URL: strip trailing /api to avoid /api/api duplication
+      const rawUrl = process.env.NEXT_PUBLIC_API_URL || '';
+      const API_URL = rawUrl.replace(/\/$/, '').replace(/\/api$/, '');
 
       const companyId = companyStore.getActiveCompanyId();
       

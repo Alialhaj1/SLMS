@@ -66,7 +66,9 @@ interface UseExchangeRateResult {
   refetch: () => void;
 }
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+// Normalize API_URL: strip trailing slashes and /api suffix to avoid /api/api/... duplication
+const rawApiUrl = process.env.NEXT_PUBLIC_API_URL || '';
+const API_URL = rawApiUrl.replace(/\/$/, '').replace(/\/api$/, '');
 
 export function useExchangeRate(
   currencyCode: string | undefined | null,

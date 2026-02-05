@@ -127,7 +127,7 @@ function ShippingBillsPage() {
   const fetchBillTypes = async () => {
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch('http://localhost:4000/api/bill-types', {
+      const res = await fetch('/api/bill-types', {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
@@ -150,7 +150,7 @@ function ShippingBillsPage() {
       if (billTypeFilter !== 'all') params.append('bill_type_id', billTypeFilter);
       if (searchTerm) params.append('search', searchTerm);
 
-      const res = await fetch(`http://localhost:4000/api/shipping-bills?${params}`, {
+      const res = await fetch(`/api/shipping-bills?${params}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -181,7 +181,7 @@ function ShippingBillsPage() {
     setDeleteLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`http://localhost:4000/api/shipping-bills/${deletingBill.id}`, {
+      const res = await fetch(`/api/shipping-bills/${deletingBill.id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });

@@ -113,7 +113,7 @@ export default function ShipmentExpensesTab({
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`http://localhost:4000/api/shipments/${shipmentId}/expenses`, {
+      const res = await fetch(`/api/shipments/${shipmentId}/expenses`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -133,7 +133,7 @@ export default function ShipmentExpensesTab({
   const fetchExpenseTypes = async () => {
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`http://localhost:4000/api/master/shipment-expense-types`, {
+      const res = await fetch(`/api/master/shipment-expense-types`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -150,7 +150,7 @@ export default function ShipmentExpensesTab({
   const fetchCurrencies = async () => {
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`http://localhost:4000/api/master/currencies`, {
+      const res = await fetch(`/api/master/currencies`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -169,7 +169,7 @@ export default function ShipmentExpensesTab({
     
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`http://localhost:4000/api/shipments/${shipmentId}/expenses`, {
+      const res = await fetch(`/api/shipments/${shipmentId}/expenses`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -200,7 +200,7 @@ export default function ShipmentExpensesTab({
   const handleApprove = async (expenseId: number) => {
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`http://localhost:4000/api/shipments/${shipmentId}/expenses/${expenseId}/approve`, {
+      const res = await fetch(`/api/shipments/${shipmentId}/expenses/${expenseId}/approve`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -224,7 +224,7 @@ export default function ShipmentExpensesTab({
   const handlePost = async (expenseId: number) => {
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`http://localhost:4000/api/shipments/${shipmentId}/expenses/${expenseId}/post`, {
+      const res = await fetch(`/api/shipments/${shipmentId}/expenses/${expenseId}/post`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -249,7 +249,7 @@ export default function ShipmentExpensesTab({
     try {
       const token = localStorage.getItem('accessToken');
       const res = await fetch(
-        `http://localhost:4000/api/shipments/${shipmentId}/expenses/${expense.id}/distribution`,
+        `/api/shipments/${shipmentId}/expenses/${expense.id}/distribution`,
         {
           headers: {
             'Authorization': `Bearer ${token}`
@@ -277,7 +277,7 @@ export default function ShipmentExpensesTab({
     try {
       const token = localStorage.getItem('accessToken');
       const res = await fetch(
-        `http://localhost:4000/api/shipments/${shipmentId}/expenses/${expenseToDelete}`,
+        `/api/shipments/${shipmentId}/expenses/${expenseToDelete}`,
         {
           method: 'DELETE',
           headers: {

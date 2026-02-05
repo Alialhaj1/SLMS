@@ -53,7 +53,7 @@ export default function HelpPage() {
     setSubmitting(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const response = await fetch('http://localhost:4000/api/help-requests', {
+      const response = await fetch('/api/help-requests', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

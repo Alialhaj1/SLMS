@@ -53,7 +53,7 @@ export default function ProjectDropdown({
       setLoading(true);
       try {
         const token = localStorage.getItem('accessToken');
-        const response = await fetch(`http://localhost:4000/api/finance/projects?company_id=${companyId}&status=active`, {
+        const response = await fetch(`/api/finance/projects?company_id=${companyId}&status=active`, {
           headers: { Authorization: `Bearer ${token}` },
         });
 

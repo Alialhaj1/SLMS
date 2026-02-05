@@ -120,7 +120,7 @@ function CostCentersPage() {
         return;
       }
 
-      const res = await fetch('http://localhost:4000/api/master/cost-centers', {
+      const res = await fetch('/api/master/cost-centers', {
         headers: {
           Authorization: `Bearer ${token}`,
           'X-Company-Id': String(companyId),
@@ -194,8 +194,8 @@ function CostCentersPage() {
     setSubmitting(true);
     try {
       const url = editingCostCenter
-        ? `http://localhost:4000/api/master/cost-centers/${editingCostCenter.id}`
-        : 'http://localhost:4000/api/master/cost-centers';
+        ? `/api/master/cost-centers/${editingCostCenter.id}`
+        : '/api/master/cost-centers';
       const res = await fetch(url, {
         method: editingCostCenter ? 'PUT' : 'POST',
         headers: {
@@ -250,7 +250,7 @@ function CostCentersPage() {
 
     setDeleting(true);
     try {
-      const res = await fetch(`http://localhost:4000/api/master/cost-centers/${costCenterToDelete.id}`, {
+      const res = await fetch(`/api/master/cost-centers/${costCenterToDelete.id}`, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${token}`,

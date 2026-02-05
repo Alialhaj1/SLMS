@@ -237,7 +237,7 @@ function ShipmentsPage() {
     setExporting(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const response = await fetch('http://localhost:4000/api/logistics-shipments/export-excel', {
+      const response = await fetch('/api/logistics-shipments/export-excel', {
         method: 'GET',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -266,7 +266,7 @@ function ShipmentsPage() {
   async function handleDownloadTemplate() {
     try {
       const token = localStorage.getItem('accessToken');
-      const response = await fetch('http://localhost:4000/api/logistics-shipments/export-template', {
+      const response = await fetch('/api/logistics-shipments/export-template', {
         method: 'GET',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -314,7 +314,7 @@ function ShipmentsPage() {
       const formData = new FormData();
       formData.append('file', importFile);
 
-      const url = `http://localhost:4000/api/logistics-shipments/import-excel${dryRun ? '?dryRun=true' : ''}`;
+      const url = `/api/logistics-shipments/import-excel${dryRun ? '?dryRun=true' : ''}`;
       const response = await fetch(url, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },

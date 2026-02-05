@@ -78,7 +78,7 @@ export default function ButtonPermissionsPage() {
       const token = localStorage.getItem('accessToken');
       
       // Fetch roles
-      const rolesRes = await fetch('http://localhost:4000/api/roles', {
+      const rolesRes = await fetch('/api/roles', {
         headers: { Authorization: `Bearer ${token}` }
       });
       
@@ -198,7 +198,7 @@ export default function ButtonPermissionsPage() {
       const token = localStorage.getItem('accessToken');
       const allButtons = resourceGroups.flatMap(g => g.buttons);
       
-      const res = await fetch('http://localhost:4000/api/button-permissions', {
+      const res = await fetch('/api/button-permissions', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

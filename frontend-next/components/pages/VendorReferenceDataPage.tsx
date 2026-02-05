@@ -68,7 +68,7 @@ export default function VendorReferenceDataPage({ type, title, apiEndpoint, fiel
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const response = await fetch(`http://localhost:4000/api/procurement/vendors/${apiEndpoint}`, {
+      const response = await fetch(`/api/procurement/vendors/${apiEndpoint}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
@@ -101,8 +101,8 @@ export default function VendorReferenceDataPage({ type, title, apiEndpoint, fiel
     try {
       const token = localStorage.getItem('accessToken');
       const url = editingItem
-        ? `http://localhost:4000/api/procurement/vendors/${apiEndpoint}/${editingItem.id}`
-        : `http://localhost:4000/api/procurement/vendors/${apiEndpoint}`;
+        ? `/api/procurement/vendors/${apiEndpoint}/${editingItem.id}`
+        : `/api/procurement/vendors/${apiEndpoint}`;
 
       const response = await fetch(url, {
         method: editingItem ? 'PUT' : 'POST',
@@ -141,7 +141,7 @@ export default function VendorReferenceDataPage({ type, title, apiEndpoint, fiel
     try {
       const token = localStorage.getItem('accessToken');
       const response = await fetch(
-        `http://localhost:4000/api/procurement/vendors/${apiEndpoint}/${itemToDelete.id}`,
+        `/api/procurement/vendors/${apiEndpoint}/${itemToDelete.id}`,
         {
           method: 'DELETE',
           headers: { Authorization: `Bearer ${token}` }

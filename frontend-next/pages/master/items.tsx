@@ -280,7 +280,7 @@ function ItemsPage() {
         return;
       }
 
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
       const res = await fetch(`${apiUrl}/api/master/items`, {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -470,7 +470,7 @@ function ItemsPage() {
       }
 
       const companyId = companyStore.getActiveCompanyId();
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
       const url = editingItem
         ? `${apiUrl}/api/master/items/${editingItem.id}`
         : `${apiUrl}/api/master/items`;
@@ -584,7 +584,7 @@ function ItemsPage() {
       }
 
       const companyId = companyStore.getActiveCompanyId();
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
       const res = await fetch(`${apiUrl}/api/master/items/${itemToDelete.id}`, {
         method: 'DELETE',
         headers: {

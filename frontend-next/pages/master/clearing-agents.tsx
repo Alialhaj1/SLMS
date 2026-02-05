@@ -128,7 +128,7 @@ function ClearingAgentsPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch('http://localhost:4000/api/clearing-agents', {
+      const res = await fetch('/api/clearing-agents', {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -172,8 +172,8 @@ function ClearingAgentsPage() {
     try {
       const token = localStorage.getItem('accessToken');
       const url = editingItem 
-        ? `http://localhost:4000/api/clearing-agents/${editingItem.id}`
-        : 'http://localhost:4000/api/clearing-agents';
+        ? `/api/clearing-agents/${editingItem.id}`
+        : '/api/clearing-agents';
       
       const res = await fetch(url, {
         method: editingItem ? 'PUT' : 'POST',
@@ -214,7 +214,7 @@ function ClearingAgentsPage() {
     setIsDeleting(true);
     try {
       const token = localStorage.getItem('accessToken');
-      await fetch(`http://localhost:4000/api/clearing-agents/${deletingId}`, {
+      await fetch(`/api/clearing-agents/${deletingId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });

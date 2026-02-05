@@ -71,7 +71,7 @@ function ProcurementReportsPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`http://localhost:4000/api/procurement/reports/${reportType}`, {
+      const res = await fetch(`/api/procurement/reports/${reportType}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -104,7 +104,7 @@ function ProcurementReportsPage() {
     showToast(`Exporting to ${format.toUpperCase()}...`, 'info');
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`http://localhost:4000/api/procurement/reports/${activeReport}/export?format=${format}`, {
+      const res = await fetch(`/api/procurement/reports/${activeReport}/export?format=${format}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 

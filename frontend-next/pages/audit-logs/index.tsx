@@ -70,7 +70,7 @@ function AuditLogsPage() {
         params.append('search', searchTerm);
       }
 
-      const res = await fetch(`http://localhost:4000/api/audit-logs?${params}`, {
+      const res = await fetch(`/api/audit-logs?${params}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 

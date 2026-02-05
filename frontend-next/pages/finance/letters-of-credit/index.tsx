@@ -115,7 +115,7 @@ interface LcAlert {
   trigger_date: string;
 }
 
-const API_BASE = 'http://localhost:4000/api';
+const API_BASE = '/api';
 
 export default function LettersOfCreditPage() {
   const { locale } = useTranslation();

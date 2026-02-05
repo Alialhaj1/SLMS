@@ -60,7 +60,7 @@ export default function PendingApprovalsPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const response = await fetch('http://localhost:4000/api/approvals/pending', {
+      const response = await fetch('/api/approvals/pending', {
         headers: { Authorization: `Bearer ${token}` }
       });
 
@@ -96,7 +96,7 @@ export default function PendingApprovalsPage() {
       const token = localStorage.getItem('accessToken');
       const endpoint = actionType === 'approve' ? 'approve' : 'reject';
       
-      const response = await fetch(`http://localhost:4000/api/approvals/${selectedApproval.id}/${endpoint}`, {
+      const response = await fetch(`/api/approvals/${selectedApproval.id}/${endpoint}`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,

@@ -71,7 +71,7 @@ export default function LaboratoriesPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch('http://localhost:4000/api/laboratories', {
+      const res = await fetch('/api/laboratories', {
         headers: { Authorization: `Bearer ${token}` }
       });
       const result = await res.json();
@@ -92,8 +92,8 @@ export default function LaboratoriesPage() {
     try {
       const token = localStorage.getItem('accessToken');
       const url = editingId 
-        ? `http://localhost:4000/api/laboratories/${editingId}`
-        : 'http://localhost:4000/api/laboratories';
+        ? `/api/laboratories/${editingId}`
+        : '/api/laboratories';
       
       const res = await fetch(url, {
         method: editingId ? 'PUT' : 'POST',
@@ -147,7 +147,7 @@ export default function LaboratoriesPage() {
     setDeleting(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`http://localhost:4000/api/laboratories/${itemToDelete}`, {
+      const res = await fetch(`/api/laboratories/${itemToDelete}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       });

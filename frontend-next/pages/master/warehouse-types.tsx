@@ -58,7 +58,7 @@ function WarehouseTypesPage() {
   const { showToast } = useToast();
   const hasFetched = useRef(false);
 
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
 
   const fetchWithFallback = async (paths: string[], init: RequestInit) => {
     let lastRes: Response | null = null;

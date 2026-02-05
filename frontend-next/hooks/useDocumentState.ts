@@ -86,7 +86,7 @@ interface UseDocumentStateReturn {
   canDelete: (document: any) => boolean;
 }
 
-const API_BASE = 'http://localhost:4000/api/procurement';
+const API_BASE = '/api/procurement';
 
 export function useDocumentState(documentType: DocumentType): UseDocumentStateReturn {
   const { showToast } = useToast();

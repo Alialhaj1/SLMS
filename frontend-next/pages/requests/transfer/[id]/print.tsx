@@ -228,7 +228,7 @@ export default function TransferRequestPrintPage() {
     const fetchCompany = async () => {
       try {
         const token = localStorage.getItem('accessToken');
-        const response = await fetch('http://localhost:4000/api/master/companies', {
+        const response = await fetch('/api/master/companies', {
           headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         });
         if (response.ok) {
@@ -246,7 +246,7 @@ export default function TransferRequestPrintPage() {
       try {
         setLoading(true);
         const token = localStorage.getItem('accessToken');
-        const response = await fetch(`http://localhost:4000/api/transfer-requests/${id}`, {
+        const response = await fetch(`/api/transfer-requests/${id}`, {
           headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         });
         if (!response.ok) throw new Error('Failed to fetch transfer request');
@@ -271,7 +271,7 @@ export default function TransferRequestPrintPage() {
     const printDate = now.toLocaleDateString('en-GB');
     const printTime = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
     const amountNum = typeof request.transfer_amount === 'string' ? parseFloat(request.transfer_amount) : request.transfer_amount;
-    const logoUrl = company?.logo ? (company.logo.startsWith('http') ? company.logo : `http://localhost:4000${company.logo}`) : '';
+    const logoUrl = company?.logo || '';
     const currencyCode = request.currency_code || 'SAR';
     
     // Transfer type label

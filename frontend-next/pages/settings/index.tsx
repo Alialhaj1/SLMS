@@ -62,7 +62,7 @@ export default function SettingsPage() {
   const fetchSettings = async () => {
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch('http://localhost:4000/api/settings', {
+      const res = await fetch('/api/settings', {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -104,7 +104,7 @@ export default function SettingsPage() {
     try {
       setSaving(true);
       const token = localStorage.getItem('accessToken');
-      const res = await fetch('http://localhost:4000/api/settings', {
+      const res = await fetch('/api/settings', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

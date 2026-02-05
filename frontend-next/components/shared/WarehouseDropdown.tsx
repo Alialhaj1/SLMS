@@ -53,7 +53,7 @@ export default function WarehouseDropdown({
       setLoading(true);
       try {
         const token = localStorage.getItem('accessToken');
-        const response = await fetch(`http://localhost:4000/api/inventory/warehouses?company_id=${companyId}`, {
+        const response = await fetch(`/api/inventory/warehouses?company_id=${companyId}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
 

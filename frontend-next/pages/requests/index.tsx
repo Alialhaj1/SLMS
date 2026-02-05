@@ -213,7 +213,7 @@ export default function RequestsPage() {
       if (dateFrom) params.append('date_from', dateFrom);
       if (dateTo) params.append('date_to', dateTo);
 
-      const response = await fetch(`http://localhost:4000/api/expense-requests?${params}`, {
+      const response = await fetch(`/api/expense-requests?${params}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -252,7 +252,7 @@ export default function RequestsPage() {
       if (dateFrom) params.append('date_from', dateFrom);
       if (dateTo) params.append('date_to', dateTo);
 
-      const response = await fetch(`http://localhost:4000/api/expense-requests?${params}`, {
+      const response = await fetch(`/api/expense-requests?${params}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -291,7 +291,7 @@ export default function RequestsPage() {
       if (dateFrom) params.append('date_from', dateFrom);
       if (dateTo) params.append('date_to', dateTo);
 
-      const response = await fetch(`http://localhost:4000/api/transfer-requests?${params}`, {
+      const response = await fetch(`/api/transfer-requests?${params}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -330,7 +330,7 @@ export default function RequestsPage() {
       if (dateFrom) params.append('date_from', dateFrom);
       if (dateTo) params.append('date_to', dateTo);
 
-      const response = await fetch(`http://localhost:4000/api/payment-requests?${params}`, {
+      const response = await fetch(`/api/payment-requests?${params}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -364,7 +364,7 @@ export default function RequestsPage() {
 
       if (searchTerm) params.append('search', searchTerm);
 
-      const response = await fetch(`http://localhost:4000/api/expense-requests?${params}`, {
+      const response = await fetch(`/api/expense-requests?${params}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -437,7 +437,7 @@ export default function RequestsPage() {
         ? `/api/transfer-requests/${id}/print`
         : `/api/payment-requests/${id}/print`;
         
-      const response = await fetch(`http://localhost:4000${endpoint}`, {
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -479,7 +479,7 @@ export default function RequestsPage() {
         ? `/api/transfer-requests/${requestToDelete.id}`
         : `/api/payment-requests/${requestToDelete.id}`;
         
-      const response = await fetch(`http://localhost:4000${endpoint}`, {
+      const response = await fetch(endpoint, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -514,7 +514,7 @@ export default function RequestsPage() {
         ? `/api/transfer-requests/${requestToRestore.id}/restore`
         : `/api/payment-requests/${requestToRestore.id}/restore`;
         
-      const response = await fetch(`http://localhost:4000${endpoint}`, {
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

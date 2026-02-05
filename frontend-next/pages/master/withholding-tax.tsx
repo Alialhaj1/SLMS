@@ -143,7 +143,7 @@ function WithholdingTaxPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch('http://localhost:4000/api/withholding-tax', {
+      const res = await fetch('/api/withholding-tax', {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -188,8 +188,8 @@ function WithholdingTaxPage() {
     try {
       const token = localStorage.getItem('accessToken');
       const url = editingItem 
-        ? `http://localhost:4000/api/withholding-tax/${editingItem.id}`
-        : 'http://localhost:4000/api/withholding-tax';
+        ? `/api/withholding-tax/${editingItem.id}`
+        : '/api/withholding-tax';
       
       const res = await fetch(url, {
         method: editingItem ? 'PUT' : 'POST',
@@ -229,7 +229,7 @@ function WithholdingTaxPage() {
     setIsDeleting(true);
     try {
       const token = localStorage.getItem('accessToken');
-      await fetch(`http://localhost:4000/api/withholding-tax/${deletingId}`, {
+      await fetch(`/api/withholding-tax/${deletingId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });

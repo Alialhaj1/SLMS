@@ -138,7 +138,7 @@ function EditShippingBillPage() {
     setFetching(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`http://localhost:4000/api/shipping-bills/${id}`, {
+      const res = await fetch(`/api/shipping-bills/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -205,11 +205,11 @@ function EditShippingBillPage() {
 
     try {
       const [billTypesRes, carriersRes, portsRes, shipmentsRes, projectsRes] = await Promise.all([
-        fetch('http://localhost:4000/api/bill-types', { headers }),
-        fetch('http://localhost:4000/api/shipping-agents', { headers }),
-        fetch('http://localhost:4000/api/ports', { headers }),
-        fetch('http://localhost:4000/api/logistics-shipments?limit=100', { headers }),
-        fetch('http://localhost:4000/api/projects?limit=100', { headers }),
+        fetch('/api/bill-types', { headers }),
+        fetch('/api/shipping-agents', { headers }),
+        fetch('/api/ports', { headers }),
+        fetch('/api/logistics-shipments?limit=100', { headers }),
+        fetch('/api/projects?limit=100', { headers }),
       ]);
 
       if (billTypesRes.ok) {
@@ -317,7 +317,7 @@ function EditShippingBillPage() {
         internal_notes: formData.internal_notes || null,
       };
 
-      const res = await fetch(`http://localhost:4000/api/shipping-bills/${id}`, {
+      const res = await fetch(`/api/shipping-bills/${id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

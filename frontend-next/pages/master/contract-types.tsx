@@ -136,7 +136,7 @@ function ContractTypesPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch('http://localhost:4000/api/contract-types', {
+      const res = await fetch('/api/contract-types', {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -168,8 +168,8 @@ function ContractTypesPage() {
     try {
       const token = localStorage.getItem('accessToken');
       const url = editingItem 
-        ? `http://localhost:4000/api/contract-types/${editingItem.id}`
-        : 'http://localhost:4000/api/contract-types';
+        ? `/api/contract-types/${editingItem.id}`
+        : '/api/contract-types';
       
       const res = await fetch(url, {
         method: editingItem ? 'PUT' : 'POST',
@@ -208,7 +208,7 @@ function ContractTypesPage() {
     setIsDeleting(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`http://localhost:4000/api/contract-types/${deletingId}`, {
+      const res = await fetch(`/api/contract-types/${deletingId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });

@@ -37,7 +37,7 @@ export default function SystemSetupPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const response = await fetch('http://localhost:4000/api/master/system-setup', {
+      const response = await fetch('/api/master/system-setup', {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (response.ok) {
@@ -59,7 +59,7 @@ export default function SystemSetupPage() {
   const handleSave = async (settingId: number) => {
     try {
       const token = localStorage.getItem('accessToken');
-      const response = await fetch(`http://localhost:4000/api/master/system-setup/${settingId}`, {
+      const response = await fetch(`/api/master/system-setup/${settingId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

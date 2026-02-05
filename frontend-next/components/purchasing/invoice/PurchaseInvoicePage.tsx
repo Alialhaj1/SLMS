@@ -128,7 +128,7 @@ export const PurchaseInvoicePage: React.FC<PurchaseInvoicePageProps> = ({
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const response = await fetch(`http://localhost:4000/api/procurement/invoices/${id}`, {
+      const response = await fetch(`/api/procurement/invoices/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       
@@ -154,8 +154,8 @@ export const PurchaseInvoicePage: React.FC<PurchaseInvoicePageProps> = ({
     try {
       const token = localStorage.getItem('accessToken');
       const url = mode === 'create' 
-        ? 'http://localhost:4000/api/procurement/invoices'
-        : `http://localhost:4000/api/procurement/invoices/${invoiceId}`;
+        ? '/api/procurement/invoices'
+        : `/api/procurement/invoices/${invoiceId}`;
       
       const response = await fetch(url, {
         method: mode === 'create' ? 'POST' : 'PUT',
@@ -192,7 +192,7 @@ export const PurchaseInvoicePage: React.FC<PurchaseInvoicePageProps> = ({
     setSaving(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const response = await fetch(`http://localhost:4000/api/procurement/invoices/${invoiceId}/approve`, {
+      const response = await fetch(`/api/procurement/invoices/${invoiceId}/approve`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -231,7 +231,7 @@ export const PurchaseInvoicePage: React.FC<PurchaseInvoicePageProps> = ({
     setSaving(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const response = await fetch(`http://localhost:4000/api/procurement/invoices/${invoiceId}/reject`, {
+      const response = await fetch(`/api/procurement/invoices/${invoiceId}/reject`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -272,7 +272,7 @@ export const PurchaseInvoicePage: React.FC<PurchaseInvoicePageProps> = ({
     setSaving(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const response = await fetch(`http://localhost:4000/api/procurement/invoices/${invoiceId}/post`, {
+      const response = await fetch(`/api/procurement/invoices/${invoiceId}/post`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

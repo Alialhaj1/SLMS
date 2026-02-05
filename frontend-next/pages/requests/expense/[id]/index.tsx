@@ -73,7 +73,7 @@ export default function ExpenseRequestDetailPage() {
       try {
         setLoading(true);
         const token = localStorage.getItem('accessToken');
-        const response = await fetch(`http://localhost:4000/api/expense-requests/${id}`, {
+        const response = await fetch(`/api/expense-requests/${id}`, {
           headers: {
             Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json',

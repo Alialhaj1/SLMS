@@ -86,7 +86,7 @@ function TaxesPage() {
   const fetchAccounts = async () => {
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch('http://localhost:4000/api/accounting/accounts', {
+      const res = await fetch('/api/accounting/accounts', {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
@@ -102,7 +102,7 @@ function TaxesPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch('http://localhost:4000/api/master/taxes', {
+      const res = await fetch('/api/master/taxes', {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
@@ -164,8 +164,8 @@ function TaxesPage() {
     try {
       const token = localStorage.getItem('accessToken');
       const url = editingTax
-        ? `http://localhost:4000/api/master/taxes/${editingTax.id}`
-        : 'http://localhost:4000/api/master/taxes';
+        ? `/api/master/taxes/${editingTax.id}`
+        : '/api/master/taxes';
       const res = await fetch(url, {
         method: editingTax ? 'PUT' : 'POST',
         headers: {
@@ -199,7 +199,7 @@ function TaxesPage() {
     setDeleting(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`http://localhost:4000/api/master/taxes/${taxToDelete.id}`, {
+      const res = await fetch(`/api/master/taxes/${taxToDelete.id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });

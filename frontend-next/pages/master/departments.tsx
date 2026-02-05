@@ -87,7 +87,7 @@ function DepartmentsPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch('http://localhost:4000/api/departments', {
+      const res = await fetch('/api/departments', {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -133,8 +133,8 @@ function DepartmentsPage() {
     try {
       const token = localStorage.getItem('accessToken');
       const url = editingItem 
-        ? `http://localhost:4000/api/departments/${editingItem.id}`
-        : 'http://localhost:4000/api/departments';
+        ? `/api/departments/${editingItem.id}`
+        : '/api/departments';
       
       const res = await fetch(url, {
         method: editingItem ? 'PUT' : 'POST',
@@ -200,7 +200,7 @@ function DepartmentsPage() {
     setIsDeleting(true);
     try {
       const token = localStorage.getItem('accessToken');
-      await fetch(`http://localhost:4000/api/departments/${deletingId}`, {
+      await fetch(`/api/departments/${deletingId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });

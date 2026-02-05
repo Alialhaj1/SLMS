@@ -79,9 +79,9 @@ export default function PaymentMethodSelector({
       setLoading(true);
       try {
         const [methodsRes, banksRes, boxesRes] = await Promise.all([
-            fetch(`http://localhost:4000/api/finance/payment-methods?company_id=${companyId}&is_active=true`, { headers: getHeaders() }),
-            fetch(`http://localhost:4000/api/finance/bank-accounts?company_id=${companyId}&is_active=true`, { headers: getHeaders() }),
-            fetch(`http://localhost:4000/api/finance/cash-boxes?company_id=${companyId}&is_active=true`, { headers: getHeaders() })
+            fetch(`/api/finance/payment-methods?company_id=${companyId}&is_active=true`, { headers: getHeaders() }),
+            fetch(`/api/finance/bank-accounts?company_id=${companyId}&is_active=true`, { headers: getHeaders() }),
+            fetch(`/api/finance/cash-boxes?company_id=${companyId}&is_active=true`, { headers: getHeaders() })
         ]);
 
         if (methodsRes.ok) {

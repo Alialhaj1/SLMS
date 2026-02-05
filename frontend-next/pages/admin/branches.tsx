@@ -109,7 +109,7 @@ function BranchesPage() {
   const fetchCompanies = async () => {
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch('http://localhost:4000/api/companies', {
+      const res = await fetch('/api/companies', {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -126,7 +126,7 @@ function BranchesPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch('http://localhost:4000/api/branches', {
+      const res = await fetch('/api/branches', {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -201,8 +201,8 @@ function BranchesPage() {
     try {
       const token = localStorage.getItem('accessToken');
       const url = editingBranch
-        ? `http://localhost:4000/api/branches/${editingBranch.id}`
-        : 'http://localhost:4000/api/branches';
+        ? `/api/branches/${editingBranch.id}`
+        : '/api/branches';
 
       const res = await fetch(url, {
         method: editingBranch ? 'PUT' : 'POST',
@@ -240,7 +240,7 @@ function BranchesPage() {
     setDeleting(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`http://localhost:4000/api/branches/${branchToDelete.id}`, {
+      const res = await fetch(`/api/branches/${branchToDelete.id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });

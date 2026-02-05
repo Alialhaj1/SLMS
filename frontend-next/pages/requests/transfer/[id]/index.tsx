@@ -79,7 +79,7 @@ export default function TransferRequestDetailPage() {
       try {
         setLoading(true);
         const token = localStorage.getItem('accessToken');
-        const response = await fetch(`http://localhost:4000/api/transfer-requests/${id}`, {
+        const response = await fetch(`/api/transfer-requests/${id}`, {
           headers: {
             Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json',

@@ -149,7 +149,7 @@ export default function ProjectTypesPage() {
         return;
       }
 
-      const res = await fetch('http://localhost:4000/api/projects/types', {
+      const res = await fetch('/api/projects/types', {
         headers: {
           Authorization: `Bearer ${token}`,
           'X-Company-Id': String(companyId),
@@ -226,8 +226,8 @@ export default function ProjectTypesPage() {
     setSubmitting(true);
     try {
       const url = editingProjectType
-        ? `http://localhost:4000/api/projects/types/${editingProjectType.id}`
-        : 'http://localhost:4000/api/projects/types';
+        ? `/api/projects/types/${editingProjectType.id}`
+        : '/api/projects/types';
       const res = await fetch(url, {
         method: editingProjectType ? 'PUT' : 'POST',
         headers: {
@@ -279,7 +279,7 @@ export default function ProjectTypesPage() {
 
     setDeleting(true);
     try {
-      const res = await fetch(`http://localhost:4000/api/projects/types/${projectTypeToDelete.id}`, {
+      const res = await fetch(`/api/projects/types/${projectTypeToDelete.id}`, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${token}`,

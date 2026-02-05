@@ -69,7 +69,7 @@ function ProcurementDashboardPage() {
       const token = localStorage.getItem('accessToken');
       
       // Fetch stats
-      const statsRes = await fetch('http://localhost:4000/api/procurement/dashboard/stats', {
+      const statsRes = await fetch('/api/procurement/dashboard/stats', {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (statsRes.ok) {
@@ -78,7 +78,7 @@ function ProcurementDashboardPage() {
       }
 
       // Fetch monthly trend
-      const trendRes = await fetch('http://localhost:4000/api/procurement/dashboard/monthly-trend', {
+      const trendRes = await fetch('/api/procurement/dashboard/monthly-trend', {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (trendRes.ok) {
@@ -87,7 +87,7 @@ function ProcurementDashboardPage() {
       }
 
       // Fetch top vendors
-      const vendorsRes = await fetch('http://localhost:4000/api/procurement/dashboard/top-vendors?limit=10', {
+      const vendorsRes = await fetch('/api/procurement/dashboard/top-vendors?limit=10', {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (vendorsRes.ok) {
@@ -96,7 +96,7 @@ function ProcurementDashboardPage() {
       }
 
       // Fetch category purchases
-      const categoriesRes = await fetch('http://localhost:4000/api/procurement/dashboard/purchases-by-category', {
+      const categoriesRes = await fetch('/api/procurement/dashboard/purchases-by-category', {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (categoriesRes.ok) {

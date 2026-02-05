@@ -104,9 +104,9 @@ function SerialNumbersPage() {
         ...(companyId ? { 'X-Company-Id': companyId.toString() } : {}),
       };
       const [snRes, itemsRes, whRes] = await Promise.all([
-        fetch('http://localhost:4000/api/serial-numbers', { headers }),
-        fetch('http://localhost:4000/api/master/items', { headers }),
-        fetch('http://localhost:4000/api/warehouses', { headers }),
+        fetch('/api/serial-numbers', { headers }),
+        fetch('/api/master/items', { headers }),
+        fetch('/api/warehouses', { headers }),
       ]);
       
       if (!snRes.ok) throw new Error('Failed to load serial numbers');
@@ -157,8 +157,8 @@ function SerialNumbersPage() {
         ...(companyId ? { 'X-Company-Id': companyId.toString() } : {}),
       };
       const url = editingItem 
-        ? `http://localhost:4000/api/serial-numbers/${editingItem.id}`
-        : 'http://localhost:4000/api/serial-numbers';
+        ? `/api/serial-numbers/${editingItem.id}`
+        : '/api/serial-numbers';
       
       const res = await fetch(url, {
         method: editingItem ? 'PUT' : 'POST',
@@ -209,7 +209,7 @@ function SerialNumbersPage() {
       }
 
       const companyId = companyStore.getActiveCompanyId();
-      await fetch(`http://localhost:4000/api/serial-numbers/${deletingId}`, {
+      await fetch(`/api/serial-numbers/${deletingId}`, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${token}`,

@@ -44,7 +44,7 @@ const __LEGACY_SYSTEM_SETTINGS_PAGE = `
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch('http://localhost:4000/api/settings', {
+      const res = await fetch('/api/settings', {
         headers: { Authorization: 'Bearer ' + token }
       });
       
@@ -101,7 +101,7 @@ const __LEGACY_SYSTEM_SETTINGS_PAGE = `
     setSaving(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch('http://localhost:4000/api/settings', {
+      const res = await fetch('/api/settings', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

@@ -48,7 +48,7 @@ export default function LanguagesPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const response = await fetch('http://localhost:4000/api/master/languages', {
+      const response = await fetch('/api/master/languages', {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (response.ok) {
@@ -81,8 +81,8 @@ export default function LanguagesPage() {
     try {
       const token = localStorage.getItem('accessToken');
       const url = editingId
-        ? `http://localhost:4000/api/master/languages/${editingId}`
-        : 'http://localhost:4000/api/master/languages';
+        ? `/api/master/languages/${editingId}`
+        : '/api/master/languages';
 
       const response = await fetch(url, {
         method: editingId ? 'PUT' : 'POST',
@@ -118,7 +118,7 @@ export default function LanguagesPage() {
 
     try {
       const token = localStorage.getItem('accessToken');
-      const response = await fetch(`http://localhost:4000/api/master/languages/${deleteId}`, {
+      const response = await fetch(`/api/master/languages/${deleteId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });

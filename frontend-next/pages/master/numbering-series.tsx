@@ -199,7 +199,7 @@ export default function NumberingSeriesPage() {
     const bootstrapAndFetch = async () => {
       try {
         if (hasPermission('numbering_series:create' as any)) {
-          await fetch('http://localhost:4000/api/numbering-series/bootstrap', {
+          await fetch('/api/numbering-series/bootstrap', {
             method: 'POST',
             headers: {
               Authorization: `Bearer ${localStorage.getItem('accessToken')}`,

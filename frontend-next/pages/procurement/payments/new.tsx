@@ -299,9 +299,9 @@ export default function NewVendorPaymentPage() {
 
       // Fetch all in parallel
       const [vendorsRes, currenciesRes, refDataRes] = await Promise.all([
-        fetch('http://localhost:4000/api/procurement/vendors?limit=1000', { headers }),
-        fetch('http://localhost:4000/api/currencies', { headers }),
-        fetch('http://localhost:4000/api/procurement/payments/reference-data/all', { headers })
+        fetch('/api/procurement/vendors?limit=1000', { headers }),
+        fetch('/api/currencies', { headers }),
+        fetch('/api/procurement/payments/reference-data/all', { headers })
       ]);
 
       const [vendorsData, currenciesData, refData] = await Promise.all([
@@ -354,7 +354,7 @@ export default function NewVendorPaymentPage() {
     try {
       const headers = getHeaders();
       const res = await fetch(
-        `http://localhost:4000/api/procurement/payments/vendor/${formData.vendor_id}/documents?source_type=${formData.source_type}`,
+        `/api/procurement/payments/vendor/${formData.vendor_id}/documents?source_type=${formData.source_type}`,
         { headers }
       );
       const data = await res.json();
@@ -372,7 +372,7 @@ export default function NewVendorPaymentPage() {
     try {
       const headers = getHeaders();
       const res = await fetch(
-        `http://localhost:4000/api/procurement/payments/vendor/${formData.vendor_id}/document/${formData.source_type}/${formData.document_id}`,
+        `/api/procurement/payments/vendor/${formData.vendor_id}/document/${formData.source_type}/${formData.document_id}`,
         { headers }
       );
       const data = await res.json();
@@ -461,7 +461,7 @@ export default function NewVendorPaymentPage() {
         project_id: selectedDocument?.project_id || null
       };
 
-      const response = await fetch('http://localhost:4000/api/procurement/payments', {
+      const response = await fetch('/api/procurement/payments', {
         method: 'POST',
         headers,
         body: JSON.stringify(payload)

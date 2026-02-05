@@ -100,7 +100,7 @@ export default function HelpRequestsPage() {
       if (filterStatus !== 'all') params.append('status', filterStatus);
       if (filterType !== 'all') params.append('type', filterType);
 
-      const url = `http://localhost:4000/api/help-requests?${params.toString()}`;
+      const url = `/api/help-requests?${params.toString()}`;
       const res = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -131,7 +131,7 @@ export default function HelpRequestsPage() {
     setUpdating(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`http://localhost:4000/api/help-requests/${selectedRequest.id}`, {
+      const res = await fetch(`/api/help-requests/${selectedRequest.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

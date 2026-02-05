@@ -184,13 +184,13 @@ function AccountingRulesPage() {
       const token = localStorage.getItem('accessToken');
 
       const [rulesRes, triggersRes, accountsRes] = await Promise.all([
-        fetch('http://localhost:4000/api/accounting-rules', {
+        fetch('/api/accounting-rules', {
           headers: { Authorization: `Bearer ${token}` },
         }),
-        fetch('http://localhost:4000/api/accounting-rules/triggers', {
+        fetch('/api/accounting-rules/triggers', {
           headers: { Authorization: `Bearer ${token}` },
         }),
-        fetch('http://localhost:4000/api/accounts?limit=500', {
+        fetch('/api/accounts?limit=500', {
           headers: { Authorization: `Bearer ${token}` },
         }),
       ]);
@@ -238,8 +238,8 @@ function AccountingRulesPage() {
     try {
       const token = localStorage.getItem('accessToken');
       const url = editingRule
-        ? `http://localhost:4000/api/accounting-rules/${editingRule.id}`
-        : 'http://localhost:4000/api/accounting-rules';
+        ? `/api/accounting-rules/${editingRule.id}`
+        : '/api/accounting-rules';
 
       const payload = {
         ...formData,
@@ -274,7 +274,7 @@ function AccountingRulesPage() {
     setIsDeleting(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`http://localhost:4000/api/accounting-rules/${deletingId}`, {
+      const res = await fetch(`/api/accounting-rules/${deletingId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -299,7 +299,7 @@ function AccountingRulesPage() {
     setTogglingId(id);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`http://localhost:4000/api/accounting-rules/${id}/toggle`, {
+      const res = await fetch(`/api/accounting-rules/${id}/toggle`, {
         method: 'PATCH',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -342,7 +342,7 @@ function AccountingRulesPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`http://localhost:4000/api/accounting-rules/${rule.id}`, {
+      const res = await fetch(`/api/accounting-rules/${rule.id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 

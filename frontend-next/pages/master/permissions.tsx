@@ -48,7 +48,7 @@ function PermissionsPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
       const response = await fetch(`${API_BASE_URL}/api/roles/permissions`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -79,7 +79,7 @@ function PermissionsPage() {
 
     try {
       const token = localStorage.getItem('accessToken');
-      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
       const url = editingId
         ? `${API_BASE_URL}/api/roles/permissions/${editingId}`
         : `${API_BASE_URL}/api/roles/permissions`;
@@ -118,7 +118,7 @@ function PermissionsPage() {
 
     try {
       const token = localStorage.getItem('accessToken');
-      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
       const response = await fetch(`${API_BASE_URL}/api/roles/permissions/${deleteId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },

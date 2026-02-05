@@ -75,7 +75,7 @@ function VendorContractDetailPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`http://localhost:4000/api/procurement/vendor-contracts/${id}`, {
+      const res = await fetch(`/api/procurement/vendor-contracts/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 

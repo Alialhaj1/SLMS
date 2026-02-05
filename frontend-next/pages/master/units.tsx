@@ -68,7 +68,7 @@ function UnitsPage() {
   const { locale } = useLocale();
   const hasWarnedNoCompany = useRef(false);
 
-  const apiBaseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000')
+  const apiBaseUrl = (process.env.NEXT_PUBLIC_API_URL || '')
     .replace(/\/$/, '')
     .replace(/\/api$/, '');
 

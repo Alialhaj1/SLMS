@@ -155,8 +155,8 @@ export function useInvoiceForm({
     try {
       const headers = { 'Authorization': `Bearer ${localStorage.getItem('accessToken')}` };
       const [vendorsRes, termsRes] = await Promise.all([
-        fetch('http://localhost:4000/api/procurement/vendors', { headers }),
-        fetch('http://localhost:4000/api/procurement/vendors/payment-terms', { headers })
+        fetch('/api/procurement/vendors', { headers }),
+        fetch('/api/procurement/vendors/payment-terms', { headers })
       ]);
       
       if (vendorsRes.ok) {
@@ -177,7 +177,7 @@ export function useInvoiceForm({
   const fetchNextInvoiceNumber = async () => {
     try {
       const token = localStorage.getItem('accessToken');
-      const response = await fetch('http://localhost:4000/api/procurement/invoices/next-number', {
+      const response = await fetch('/api/procurement/invoices/next-number', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (response.ok) {
@@ -196,7 +196,7 @@ export function useInvoiceForm({
     try {
       const headers = { 'Authorization': `Bearer ${localStorage.getItem('accessToken')}` };
       const res = await fetch(
-        `http://localhost:4000/api/procurement/purchase-orders?company_id=${companyId}&vendor_id=${vendorId}&status=approved`,
+        `/api/procurement/purchase-orders?company_id=${companyId}&vendor_id=${vendorId}&status=approved`,
         { headers }
       );
       if (res.ok) {

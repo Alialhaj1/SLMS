@@ -238,13 +238,13 @@ function ChartOfAccountsPage() {
       
       // Fetch account types, behaviors, and linked entity types in parallel
       const [typesRes, behaviorsRes, entityTypesRes] = await Promise.all([
-        fetch('http://localhost:4000/api/accounts/types', {
+        fetch('/api/accounts/types', {
           headers: { Authorization: `Bearer ${token}` },
         }),
-        fetch('http://localhost:4000/api/accounts/behaviors', {
+        fetch('/api/accounts/behaviors', {
           headers: { Authorization: `Bearer ${token}` },
         }),
-        fetch('http://localhost:4000/api/accounts/linked-entity-types', {
+        fetch('/api/accounts/linked-entity-types', {
           headers: { Authorization: `Bearer ${token}` },
         }),
       ]);
@@ -270,7 +270,7 @@ function ChartOfAccountsPage() {
       let page = 1;
       const limit = 100;
       while (true) {
-        const url = `http://localhost:4000/api/accounts?with_balance=true&page=${page}&limit=${limit}`;
+        const url = `/api/accounts?with_balance=true&page=${page}&limit=${limit}`;
         const res = await fetch(url, {
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -314,8 +314,8 @@ function ChartOfAccountsPage() {
     try {
       const token = localStorage.getItem('accessToken');
       const url = editingItem
-        ? `http://localhost:4000/api/accounts/${editingItem.id}`
-        : 'http://localhost:4000/api/accounts';
+        ? `/api/accounts/${editingItem.id}`
+        : '/api/accounts';
 
       const payload = editingItem
         ? {
@@ -372,7 +372,7 @@ function ChartOfAccountsPage() {
     setIsDeleting(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`http://localhost:4000/api/accounts/${deletingId}`, {
+      const res = await fetch(`/api/accounts/${deletingId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -397,7 +397,7 @@ function ChartOfAccountsPage() {
     setFreezingId(id);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`http://localhost:4000/api/accounts/${id}/toggle-freeze`, {
+      const res = await fetch(`/api/accounts/${id}/toggle-freeze`, {
         method: 'PATCH',
         headers: { Authorization: `Bearer ${token}` },
       });

@@ -290,7 +290,7 @@ export const useInvoiceMasterData = (companyId: number): InvoiceMasterData => {
   const fetchInvoiceTypes = useCallback(async () => {
     setLoading(prev => ({ ...prev, invoiceTypes: true }));
     try {
-      const res = await fetch(`http://localhost:4000/api/procurement/invoice-types?company_id=${companyId}&is_active=true`, { headers });
+      const res = await fetch(`/api/procurement/invoice-types?company_id=${companyId}&is_active=true`, { headers });
       if (!res.ok) throw new Error('Failed to fetch invoice types');
       const data = await res.json();
       setInvoiceTypes(data.data || []);
@@ -306,7 +306,7 @@ export const useInvoiceMasterData = (companyId: number): InvoiceMasterData => {
   const fetchExpenseTypes = useCallback(async () => {
     setLoading(prev => ({ ...prev, expenseTypes: true }));
     try {
-      const res = await fetch(`http://localhost:4000/api/procurement/expense-types?company_id=${companyId}&is_active=true`, { headers });
+      const res = await fetch(`/api/procurement/expense-types?company_id=${companyId}&is_active=true`, { headers });
       if (!res.ok) throw new Error('Failed to fetch expense types');
       const data = await res.json();
       setExpenseTypes(data.data || []);
@@ -322,7 +322,7 @@ export const useInvoiceMasterData = (companyId: number): InvoiceMasterData => {
   const fetchCurrencies = useCallback(async () => {
     setLoading(prev => ({ ...prev, currencies: true }));
     try {
-      const res = await fetch(`http://localhost:4000/api/finance/currencies?company_id=${companyId}`, { headers });
+      const res = await fetch(`/api/finance/currencies?company_id=${companyId}`, { headers });
       if (!res.ok) throw new Error('Failed to fetch currencies');
       const data = await res.json();
       setCurrencies(data.data || []);
@@ -338,7 +338,7 @@ export const useInvoiceMasterData = (companyId: number): InvoiceMasterData => {
   const fetchPaymentTerms = useCallback(async () => {
     setLoading(prev => ({ ...prev, paymentTerms: true }));
     try {
-      const res = await fetch(`http://localhost:4000/api/finance/payment-terms?company_id=${companyId}&is_active=true`, { headers });
+      const res = await fetch(`/api/finance/payment-terms?company_id=${companyId}&is_active=true`, { headers });
       if (!res.ok) throw new Error('Failed to fetch payment terms');
       const data = await res.json();
       setPaymentTerms(data.data || []);
@@ -354,7 +354,7 @@ export const useInvoiceMasterData = (companyId: number): InvoiceMasterData => {
   const fetchPaymentMethods = useCallback(async () => {
     setLoading(prev => ({ ...prev, paymentMethods: true }));
     try {
-      const res = await fetch(`http://localhost:4000/api/finance/payment-methods?company_id=${companyId}&is_active=true`, { headers });
+      const res = await fetch(`/api/finance/payment-methods?company_id=${companyId}&is_active=true`, { headers });
       if (!res.ok) throw new Error('Failed to fetch payment methods');
       const data = await res.json();
       setPaymentMethods(data.data || []);
@@ -370,7 +370,7 @@ export const useInvoiceMasterData = (companyId: number): InvoiceMasterData => {
   const fetchBankAccounts = useCallback(async () => {
     setLoading(prev => ({ ...prev, bankAccounts: true }));
     try {
-      const res = await fetch(`http://localhost:4000/api/finance/bank-accounts?company_id=${companyId}&is_active=true`, { headers });
+      const res = await fetch(`/api/finance/bank-accounts?company_id=${companyId}&is_active=true`, { headers });
       if (!res.ok) throw new Error('Failed to fetch bank accounts');
       const data = await res.json();
       setBankAccounts(data.data || []);
@@ -386,7 +386,7 @@ export const useInvoiceMasterData = (companyId: number): InvoiceMasterData => {
   const fetchCashBoxes = useCallback(async () => {
     setLoading(prev => ({ ...prev, cashBoxes: true }));
     try {
-      const res = await fetch(`http://localhost:4000/api/finance/cash-boxes?company_id=${companyId}&is_active=true`, { headers });
+      const res = await fetch(`/api/finance/cash-boxes?company_id=${companyId}&is_active=true`, { headers });
       if (!res.ok) throw new Error('Failed to fetch cash boxes');
       const data = await res.json();
       setCashBoxes(data.data || []);
@@ -402,7 +402,7 @@ export const useInvoiceMasterData = (companyId: number): InvoiceMasterData => {
   const fetchCostCenters = useCallback(async () => {
     setLoading(prev => ({ ...prev, costCenters: true }));
     try {
-      const res = await fetch(`http://localhost:4000/api/finance/cost-centers?company_id=${companyId}&is_active=true`, { headers });
+      const res = await fetch(`/api/finance/cost-centers?company_id=${companyId}&is_active=true`, { headers });
       if (!res.ok) throw new Error('Failed to fetch cost centers');
       const data = await res.json();
       setCostCenters(data.data || []);
@@ -418,7 +418,7 @@ export const useInvoiceMasterData = (companyId: number): InvoiceMasterData => {
   const fetchProjects = useCallback(async () => {
     setLoading(prev => ({ ...prev, projects: true }));
     try {
-      const res = await fetch(`http://localhost:4000/api/finance/projects?company_id=${companyId}&is_active=true`, { headers });
+      const res = await fetch(`/api/finance/projects?company_id=${companyId}&is_active=true`, { headers });
       if (!res.ok) throw new Error('Failed to fetch projects');
       const data = await res.json();
       setProjects(data.data || []);
@@ -434,7 +434,7 @@ export const useInvoiceMasterData = (companyId: number): InvoiceMasterData => {
   const fetchWarehouses = useCallback(async () => {
     setLoading(prev => ({ ...prev, warehouses: true }));
     try {
-      const res = await fetch(`http://localhost:4000/api/inventory/warehouses?company_id=${companyId}&is_active=true`, { headers });
+      const res = await fetch(`/api/inventory/warehouses?company_id=${companyId}&is_active=true`, { headers });
       if (!res.ok) throw new Error('Failed to fetch warehouses');
       const data = await res.json();
       setWarehouses(data.data || []);
@@ -451,7 +451,7 @@ export const useInvoiceMasterData = (companyId: number): InvoiceMasterData => {
     setLoading(prev => ({ ...prev, vendors: true }));
     try {
       // Request 500 vendors for dropdown (no pagination for dropdowns)
-      const res = await fetch(`http://localhost:4000/api/procurement/vendors?company_id=${companyId}&is_active=true&limit=500`, { headers });
+      const res = await fetch(`/api/procurement/vendors?company_id=${companyId}&is_active=true&limit=500`, { headers });
       if (!res.ok) throw new Error('Failed to fetch vendors');
       const data = await res.json();
       setVendors(data.data || []);
@@ -468,7 +468,7 @@ export const useInvoiceMasterData = (companyId: number): InvoiceMasterData => {
     setLoading(prev => ({ ...prev, taxes: true }));
     try {
       // Use tax-codes endpoint which has the actual tax data
-      const res = await fetch(`http://localhost:4000/api/tax-codes?company_id=${companyId}&is_active=true`, { headers });
+      const res = await fetch(`/api/tax-codes?company_id=${companyId}&is_active=true`, { headers });
       if (!res.ok) throw new Error('Failed to fetch taxes');
       const data = await res.json();
       setTaxes(data.data || []);
@@ -487,7 +487,7 @@ export const useInvoiceMasterData = (companyId: number): InvoiceMasterData => {
     try {
       const searchParam = search ? `&search=${encodeURIComponent(search)}` : '';
       const res = await fetch(
-        `http://localhost:4000/api/master/items/for-invoice?company_id=${companyId}&is_active=true${searchParam}`, 
+        `/api/master/items/for-invoice?company_id=${companyId}&is_active=true${searchParam}`, 
         { headers }
       );
       if (!res.ok) throw new Error('Failed to fetch items');

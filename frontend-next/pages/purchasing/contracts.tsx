@@ -122,7 +122,7 @@ interface ContractStatus {
   name_ar?: string;
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
 
 function VendorContractsPage() {
   const { hasPermission } = usePermissions();

@@ -69,7 +69,7 @@ export default function RolesPage() {
   const fetchRoles = async () => {
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch('http://localhost:4000/api/roles', {
+      const res = await fetch('/api/roles', {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -103,8 +103,8 @@ export default function RolesPage() {
     try {
       const token = localStorage.getItem('accessToken');
       const url = editingRole
-        ? `http://localhost:4000/api/roles/${editingRole.id}`
-        : 'http://localhost:4000/api/roles';
+        ? `/api/roles/${editingRole.id}`
+        : '/api/roles';
 
       const res = await fetch(url, {
         method: editingRole ? 'PUT' : 'POST',
@@ -137,7 +137,7 @@ export default function RolesPage() {
 
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`http://localhost:4000/api/roles/${deleteRole.id}`, {
+      const res = await fetch(`/api/roles/${deleteRole.id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });

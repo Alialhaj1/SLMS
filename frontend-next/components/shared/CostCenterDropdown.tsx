@@ -52,7 +52,7 @@ export default function CostCenterDropdown({
       setLoading(true);
       try {
         const token = localStorage.getItem('accessToken');
-        const response = await fetch(`http://localhost:4000/api/finance/cost-centers?company_id=${companyId}&is_active=true`, {
+        const response = await fetch(`/api/finance/cost-centers?company_id=${companyId}&is_active=true`, {
           headers: { Authorization: `Bearer ${token}` },
         });
 

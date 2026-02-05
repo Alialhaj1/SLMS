@@ -42,7 +42,7 @@ const CreateExpense: React.FC = () => {
   const fetchShipments = async () => {
     try {
       const token = localStorage.getItem('accessToken');
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
       const response = await fetch(`${apiUrl}/api/shipments`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -84,7 +84,7 @@ const CreateExpense: React.FC = () => {
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
 
       const response = await fetch(`${apiUrl}/api/expenses`, {
         method: 'POST',

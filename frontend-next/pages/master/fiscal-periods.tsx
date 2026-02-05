@@ -148,9 +148,9 @@ function FiscalPeriodsPage() {
     setIsSubmitting(true);
     try {
       const url = editingItem 
-        ? `http://localhost:4000/api/fiscal-periods/${editingItem.id}`
-        : 'http://localhost:4000/api/fiscal-periods';
-      await apiClient.request(url.replace('http://localhost:4000', ''), {
+        ? `/api/fiscal-periods/${editingItem.id}`
+        : '/api/fiscal-periods';
+      await apiClient.request(url.replace('', ''), {
         method: editingItem ? 'PUT' : 'POST',
         body: JSON.stringify(formData),
       });

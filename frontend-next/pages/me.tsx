@@ -10,7 +10,7 @@ export default function MePage() {
   useEffect(() => {
     const load = async () => {
       try {
-        const api = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+        const api = process.env.NEXT_PUBLIC_API_URL || '';
         const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
         const resp = await axios.get(`${api}/api/me`, { headers: { Authorization: `Bearer ${token}` } });
         setUser(resp.data);

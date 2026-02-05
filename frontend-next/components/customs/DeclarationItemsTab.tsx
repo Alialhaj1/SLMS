@@ -78,7 +78,7 @@ const itemFormSchema = z.object({
 type ItemFormValues = z.infer<typeof itemFormSchema>;
 
 function getApiBaseUrl() {
-  return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+  return process.env.NEXT_PUBLIC_API_URL || '';
 }
 
 function getAuthHeaders() {

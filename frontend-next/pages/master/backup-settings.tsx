@@ -44,7 +44,7 @@ export default function BackupSettingsPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const response = await fetch('http://localhost:4000/api/master/backup-settings', {
+      const response = await fetch('/api/master/backup-settings', {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (response.ok) {
@@ -71,8 +71,8 @@ export default function BackupSettingsPage() {
     try {
       const token = localStorage.getItem('accessToken');
       const url = settings
-        ? `http://localhost:4000/api/master/backup-settings/${settings.id}`
-        : 'http://localhost:4000/api/master/backup-settings';
+        ? `/api/master/backup-settings/${settings.id}`
+        : '/api/master/backup-settings';
 
       const response = await fetch(url, {
         method: settings ? 'PUT' : 'POST',
@@ -99,7 +99,7 @@ export default function BackupSettingsPage() {
   const handleManualBackup = async () => {
     try {
       const token = localStorage.getItem('accessToken');
-      const response = await fetch('http://localhost:4000/api/master/backup-settings/backup/now', {
+      const response = await fetch('/api/master/backup-settings/backup/now', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       });

@@ -78,12 +78,12 @@ export default function FieldPermissionsPage() {
       const token = localStorage.getItem('accessToken');
       
       // Fetch roles
-      const rolesRes = await fetch('http://localhost:4000/api/roles', {
+      const rolesRes = await fetch('/api/roles', {
         headers: { Authorization: `Bearer ${token}` }
       });
       
       // Fetch field permissions
-      const fieldsRes = await fetch('http://localhost:4000/api/field-permissions', {
+      const fieldsRes = await fetch('/api/field-permissions', {
         headers: { Authorization: `Bearer ${token}` }
       });
       
@@ -222,7 +222,7 @@ export default function FieldPermissionsPage() {
       const token = localStorage.getItem('accessToken');
       const allFields = resourceGroups.flatMap(g => g.fields);
       
-      const res = await fetch('http://localhost:4000/api/field-permissions', {
+      const res = await fetch('/api/field-permissions', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

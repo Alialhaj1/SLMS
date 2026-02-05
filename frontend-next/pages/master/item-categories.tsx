@@ -89,7 +89,7 @@ function ItemCategoriesPage() {
       setError(null);
       const token = localStorage.getItem('accessToken');
       const companyId = companyStore.getActiveCompanyId();
-      const response = await fetch('http://localhost:4000/api/master/item-categories', {
+      const response = await fetch('/api/master/item-categories', {
         headers: {
           Authorization: `Bearer ${token}`,
           ...(companyId ? { 'X-Company-Id': companyId.toString() } : {}),
@@ -124,8 +124,8 @@ function ItemCategoriesPage() {
       const companyId = companyStore.getActiveCompanyId();
       const method = editingId ? 'PUT' : 'POST';
       const url = editingId
-        ? `http://localhost:4000/api/master/item-categories/${editingId}`
-        : 'http://localhost:4000/api/master/item-categories';
+        ? `/api/master/item-categories/${editingId}`
+        : '/api/master/item-categories';
 
       const payload: any = {
         ...formData,
@@ -164,7 +164,7 @@ function ItemCategoriesPage() {
     try {
       const token = localStorage.getItem('accessToken');
       const companyId = companyStore.getActiveCompanyId();
-      const response = await fetch(`http://localhost:4000/api/master/item-categories/${deletingId}`, {
+      const response = await fetch(`/api/master/item-categories/${deletingId}`, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${token}`,

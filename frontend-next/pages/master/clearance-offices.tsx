@@ -68,7 +68,7 @@ export default function ClearanceOfficesPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch('http://localhost:4000/api/clearance-offices', {
+      const res = await fetch('/api/clearance-offices', {
         headers: { Authorization: `Bearer ${token}` }
       });
       const result = await res.json();
@@ -89,8 +89,8 @@ export default function ClearanceOfficesPage() {
     try {
       const token = localStorage.getItem('accessToken');
       const url = editingId 
-        ? `http://localhost:4000/api/clearance-offices/${editingId}`
-        : 'http://localhost:4000/api/clearance-offices';
+        ? `/api/clearance-offices/${editingId}`
+        : '/api/clearance-offices';
       
       const res = await fetch(url, {
         method: editingId ? 'PUT' : 'POST',
@@ -143,7 +143,7 @@ export default function ClearanceOfficesPage() {
     setDeleting(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`http://localhost:4000/api/clearance-offices/${itemToDelete}`, {
+      const res = await fetch(`/api/clearance-offices/${itemToDelete}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       });

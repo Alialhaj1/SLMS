@@ -47,7 +47,7 @@ function WarehousesPage() {
   const fetchWarehouses = async () => {
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch('http://localhost:4000/api/warehouses', {
+      const res = await fetch('/api/warehouses', {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -91,8 +91,8 @@ function WarehousesPage() {
     try {
       const token = localStorage.getItem('accessToken');
       const url = editingWarehouse
-        ? `http://localhost:4000/api/warehouses/${editingWarehouse.id}`
-        : 'http://localhost:4000/api/warehouses';
+        ? `/api/warehouses/${editingWarehouse.id}`
+        : '/api/warehouses';
 
       const res = await fetch(url, {
         method: editingWarehouse ? 'PUT' : 'POST',
@@ -124,7 +124,7 @@ function WarehousesPage() {
 
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`http://localhost:4000/api/warehouses/${deleteWarehouse.id}`, {
+      const res = await fetch(`/api/warehouses/${deleteWarehouse.id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });

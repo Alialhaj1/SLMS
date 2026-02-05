@@ -78,7 +78,7 @@ function CurrenciesPage() {
     try {
       const token = localStorage.getItem('accessToken');
       const companyId = companyStore.getActiveCompanyId();
-      const res = await fetch('http://localhost:4000/api/master/currencies', {
+      const res = await fetch('/api/master/currencies', {
         headers: {
           Authorization: `Bearer ${token}`,
           ...(companyId ? { 'X-Company-Id': String(companyId) } : {}),
@@ -145,8 +145,8 @@ function CurrenciesPage() {
       const token = localStorage.getItem('accessToken');
       const companyId = companyStore.getActiveCompanyId();
       const url = editingCurrency
-        ? `http://localhost:4000/api/master/currencies/${editingCurrency.id}`
-        : 'http://localhost:4000/api/master/currencies';
+        ? `/api/master/currencies/${editingCurrency.id}`
+        : '/api/master/currencies';
       const res = await fetch(url, {
         method: editingCurrency ? 'PUT' : 'POST',
         headers: {
@@ -182,7 +182,7 @@ function CurrenciesPage() {
     try {
       const token = localStorage.getItem('accessToken');
       const companyId = companyStore.getActiveCompanyId();
-      const res = await fetch(`http://localhost:4000/api/master/currencies/${currencyToDelete.id}`, {
+      const res = await fetch(`/api/master/currencies/${currencyToDelete.id}`, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${token}`,

@@ -70,7 +70,7 @@ export default function ItemSelector({
       setLoading(true);
       try {
         const token = localStorage.getItem('accessToken');
-        const url = new URL('http://localhost:4000/api/master/items');
+        const url = new URL('/api/master/items');
         url.searchParams.set('page', '1');
         url.searchParams.set('limit', '20');
         url.searchParams.set('search', searchQuery);

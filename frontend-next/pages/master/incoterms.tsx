@@ -106,7 +106,7 @@ function IncotermsPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch('http://localhost:4000/api/incoterms', {
+      const res = await fetch('/api/incoterms', {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -153,8 +153,8 @@ function IncotermsPage() {
     try {
       const token = localStorage.getItem('accessToken');
       const url = editingItem 
-        ? `http://localhost:4000/api/incoterms/${editingItem.id}`
-        : 'http://localhost:4000/api/incoterms';
+        ? `/api/incoterms/${editingItem.id}`
+        : '/api/incoterms';
       
       const res = await fetch(url, {
         method: editingItem ? 'PUT' : 'POST',
@@ -194,7 +194,7 @@ function IncotermsPage() {
     setIsDeleting(true);
     try {
       const token = localStorage.getItem('accessToken');
-      await fetch(`http://localhost:4000/api/incoterms/${deletingId}`, {
+      await fetch(`/api/incoterms/${deletingId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });

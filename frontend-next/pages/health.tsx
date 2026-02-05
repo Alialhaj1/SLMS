@@ -112,7 +112,8 @@ export const getServerSideProps: GetServerSideProps<HealthPageProps> = async () 
   let backendStatus: 'up' | 'down' = 'down';
   
   try {
-    const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
+    // For server-side, use internal backend URL; fallback to localhost for local dev
+    const backendUrl = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://backend:4000/api';
     const response = await fetch(`${backendUrl}/health`, {
       method: 'GET',
       signal: AbortSignal.timeout(3000),

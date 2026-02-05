@@ -147,7 +147,7 @@ function WarehousesPage() {
       const companyId = companyStore.getActiveCompanyId();
       if (!token || !companyId) return;
 
-      const res = await fetch('http://localhost:4000/api/master/cost-centers', {
+      const res = await fetch('/api/master/cost-centers', {
         headers: {
           Authorization: `Bearer ${token}`,
           'X-Company-Id': String(companyId),
@@ -178,9 +178,9 @@ function WarehousesPage() {
       };
 
       // Prefer master route; fall back to alias if needed
-      let res = await tryFetch('http://localhost:4000/api/master/warehouse-types');
+      let res = await tryFetch('/api/master/warehouse-types');
       if (res.status === 404) {
-        res = await tryFetch('http://localhost:4000/api/warehouse-types');
+        res = await tryFetch('/api/warehouse-types');
       }
 
       if (!res.ok) return;
@@ -204,7 +204,7 @@ function WarehousesPage() {
     try {
       const token = localStorage.getItem('accessToken');
       const companyId = companyStore.getActiveCompanyId();
-      const res = await fetch('http://localhost:4000/api/master/warehouses', {
+      const res = await fetch('/api/master/warehouses', {
         headers: {
           Authorization: `Bearer ${token}`,
           ...(companyId ? { 'X-Company-Id': String(companyId) } : {}),
@@ -286,8 +286,8 @@ function WarehousesPage() {
     setSubmitting(true);
     try {
       const url = editingWarehouse
-        ? `http://localhost:4000/api/master/warehouses/${editingWarehouse.id}`
-        : 'http://localhost:4000/api/master/warehouses';
+        ? `/api/master/warehouses/${editingWarehouse.id}`
+        : '/api/master/warehouses';
       const res = await fetch(url, {
         method: editingWarehouse ? 'PUT' : 'POST',
         headers: {
@@ -339,7 +339,7 @@ function WarehousesPage() {
 
     setDeleting(true);
     try {
-      const res = await fetch(`http://localhost:4000/api/master/warehouses/${warehouseToDelete.id}`, {
+      const res = await fetch(`/api/master/warehouses/${warehouseToDelete.id}`, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${token}`,

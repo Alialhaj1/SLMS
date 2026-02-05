@@ -95,8 +95,8 @@ function InventoryCountingPage() {
     try {
       const token = localStorage.getItem('accessToken');
       const [countRes, whRes] = await Promise.all([
-        fetch('http://localhost:4000/api/inventory-counting', { headers: { Authorization: `Bearer ${token}` } }),
-        fetch('http://localhost:4000/api/warehouses', { headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/inventory-counting', { headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/warehouses', { headers: { Authorization: `Bearer ${token}` } }),
       ]);
       
       if (countRes.ok) {
@@ -149,8 +149,8 @@ function InventoryCountingPage() {
     try {
       const token = localStorage.getItem('accessToken');
       const url = editingItem 
-        ? `http://localhost:4000/api/inventory-counting/${editingItem.id}`
-        : 'http://localhost:4000/api/inventory-counting';
+        ? `/api/inventory-counting/${editingItem.id}`
+        : '/api/inventory-counting';
       
       const res = await fetch(url, {
         method: editingItem ? 'PUT' : 'POST',
@@ -196,7 +196,7 @@ function InventoryCountingPage() {
     setIsDeleting(true);
     try {
       const token = localStorage.getItem('accessToken');
-      await fetch(`http://localhost:4000/api/inventory-counting/${deletingId}`, {
+      await fetch(`/api/inventory-counting/${deletingId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });

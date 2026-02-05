@@ -107,7 +107,7 @@ export default function PaymentDetailPage() {
       const token = localStorage.getItem('accessToken');
       const companyId = companyStore.getActiveCompanyId() || 1;
       
-      const response = await fetch(`http://localhost:4000/api/procurement/payments/${id}`, {
+      const response = await fetch(`/api/procurement/payments/${id}`, {
         headers: { 
           Authorization: `Bearer ${token}`,
           'X-Company-Id': String(companyId)
@@ -132,7 +132,7 @@ export default function PaymentDetailPage() {
       const token = localStorage.getItem('accessToken');
       const companyId = companyStore.getActiveCompanyId() || 1;
       
-      const response = await fetch(`http://localhost:4000/api/procurement/payments/${id}/post`, {
+      const response = await fetch(`/api/procurement/payments/${id}/post`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -162,7 +162,7 @@ export default function PaymentDetailPage() {
       const companyId = companyStore.getActiveCompanyId() || 1;
       
       const response = await fetch(
-        `http://localhost:4000/api/procurement/payments/vendor/${payment.vendor_id}/outstanding-invoices`,
+        `/api/procurement/payments/vendor/${payment.vendor_id}/outstanding-invoices`,
         { headers: { 
           Authorization: `Bearer ${token}`,
           'X-Company-Id': String(companyId)
@@ -247,7 +247,7 @@ export default function PaymentDetailPage() {
         }))
       };
 
-      const response = await fetch(`http://localhost:4000/api/procurement/payments/${id}/allocate`, {
+      const response = await fetch(`/api/procurement/payments/${id}/allocate`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -314,7 +314,7 @@ export default function PaymentDetailPage() {
       const token = localStorage.getItem('accessToken');
       const companyId = companyStore.getActiveCompanyId() || 1;
       
-      const response = await fetch('http://localhost:4000/api/transfer-requests/from-vendor-payment', {
+      const response = await fetch('/api/transfer-requests/from-vendor-payment', {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -346,7 +346,7 @@ export default function PaymentDetailPage() {
       const token = localStorage.getItem('accessToken');
       const companyId = companyStore.getActiveCompanyId() || 1;
       
-      const response = await fetch(`http://localhost:4000/api/procurement/payments/${id}`, {
+      const response = await fetch(`/api/procurement/payments/${id}`, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${token}`,

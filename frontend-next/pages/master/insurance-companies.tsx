@@ -64,7 +64,7 @@ export default function InsuranceCompaniesPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch('http://localhost:4000/api/insurance-companies', {
+      const res = await fetch('/api/insurance-companies', {
         headers: { Authorization: `Bearer ${token}` }
       });
       const result = await res.json();
@@ -85,8 +85,8 @@ export default function InsuranceCompaniesPage() {
     try {
       const token = localStorage.getItem('accessToken');
       const url = editingId 
-        ? `http://localhost:4000/api/insurance-companies/${editingId}`
-        : 'http://localhost:4000/api/insurance-companies';
+        ? `/api/insurance-companies/${editingId}`
+        : '/api/insurance-companies';
       
       const res = await fetch(url, {
         method: editingId ? 'PUT' : 'POST',
@@ -137,7 +137,7 @@ export default function InsuranceCompaniesPage() {
     setDeleting(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`http://localhost:4000/api/insurance-companies/${itemToDelete}`, {
+      const res = await fetch(`/api/insurance-companies/${itemToDelete}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       });

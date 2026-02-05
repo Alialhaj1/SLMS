@@ -50,7 +50,7 @@ function TrackingPage() {
   const [searched, setSearched] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+  const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || '';
 
   const getAuthHeaders = () => {
     const token = localStorage.getItem('accessToken');

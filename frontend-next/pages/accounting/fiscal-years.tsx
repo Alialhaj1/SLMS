@@ -64,7 +64,7 @@ const FiscalYears: React.FC = () => {
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
 
       const response = await fetch(`${apiUrl}/api/fiscal-years`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -122,7 +122,7 @@ const FiscalYears: React.FC = () => {
     setIsSubmitting(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
 
       const url = editingYear
         ? `${apiUrl}/api/fiscal-years/${editingYear.id}`
@@ -179,7 +179,7 @@ const FiscalYears: React.FC = () => {
     setIsDeleting(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
 
       await fetch(`${apiUrl}/api/fiscal-years/${deletingId}`, {
         method: 'DELETE',

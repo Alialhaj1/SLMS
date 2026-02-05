@@ -118,7 +118,7 @@ export default function SecurityPoliciesPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch('http://localhost:4000/api/security-policies', {
+      const res = await fetch('/api/security-policies', {
         headers: { Authorization: `Bearer ${token}` }
       });
       

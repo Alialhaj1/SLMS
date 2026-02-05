@@ -63,7 +63,7 @@ export default function BranchesPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const response = await fetch('http://localhost:4000/api/branches', {
+      const response = await fetch('/api/branches', {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (response.ok) {
@@ -95,8 +95,8 @@ export default function BranchesPage() {
     try {
       const token = localStorage.getItem('accessToken');
       const url = editingId
-        ? `http://localhost:4000/api/branches/${editingId}`
-        : 'http://localhost:4000/api/branches';
+        ? `/api/branches/${editingId}`
+        : '/api/branches';
 
       const payload = editingId
         ? {
@@ -170,7 +170,7 @@ export default function BranchesPage() {
 
     try {
       const token = localStorage.getItem('accessToken');
-      const response = await fetch(`http://localhost:4000/api/branches/${deleteId}`, {
+      const response = await fetch(`/api/branches/${deleteId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });

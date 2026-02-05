@@ -100,7 +100,7 @@ function WarehouseLocationsPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
       const companyId = companyStore.getActiveCompanyId();
       const headers: HeadersInit = {
         Authorization: `Bearer ${token}`,
@@ -142,7 +142,7 @@ function WarehouseLocationsPage() {
     setIsSubmitting(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
       const companyId = companyStore.getActiveCompanyId();
       const url = editingItem 
         ? `${apiUrl}/api/master/warehouse-locations/${editingItem.id}`
@@ -189,7 +189,7 @@ function WarehouseLocationsPage() {
     setIsDeleting(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
       const companyId = companyStore.getActiveCompanyId();
       await fetch(`${apiUrl}/api/master/warehouse-locations/${deletingId}`, {
         method: 'DELETE',
