@@ -2,16 +2,25 @@ FROM node:18-alpine AS builder
 
 WORKDIR /app
 
+# Increase Node.js memory limit for build
+ENV NODE_OPTIONS="--max-old-space-size=1536"
+
+# Set production API URL (empty string means use relative URLs)
+ENV NEXT_PUBLIC_API_URL=""
+
 # Copy package files
 COPY package.json package-lock.json* ./
 
-# Install dependencies
+# Install dependencies (reproducible builds)
 RUN npm ci
+
+# Fix permissions on node_modules binaries
+RUN chmod -R +x node_modules/.bin/ || true
 
 # Copy application code
 COPY . .
 
-# Build Next.js
+# Build Next.js (with standalone output)
 RUN npm run build
 
 # Production image
@@ -38,8 +47,8 @@ EXPOSE 3001
 ENV PORT 3001
 ENV HOSTNAME "0.0.0.0"
 
-# Health check
+# Health check (use 127.0.0.1 to avoid IPv6 issues)
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:3001 || exit 1
+  CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:3001/api/health || exit 1
 
 CMD ["node", "server.js"]

@@ -39,17 +39,20 @@ export default async function handler(
   const memoryUsage = process.memoryUsage();
   const heapUsedMB = Math.round(memoryUsage.heapUsed / 1024 / 1024);
   const heapTotalMB = Math.round(memoryUsage.heapTotal / 1024 / 1024);
-  const memoryHealthy = heapUsedMB < heapTotalMB * 0.9; // Alert if >90% heap used
+  const rssMB = Math.round(memoryUsage.rss / 1024 / 1024);
+  // Alert if RSS > 512MB (reasonable for Next.js in production)
+  const memoryHealthy = rssMB < 512;
 
   checks.push({
     name: 'memory',
     status: memoryHealthy ? 'pass' : 'fail',
-    message: `Heap: ${heapUsedMB}MB / ${heapTotalMB}MB`,
+    message: `RSS: ${rssMB}MB, Heap: ${heapUsedMB}MB / ${heapTotalMB}MB`,
   });
 
   // Check 3: Backend API reachability (optional, non-blocking)
   try {
-    const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
+    // Use Docker internal hostname for server-side checks
+    const backendUrl = process.env.BACKEND_INTERNAL_URL || 'http://backend:4000/api';
     const backendHealth = await fetch(`${backendUrl}/health`, {
       method: 'GET',
       signal: AbortSignal.timeout(3000), // 3 second timeout
