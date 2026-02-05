@@ -5,8 +5,9 @@ WORKDIR /app
 # Increase Node.js memory limit for build
 ENV NODE_OPTIONS="--max-old-space-size=1536"
 
-# Set production API URL (empty string means use relative URLs)
-ENV NEXT_PUBLIC_API_URL=""
+# Set production API URL - can be overridden via build arg
+ARG NEXT_PUBLIC_API_URL=https://alhajco.com/api
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 
 # Copy package files
 COPY package.json package-lock.json* ./

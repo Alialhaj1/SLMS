@@ -101,6 +101,8 @@ services:
     build:
       context: ./frontend-next
       dockerfile: Dockerfile.prod
+      args:
+        NEXT_PUBLIC_API_URL: https://alhajco.com/api
     container_name: slms-frontend-prod
     restart: always
     environment:
