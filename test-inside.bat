@@ -1,0 +1,6 @@
+@echo off
+echo Testing from inside the container...
+ssh -i C:\Users\USER\.ssh\id_ed25519 root@68.183.221.112 "docker exec slms-frontend-prod wget -q --spider http://localhost:3001 && echo SUCCESS || echo FAILED"
+echo.
+echo Testing with /api/health...
+ssh -i C:\Users\USER\.ssh\id_ed25519 root@68.183.221.112 "docker exec slms-frontend-prod wget -q --spider http://localhost:3001/api/health && echo SUCCESS || echo FAILED"

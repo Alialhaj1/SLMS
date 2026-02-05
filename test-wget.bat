@@ -1,0 +1,9 @@
+@echo off
+echo Testing curl instead of wget...
+ssh -i C:\Users\USER\.ssh\id_ed25519 root@68.183.221.112 "docker exec slms-frontend-prod curl -s http://localhost:3001/api/health 2>&1 || echo 'curl not available'"
+echo.
+echo Testing wget with verbose...
+ssh -i C:\Users\USER\.ssh\id_ed25519 root@68.183.221.112 "docker exec slms-frontend-prod wget http://localhost:3001/api/health -O- 2>&1"
+echo.
+echo Testing with 127.0.0.1...
+ssh -i C:\Users\USER\.ssh\id_ed25519 root@68.183.221.112 "docker exec slms-frontend-prod wget http://127.0.0.1:3001/api/health -O- 2>&1"

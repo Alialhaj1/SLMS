@@ -16,8 +16,13 @@ interface AuthenticatedRequest extends Request {
   user?: {
     id: number;
     email: string;
+    username: string;
     roles: string[];
+    permissions: string[];
+    must_change_password?: boolean;
+    company_id?: number;
     companyId?: number;
+    branch_id?: number;
   };
   requestId?: string;
 }

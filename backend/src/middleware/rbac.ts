@@ -18,7 +18,7 @@ interface AuthRequest extends Request {
     email: string;
     username: string;
     roles: string[];
-    permissions?: string[];
+    permissions: string[];
     must_change_password?: boolean;
     company_id?: number;
     companyId?: number;

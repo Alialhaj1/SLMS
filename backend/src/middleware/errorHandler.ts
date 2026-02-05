@@ -153,7 +153,8 @@ export function errorHandler(
   trackError(req.originalUrl);
 
   // Send to Sentry for 5xx errors (server errors, not client errors)
-  if (!err.statusCode || err.statusCode >= 500) {
+  const statusCode = (err as AppError).statusCode;
+  if (!statusCode || statusCode >= 500) {
     captureException(err, {
       tags: {
         endpoint: req.originalUrl,

@@ -1,0 +1,9 @@
+@echo off
+echo Checking container status...
+ssh -i C:\Users\USER\.ssh\id_ed25519 root@68.183.221.112 "docker ps --format 'table {{.Names}}\t{{.Status}}'"
+echo.
+echo Checking health endpoint...
+ssh -i C:\Users\USER\.ssh\id_ed25519 root@68.183.221.112 "curl -s http://localhost:3001/api/health"
+echo.
+echo Checking health from inside container...
+ssh -i C:\Users\USER\.ssh\id_ed25519 root@68.183.221.112 "docker exec slms-frontend-prod wget -q -O- http://127.0.0.1:3001/api/health 2>/dev/null || echo FAILED"

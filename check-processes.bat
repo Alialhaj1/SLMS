@@ -1,0 +1,6 @@
+@echo off
+echo Checking processes inside container...
+ssh -i C:\Users\USER\.ssh\id_ed25519 root@68.183.221.112 "docker exec slms-frontend-prod ps aux"
+echo.
+echo Checking listening ports...
+ssh -i C:\Users\USER\.ssh\id_ed25519 root@68.183.221.112 "docker exec slms-frontend-prod netstat -tlnp 2>/dev/null || docker exec slms-frontend-prod ss -tlnp 2>/dev/null || echo 'No netstat or ss available'"

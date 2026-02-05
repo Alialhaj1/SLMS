@@ -192,7 +192,7 @@ router.post(
         });
       }
 
-      const permissions = templateResult.permissions;
+      const permissions = templateResult.rows[0].permissions;
 
       // 2. Check if role name already exists for this company
       const existingRole = await pool.query(
