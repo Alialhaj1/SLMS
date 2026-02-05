@@ -8,9 +8,19 @@
  * - Request/response interceptors
  * - Environment-aware base URL
  * - Company context injection (X-Company-Id header)
+ * - Request tracing via X-Request-ID header
  */
 
 import { companyStore } from './companyStore';
+
+// Simple UUID v4 generator for request tracing (no external dependency)
+function generateRequestId(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
 
 // Normalize base URL: strip trailing slashes and a trailing '/api' so we can always prefix endpoints with '/api/...'
 const rawBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
@@ -173,9 +183,13 @@ class APIClient {
   ): Promise<T> {
     const { skipAuth, ...fetchOptions } = options;
 
+    // Generate unique request ID for tracing
+    const requestId = generateRequestId();
+
     // Build headers
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
+      'X-Request-ID': requestId,
       ...fetchOptions.headers,
     };
 

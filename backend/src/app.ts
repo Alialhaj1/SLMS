@@ -4,7 +4,7 @@ import helmet from 'helmet';
 import path from 'path';
 import { config } from './config/env';
 import logger from './utils/logger';
-import { requestLogger, apiUsageLogger } from './middleware/requestLogger';
+import { requestLogger, apiUsageLogger, requestIdMiddleware } from './middleware/requestLogger';
 import { 
   initializeSentry, 
   sentryRequestHandler, 
@@ -179,7 +179,10 @@ initializeSentry(app);
 app.use(sentryRequestHandler());
 app.use(sentryTracingHandler());
 
-// Winston logging - THIRD (after Sentry context)
+// Request ID middleware - generates/uses X-Request-ID for end-to-end tracing
+app.use(requestIdMiddleware);
+
+// Winston logging - THIRD (after Sentry context and request ID)
 app.use(requestLogger);
 app.use(apiUsageLogger);
 
@@ -212,7 +215,8 @@ app.use(cors({
   origin: config.CORS_ORIGINS,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-company-id']
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-company-id', 'X-Request-ID'],
+  exposedHeaders: ['X-Request-ID']
 }));
 
 // Body parsing with size limits (larger for base64 image uploads)

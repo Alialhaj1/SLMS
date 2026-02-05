@@ -1,6 +1,16 @@
 import { Request, Response, NextFunction } from 'express';
+import { v4 as uuidv4 } from 'uuid';
 import logger from '../utils/logger';
 import { trackPerformance } from '../routes/healthDetailed';
+
+// Extend Express Request to include requestId
+declare global {
+  namespace Express {
+    interface Request {
+      requestId?: string;
+    }
+  }
+}
 
 interface AuthenticatedRequest extends Request {
   user?: {
@@ -9,11 +19,33 @@ interface AuthenticatedRequest extends Request {
     roles: string[];
     companyId?: number;
   };
+  requestId?: string;
 }
 
 /**
+ * Middleware to add X-Request-ID for end-to-end request tracing
+ * If client sends X-Request-ID header, use it; otherwise generate new UUID
+ */
+export const requestIdMiddleware = (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  // Use client-provided request ID or generate new one
+  const requestId = (req.headers['x-request-id'] as string) || uuidv4();
+  
+  // Attach to request object for use in other middleware/routes
+  req.requestId = requestId;
+  
+  // Include in response headers for client-side correlation
+  res.setHeader('X-Request-ID', requestId);
+  
+  next();
+};
+
+/**
  * Middleware to log all incoming HTTP requests
- * Captures: method, endpoint, user, company, response time, status code
+ * Captures: method, endpoint, user, company, response time, status code, requestId
  */
 export const requestLogger = (
   req: AuthenticatedRequest,
@@ -22,8 +54,9 @@ export const requestLogger = (
 ) => {
   const startTime = Date.now();
   
-  // Capture request details
+  // Capture request details including requestId
   const requestInfo = {
+    requestId: req.requestId,
     method: req.method,
     url: req.originalUrl,
     ip: req.ip || req.socket.remoteAddress,
@@ -76,9 +109,10 @@ export const apiUsageLogger = (
   res.on('finish', () => {
     const duration = Date.now() - startTime;
     
-    // Log API usage with full context for analysis
+    // Log API usage with full context for analysis (including requestId)
     logger.http('API_USAGE', {
       timestamp: new Date().toISOString(),
+      requestId: req.requestId,
       method: req.method,
       endpoint: req.originalUrl,
       route: req.route?.path || 'unknown',
