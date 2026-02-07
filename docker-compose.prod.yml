@@ -102,12 +102,12 @@ services:
       context: ./frontend-next
       dockerfile: Dockerfile.prod
       args:
-        NEXT_PUBLIC_API_URL: https://alhajco.com
+        NEXT_PUBLIC_API_URL: https://alhajco.com/api
     container_name: slms-frontend-prod
     restart: always
     environment:
       - NODE_ENV=production
-      - NEXT_PUBLIC_API_URL=https://alhajco.com
+      - NEXT_PUBLIC_API_URL=https://alhajco.com/api
     ports:
       - "127.0.0.1:3001:3001"  # Only localhost (Nginx will proxy)
     depends_on:
