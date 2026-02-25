@@ -1,8 +1,272 @@
-node_modules/
-dist/
+# ================================================
+# SLMS - Git Ignore Configuration
+# ================================================
+# Protects sensitive data and prevents committing:
+# - Environment files with secrets
+# - Database backups with customer data
+# - Build artifacts
+# - IDE configurations
+# ================================================
+
+# ================================================
+# 🔴 CRITICAL: Environment & Secrets
+# ================================================
+# NEVER commit these files to Git!
 .env
-.env.*
-.vscode/
+.env.local
+.env.staging
+.env.production
+.env.*.local
+.env.*.backup
+
+# Backup files (may contain customer data)
+*.sql
+*.sql.gz
+*.dump
+# But allow DB migrations
+!backend/migrations/*.sql
+backups/
+/backups/
+
+# SSL certificates and keys
+*.pem
+*.key
+*.crt
+*.pfx
+*.p12
+/ssl/
+/certs/
+
+# AWS/Cloud credentials
+.aws/
+.azure/
+.gcp/
+
+# Kubernetes secrets
+secrets.yaml
+*.secret.yaml
+
+# ================================================
+# Node.js & JavaScript
+# ================================================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+
+# Build outputs
+dist/
+build/
+*.tsbuildinfo
+
+# Next.js
+.next/
+out/
+
+# React/Vite
+.cache/
+public/build/
+
+# Testing
 coverage/
+*.coverage
+.nyc_output/
+
+# Package locks (team may decide to include these)
+# package-lock.json
+# yarn.lock
+
+# ================================================
+# Docker & Containers
+# ================================================
+# Don't commit container data
+docker-compose.override.yml
+.dockerignore.local
+
+# Volume data
+postgres-data/
+redis-data/
+rabbitmq-data/
+uploads/
+
+# Docker logs
+docker-logs/
+*.log
+
+# ================================================
+# Database
+# ================================================
+# Database exports (may contain sensitive data)
+*.db
+*.sqlite
+*.sqlite3
+*.sql.backup
+pgdata/
+
+# Migration backups
+migrations/*.backup
+
+# ================================================
+# IDE & Editor Configurations
+# ================================================
+# VS Code
+.vscode/
+.vscode/*
+!.vscode/settings.json.example
+!.vscode/extensions.json
+
+# IntelliJ IDEA / WebStorm
+.idea/
+*.iml
+*.iws
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+*.swp
+*.swo
+*~
+
+# Emacs
+*~
+\#*\#
+.\#*
+
+# ================================================
+# Operating Systems
+# ================================================
+# macOS
 .DS_Store
-npm-debug.log
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# Linux
+.directory
+.Trash-*
+
+# ================================================
+# Logs & Temporary Files
+# ================================================
+logs/
+*.log
+*.log.*
+npm-debug.log*
+yarn-debug.log*
+lerna-debug.log*
+pnpm-debug.log*
+
+# Temp files
+tmp/
+temp/
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+
+# ================================================
+# Testing & CI/CD
+# ================================================
+.nyc_output/
+coverage/
+*.lcov
+.jest-cache/
+
+# Test databases
+test.db
+test.sqlite
+
+# Playwright
+playwright-report/
+playwright/.cache/
+
+# ================================================
+# Upload Directories (may contain customer files)
+# ================================================
+/backend/uploads/*
+/frontend/uploads/*
+/frontend-next/public/uploads/*
+
+# Except placeholder
+!**/uploads/.gitkeep
+
+# ================================================
+# Documentation Builds
+# ================================================
+docs/build/
+docs/_build/
+.docusaurus/
+
+# ================================================
+# Package Manager
+# ================================================
+.yarn/cache/
+.yarn/unplugged/
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnp.*
+
+# ================================================
+# Miscellaneous
+# ================================================
+# Compressed files (may be backups)
+*.zip
+*.tar
+*.tar.gz
+*.rar
+*.7z
+
+# Except intentional archives
+!demo-data.zip
+
+# Editor backup files
+*~
+*.orig
+*.rej
+
+# Debug files
+debug.log
+trace.log
+
+# Cache
+.cache/
+.parcel-cache/
+.turbo/
+
+# ================================================
+# ⚠️ EXCEPTIONS (Files that SHOULD be committed)
+# ================================================
+# Example environment files (without secrets)
+!.env.local.example
+!.env.staging.example
+!.env.production.example
+
+# Example config files
+!config.example.json
+
+# Seed data (demo data ONLY, no customer data)
+!backend/migrations/seed_demo_data.sql
+
+# Docker compose files
+!docker-compose.yml
+!docker-compose.local.yml
+!docker-compose.prod.yml
+
+# Git keep files (preserve empty directories)
+!**/.gitkeep
+
+# ================================================
+# END OF .gitignore
+# ================================================

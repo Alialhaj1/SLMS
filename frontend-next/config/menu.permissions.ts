@@ -295,10 +295,11 @@ export const MenuPermissions = {
     // Group 2: Reference Data (Geographic & Contact)
     // ─────────────────────────────────────────────────────
     Regions: {
-      View: 'regions:view' as const,
-      Create: 'regions:create' as const,
-      Edit: 'regions:edit' as const,
-      Delete: 'regions:delete' as const,
+      View: 'master:regions:view' as const,
+      Create: 'master:regions:create' as const,
+      Edit: 'master:regions:edit' as const,
+      Delete: 'master:regions:delete' as const,
+      Manage: 'master:regions:manage' as const,
     },
     BorderPoints: {
       View: 'border_points:view' as const,
@@ -307,10 +308,19 @@ export const MenuPermissions = {
       Delete: 'border_points:delete' as const,
     },
     TimeZones: {
-      View: 'time_zones:view' as const,
-      Create: 'time_zones:create' as const,
-      Edit: 'time_zones:edit' as const,
-      Delete: 'time_zones:delete' as const,
+      View: 'master:timezones:view' as const,
+      Create: 'master:timezones:create' as const,
+      Edit: 'master:timezones:edit' as const,
+      Delete: 'master:timezones:delete' as const,
+      Manage: 'master:timezones:manage' as const,
+    },
+    Languages: {
+      View: 'master:languages:view' as const,
+      Create: 'master:languages:create' as const,
+      Edit: 'master:languages:edit' as const,
+      Delete: 'master:languages:delete' as const,
+      Export: 'master:languages:export' as const,
+      Manage: 'master:languages:manage' as const,
     },
     AddressTypes: {
       View: 'address_types:view' as const,
@@ -318,11 +328,83 @@ export const MenuPermissions = {
       Edit: 'address_types:edit' as const,
       Delete: 'address_types:delete' as const,
     },
+    ContactTypes: {
+      View: 'contact_types:view' as const,
+      Create: 'contact_types:create' as const,
+      Edit: 'contact_types:edit' as const,
+      Delete: 'contact_types:delete' as const,
+    },
+    CustomerTypes: {
+      View: 'customer_types:view' as const,
+      Create: 'customer_types:create' as const,
+      Edit: 'customer_types:edit' as const,
+      Delete: 'customer_types:delete' as const,
+    },
+    CustomerCategories: {
+      View: 'customer_categories:view' as const,
+      Create: 'customer_categories:create' as const,
+      Edit: 'customer_categories:edit' as const,
+      Delete: 'customer_categories:delete' as const,
+    },
+    CustomerStatuses: {
+      View: 'customer_statuses:view' as const,
+      Create: 'customer_statuses:create' as const,
+      Edit: 'customer_statuses:edit' as const,
+      Delete: 'customer_statuses:delete' as const,
+    },
     ContactMethods: {
       View: 'contact_methods:view' as const,
       Create: 'contact_methods:create' as const,
       Edit: 'contact_methods:edit' as const,
       Delete: 'contact_methods:delete' as const,
+    },
+    RecordStatuses: {
+      View: 'record_statuses:view' as const,
+      Create: 'record_statuses:create' as const,
+      Edit: 'record_statuses:edit' as const,
+      Delete: 'record_statuses:delete' as const,
+    },
+    RequestStatuses: {
+      View: 'request_statuses:view' as const,
+      Create: 'request_statuses:create' as const,
+      Edit: 'request_statuses:edit' as const,
+      Delete: 'request_statuses:delete' as const,
+    },
+    SupplierTypes: {
+      View: 'supplier_types:view' as const,
+      Create: 'supplier_types:create' as const,
+      Edit: 'supplier_types:edit' as const,
+      Delete: 'supplier_types:delete' as const,
+    },
+    SupplierCategories: {
+      View: 'supplier_categories:view' as const,
+      Create: 'supplier_categories:create' as const,
+      Edit: 'supplier_categories:edit' as const,
+      Delete: 'supplier_categories:delete' as const,
+    },
+    SupplierStatuses: {
+      View: 'supplier_statuses:view' as const,
+      Create: 'supplier_statuses:create' as const,
+      Edit: 'supplier_statuses:edit' as const,
+      Delete: 'supplier_statuses:delete' as const,
+    },
+    SupplierBankAccounts: {
+      View: 'supplier_bank_accounts:view' as const,
+      Create: 'supplier_bank_accounts:create' as const,
+      Edit: 'supplier_bank_accounts:edit' as const,
+      Delete: 'supplier_bank_accounts:delete' as const,
+    },
+    PoStatuses: {
+      View: 'po_statuses:view' as const,
+      Create: 'po_statuses:create' as const,
+      Edit: 'po_statuses:edit' as const,
+      Delete: 'po_statuses:delete' as const,
+    },
+    ContractStatuses: {
+      View: 'contract_statuses:view' as const,
+      Create: 'contract_statuses:create' as const,
+      Edit: 'contract_statuses:edit' as const,
+      Delete: 'contract_statuses:delete' as const,
     },
     Ports: {
       View: 'ports:view' as const,
@@ -336,6 +418,18 @@ export const MenuPermissions = {
       Edit: 'customs_offices:edit' as const,
       Delete: 'customs_offices:delete' as const,
     },
+    ClearanceOffices: {
+      View: 'clearance_offices:view' as const,
+      Create: 'clearance_offices:create' as const,
+      Edit: 'clearance_offices:edit' as const,
+      Delete: 'clearance_offices:delete' as const,
+    },
+    HSCodes: {
+      View: 'hs_codes:view' as const,
+      Create: 'hs_codes:create' as const,
+      Edit: 'hs_codes:edit' as const,
+      Delete: 'hs_codes:delete' as const,
+    },
     CustomsFeeCategories: {
       View: 'customs_fee_categories:view' as const,
       Create: 'customs_fee_categories:create' as const,
@@ -348,11 +442,23 @@ export const MenuPermissions = {
       Edit: 'customs_duties:edit' as const,
       Delete: 'customs_duties:delete' as const,
     },
+    CustomsDutyTypes: {
+      View: 'customs_duty_types:view' as const,
+      Create: 'customs_duty_types:create' as const,
+      Edit: 'customs_duty_types:edit' as const,
+      Delete: 'customs_duty_types:delete' as const,
+    },
     ClearanceStatus: {
       View: 'clearance_status:view' as const,
       Create: 'clearance_status:create' as const,
       Edit: 'clearance_status:edit' as const,
       Delete: 'clearance_status:delete' as const,
+    },
+    CustomsStatuses: {
+      View: 'customs_statuses:view' as const,
+      Create: 'customs_statuses:create' as const,
+      Edit: 'customs_statuses:edit' as const,
+      Delete: 'customs_statuses:delete' as const,
     },
     ClaimStatus: {
       View: 'claim_status:view' as const,
@@ -365,6 +471,12 @@ export const MenuPermissions = {
       Create: 'payment_terms:create' as const,
       Edit: 'payment_terms:edit' as const,
       Delete: 'payment_terms:delete' as const,
+    },
+    PaymentMethods: {
+      View: 'payment_methods:view' as const,
+      Create: 'payment_methods:create' as const,
+      Edit: 'payment_methods:edit' as const,
+      Delete: 'payment_methods:delete' as const,
     },
 
     ContractApprovalStatus: {
@@ -397,6 +509,36 @@ export const MenuPermissions = {
       Edit: 'master:group_types:edit' as const,
       Delete: 'master:group_types:delete' as const,
     },
+    GroupLevels: {
+      View: 'group_levels:view' as const,
+      Create: 'group_levels:create' as const,
+      Edit: 'group_levels:edit' as const,
+      Delete: 'group_levels:delete' as const,
+    },
+    GroupCategories: {
+      View: 'group_categories:view' as const,
+      Create: 'group_categories:create' as const,
+      Edit: 'group_categories:edit' as const,
+      Delete: 'group_categories:delete' as const,
+    },
+    ItemGroups: {
+      View: 'item_groups:view' as const,
+      Create: 'item_groups:create' as const,
+      Edit: 'item_groups:edit' as const,
+      Delete: 'item_groups:delete' as const,
+    },
+    ItemTypes: {
+      View: 'item_types:view' as const,
+      Create: 'item_types:create' as const,
+      Edit: 'item_types:edit' as const,
+      Delete: 'item_types:delete' as const,
+    },
+    ItemGrades: {
+      View: 'item_grades:view' as const,
+      Create: 'item_grades:create' as const,
+      Edit: 'item_grades:edit' as const,
+      Delete: 'item_grades:delete' as const,
+    },
     InvoiceTemplates: {
       View: 'master:invoice_templates:view' as const,
       Create: 'master:invoice_templates:create' as const,
@@ -420,6 +562,18 @@ export const MenuPermissions = {
       Create: 'master:payment_types:create' as const,
       Edit: 'master:payment_types:edit' as const,
       Delete: 'master:payment_types:delete' as const,
+    },
+    PriceLists: {
+      View: 'price_lists:view' as const,
+      Create: 'price_lists:create' as const,
+      Edit: 'price_lists:edit' as const,
+      Delete: 'price_lists:delete' as const,
+    },
+    DiscountAgreements: {
+      View: 'discount_agreements:view' as const,
+      Create: 'discount_agreements:create' as const,
+      Edit: 'discount_agreements:edit' as const,
+      Delete: 'discount_agreements:delete' as const,
     },
     PricingMethods: {
       View: 'master:pricing_methods:view' as const,
@@ -483,22 +637,46 @@ export const MenuPermissions = {
       Delete: 'master:shipment_cost_centers:delete' as const,
     },
     ShipmentTypes: {
-      View: 'master:shipment_types:view' as const,
-      Create: 'master:shipment_types:create' as const,
-      Edit: 'master:shipment_types:edit' as const,
-      Delete: 'master:shipment_types:delete' as const,
+      View: 'shipment_types:view' as const,
+      Create: 'shipment_types:create' as const,
+      Edit: 'shipment_types:edit' as const,
+      Delete: 'shipment_types:delete' as const,
+    },
+    ContainerTypes: {
+      View: 'container_types:view' as const,
+      Create: 'container_types:create' as const,
+      Edit: 'container_types:edit' as const,
+      Delete: 'container_types:delete' as const,
+    },
+    Incoterms: {
+      View: 'incoterms:view' as const,
+      Create: 'incoterms:create' as const,
+      Edit: 'incoterms:edit' as const,
+      Delete: 'incoterms:delete' as const,
     },
     ShippingMethods: {
-      View: 'master:shipping_methods:view' as const,
-      Create: 'master:shipping_methods:create' as const,
-      Edit: 'master:shipping_methods:edit' as const,
-      Delete: 'master:shipping_methods:delete' as const,
+      View: 'shipping_methods:view' as const,
+      Create: 'shipping_methods:create' as const,
+      Edit: 'shipping_methods:edit' as const,
+      Delete: 'shipping_methods:delete' as const,
     },
     SupplyTerms: {
-      View: 'master:supply_terms:view' as const,
-      Create: 'master:supply_terms:create' as const,
-      Edit: 'master:supply_terms:edit' as const,
-      Delete: 'master:supply_terms:delete' as const,
+      View: 'supply_terms:view' as const,
+      Create: 'supply_terms:create' as const,
+      Edit: 'supply_terms:edit' as const,
+      Delete: 'supply_terms:delete' as const,
+    },
+    DeliveryTerms: {
+      View: 'delivery_terms:view' as const,
+      Create: 'delivery_terms:create' as const,
+      Edit: 'delivery_terms:edit' as const,
+      Delete: 'delivery_terms:delete' as const,
+    },
+    ContractTypes: {
+      View: 'contract_types:view' as const,
+      Create: 'contract_types:create' as const,
+      Edit: 'contract_types:edit' as const,
+      Delete: 'contract_types:delete' as const,
     },
     TaxExemptions: {
       View: 'master:tax_exemptions:view' as const,
@@ -562,6 +740,12 @@ export const MenuPermissions = {
       Edit: 'reorder_rules:edit' as const,
       Delete: 'reorder_rules:delete' as const,
     },
+    CycleCountPolicies: {
+      View: 'cycle_count_policies:view' as const,
+      Create: 'cycle_count_policies:create' as const,
+      Edit: 'cycle_count_policies:edit' as const,
+      Delete: 'cycle_count_policies:delete' as const,
+    },
     
     // ─────────────────────────────────────────────────────
     // Core Master Data (Existing)
@@ -571,6 +755,12 @@ export const MenuPermissions = {
       Create: 'master:items:create' as const,
       Edit: 'master:items:edit' as const,
       Delete: 'master:items:delete' as const,
+    },
+    ItemBarcodes: {
+      View: 'master:item_barcodes:view' as const,
+      Create: 'master:item_barcodes:create' as const,
+      Edit: 'master:item_barcodes:edit' as const,
+      Delete: 'master:item_barcodes:delete' as const,
     },
     Customers: {
       View: 'master:customers:view' as const,
@@ -613,11 +803,41 @@ export const MenuPermissions = {
       Edit: 'master:warehouses:edit' as const,
       Delete: 'master:warehouses:delete' as const,
     },
+    WarehouseLocations: {
+      View: 'master:warehouse_locations:view' as const,
+      Create: 'master:warehouse_locations:create' as const,
+      Edit: 'master:warehouse_locations:edit' as const,
+      Delete: 'master:warehouse_locations:delete' as const,
+    },
     Units: {
       View: 'master:units:view' as const,
       Create: 'master:units:create' as const,
       Edit: 'master:units:edit' as const,
       Delete: 'master:units:delete' as const,
+    },
+    UnitTypes: {
+      View: 'unit_types:view' as const,
+      Create: 'unit_types:create' as const,
+      Edit: 'unit_types:edit' as const,
+      Delete: 'unit_types:delete' as const,
+    },
+    WarehouseTypes: {
+      View: 'warehouse_types:view' as const,
+      Create: 'warehouse_types:create' as const,
+      Edit: 'warehouse_types:edit' as const,
+      Delete: 'warehouse_types:delete' as const,
+    },
+    StorageLocationTypes: {
+      View: 'storage_location_types:view' as const,
+      Create: 'storage_location_types:create' as const,
+      Edit: 'storage_location_types:edit' as const,
+      Delete: 'storage_location_types:delete' as const,
+    },
+    TrackingPolicies: {
+      View: 'tracking_policies:view' as const,
+      Create: 'tracking_policies:create' as const,
+      Edit: 'tracking_policies:edit' as const,
+      Delete: 'tracking_policies:delete' as const,
     },
     Taxes: {
       View: 'master:taxes:view' as const,
@@ -652,6 +872,12 @@ export const MenuPermissions = {
       Create: 'master:cost_items:create' as const,
       Edit: 'master:cost_items:edit' as const,
       Delete: 'master:cost_items:delete' as const,
+    },
+    CostElementGroups: {
+      View: 'cost_element_groups:view' as const,
+      Create: 'cost_element_groups:create' as const,
+      Edit: 'cost_element_groups:edit' as const,
+      Delete: 'cost_element_groups:delete' as const,
     },
     ProfitCenters: {
       View: 'master:profit_centers:view' as const,
@@ -701,6 +927,12 @@ export const MenuPermissions = {
       Create: 'master:bill_of_lading_types:create' as const,
       Edit: 'master:bill_of_lading_types:edit' as const,
       Delete: 'master:bill_of_lading_types:delete' as const,
+    },
+    ShipmentClassifications: {
+      View: 'master:shipment_classifications:view' as const,
+      Create: 'master:shipment_classifications:create' as const,
+      Edit: 'master:shipment_classifications:edit' as const,
+      Delete: 'master:shipment_classifications:delete' as const,
     },
 
     AssetCategories: {
@@ -815,6 +1047,18 @@ export const MenuPermissions = {
       Create: 'logistics:shipping_lines:create' as const,
       Edit: 'logistics:shipping_lines:edit' as const,
       Delete: 'logistics:shipping_lines:delete' as const,
+    },
+    ShippingCompanies: {
+      View: 'shipping_companies:view' as const,
+      Create: 'shipping_companies:create' as const,
+      Edit: 'shipping_companies:edit' as const,
+      Delete: 'shipping_companies:delete' as const,
+    },
+    FreightAgents: {
+      View: 'freight_agents:view' as const,
+      Create: 'freight_agents:create' as const,
+      Edit: 'freight_agents:edit' as const,
+      Delete: 'freight_agents:delete' as const,
     },
     Ports: {
       View: 'logistics:ports:view' as const,
@@ -1075,6 +1319,35 @@ export const MenuPermissions = {
       View: 'finance:periods:view' as const,
       Manage: 'finance:periods:manage' as const,
     },
+    CashRegisters: {
+      View: 'cash_registers:view' as const,
+      Create: 'cash_registers:create' as const,
+      Edit: 'cash_registers:edit' as const,
+      Delete: 'cash_registers:delete' as const,
+    },
+    ReceiptVouchers: {
+      View: 'receipt_vouchers:view' as const,
+      Create: 'receipt_vouchers:create' as const,
+      Approve: 'receipt_vouchers:approve' as const,
+      Post: 'receipt_vouchers:post' as const,
+    },
+    VatReturns: {
+      View: 'vat_returns:view' as const,
+      Create: 'vat_returns:create' as const,
+      Approve: 'vat_returns:approve' as const,
+      Submit: 'vat_returns:submit' as const,
+    },
+    ZatcaSubmissions: {
+      View: 'zatca:view' as const,
+      Submit: 'zatca:submit' as const,
+    },
+    InventoryTransfers: {
+      View: 'inventory_transfers:view' as const,
+      Create: 'inventory_transfers:create' as const,
+      Approve: 'inventory_transfers:approve' as const,
+      Ship: 'inventory_transfers:ship' as const,
+      Receive: 'inventory_transfers:receive' as const,
+    },
   },
 
   // ═══════════════════════════════════════════════════════════
@@ -1248,12 +1521,6 @@ export const MenuPermissions = {
       Edit: 'permissions:edit' as Permission,
       Delete: 'permissions:delete' as Permission,
     },
-    Languages: {
-      View: 'languages:view' as Permission,
-      Create: 'languages:create' as Permission,
-      Edit: 'languages:edit' as Permission,
-      Delete: 'languages:delete' as Permission,
-    },
     AuditLogs: {
       View: 'audit_logs:view' as Permission,
       Export: 'audit_logs:export' as Permission,
@@ -1281,6 +1548,28 @@ export const MenuPermissions = {
     View: 'password_requests:view' as const,
     Approve: 'password_requests:approve' as const,
     Reject: 'password_requests:reject' as const,
+  },
+
+  // ═══════════════════════════════════════════════════════════
+  // 📋 Account Requests (Platform Sales Funnel)
+  // ═══════════════════════════════════════════════════════════
+  AccountRequests: {
+    View: 'account_requests:view' as const,
+    Manage: 'account_requests:manage' as const,
+    Delete: 'account_requests:delete' as const,
+  },
+
+  // ═══════════════════════════════════════════════════════════
+  // 🏭 Provisioning Engine (Master Data Setup)
+  // ═══════════════════════════════════════════════════════════
+  Provisioning: {
+    View: 'admin:provisioning:view' as const,
+    Execute: 'admin:provisioning:execute' as const,
+    Manage: 'admin:provisioning:manage' as const,
+  },
+  ReferenceData: {
+    View: 'admin:reference_data:view' as const,
+    Manage: 'admin:reference_data:manage' as const,
   },
 } as const;
 
