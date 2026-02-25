@@ -15,6 +15,7 @@ import { authenticate } from '../middleware/auth';
 import { requirePermission } from '../middleware/rbac';
 import { loadCompanyContext, requireCompany } from '../middleware/companyContext';
 import { getPaginationParams, sendPaginated } from '../utils/response';
+import { freezeGuard } from '../middleware/freezeGuard';
 
 const router = Router();
 
@@ -174,6 +175,7 @@ router.post(
   '/',
   requirePermission('accounting:journal:create'),
   requireCompany,
+  freezeGuard('journal_entries'),
   async (req: Request, res: Response) => {
     const client = await pool.connect();
 
@@ -248,12 +250,20 @@ router.post(
       }
 
       // Generate entry number
-      const entryNumber = await client.query(
-        `SELECT generate_document_number($1, 'journal_entry', $2, NULL, NULL, $3::date) as number`,
-        [req.companyId, req.user!.id, entry_date]
-      );
-
-      const number = entryNumber.rows[0]?.number || `JE-${Date.now()}`;
+      let number: string;
+      try {
+        await client.query('SAVEPOINT gen_number');
+        const entryNumber = await client.query(
+          `SELECT generate_document_number($1, 'journal_entry', $2, NULL, NULL, $3::date) as number`,
+          [req.companyId, req.user!.id, entry_date]
+        );
+        number = entryNumber.rows[0]?.number || `JE-${Date.now()}`;
+        await client.query('RELEASE SAVEPOINT gen_number');
+      } catch (numErr: any) {
+        // No active number series — rollback savepoint and use fallback
+        await client.query('ROLLBACK TO SAVEPOINT gen_number');
+        number = `JE-${Date.now()}`;
+      }
 
       // Get fiscal year and period
       const fiscalInfo = await client.query(
@@ -267,17 +277,19 @@ router.post(
       );
 
       // Insert header
+      const tenantId = req.companyContext?.tenant_id || req.companyContext?.tenantId;
       const header = await client.query(
         `INSERT INTO journal_entries (
-          company_id, entry_number, entry_date,
+          tenant_id, company_id, entry_number, entry_date,
           fiscal_year_id, period_id,
           entry_type, currency_id, exchange_rate,
           total_debit, total_credit,
           description, narration, reference,
           status, created_by, created_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'draft', $14, NOW())
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, 'draft', $15, NOW())
         RETURNING *`,
         [
+          tenantId,
           req.companyId, number, entry_date,
           fiscalInfo.rows[0]?.fiscal_year_id, fiscalInfo.rows[0]?.period_id,
           entry_type, currency_id || req.companyContext?.currency_id, exchange_rate || 1,
@@ -298,16 +310,20 @@ router.post(
         const debitFc = line.fc_debit_amount ?? line.debit_fc ?? line.debit_fc_amount ?? 0;
         const creditFc = line.fc_credit_amount ?? line.credit_fc ?? line.credit_fc_amount ?? 0;
 
+        // Lookup account code
+        const acctRes = await client.query('SELECT code FROM accounts WHERE id = $1', [line.account_id]);
+        const accountCode = acctRes.rows[0]?.code || null;
+
         await client.query(
           `INSERT INTO journal_lines (
             journal_entry_id, line_number,
-            account_id, cost_center_id, project_id,
+            account_id, account_code, cost_center_id, project_id,
             debit_amount, credit_amount, fc_debit_amount, fc_credit_amount,
             description
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
           [
             journalId, i + 1,
-            line.account_id, line.cost_center_id || null, line.project_id || null,
+            line.account_id, accountCode, line.cost_center_id || null, line.project_id || null,
             debit || 0, credit || 0,
             debitFc || 0, creditFc || 0,
             line.description || null

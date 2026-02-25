@@ -1,239 +1,152 @@
 /**
- * 🗺️ Regions Management
- * المناطق
+ * 🗺️ REGIONS PAGE (Enterprise Edition)
+ * =====================================
+ * 
+ * Master data page for managing regions, provinces, states, 
+ * emirates, and governorates.
+ * Depends on: Countries ✅
+ * 
+ * Features:
+ * - Full CRUD with all enterprise fields
+ * - Country-linked cascading data
+ * - Hierarchical support (parent_region_id)
+ * - Stats bar (total, active, free zones, countries, top-level)
+ * - Filters: country, type, status, free zones
+ * - Detail panel with classification badges and tax info
+ * - Bulk operations (status change, bulk delete)
+ * - Export Excel/CSV
+ * 
+ * Uses EnterpriseMasterPage with regionsConfig for
+ * SAP/Oracle-level governance, validation, and UX.
  */
 
-import { useState } from 'react';
-import Head from 'next/head';
-import { MapIcon } from '@heroicons/react/24/outline';
-import MainLayout from '../../components/layout/MainLayout';
-import MasterDataTable from '../../components/common/MasterDataTable';
-import { useMasterData } from '../../hooks/useMasterData';
-import { usePermissions } from '../../hooks/usePermissions';
-import Modal from '../../components/ui/Modal';
-import Input from '../../components/ui/Input';
-import Button from '../../components/ui/Button';
-import { useToast } from '../../contexts/ToastContext';
+import React, { useEffect, useState, useCallback } from 'react';
+import { withPermission } from '../../utils/withPermission';
+import { MenuPermissions } from '@/config/menu.permissions';
+import EnterpriseMasterPage from '@/components/enterprise/EnterpriseMasterPage';
+import { regionsConfig, type Region } from '@/config/pages/master/regions.config';
+import { companyStore } from '@/lib/companyStore';
 
-interface Region {
-  id: number;
-  region_code: string;
-  region_name_en: string;
-  region_name_ar: string;
-  country_id: number;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-}
+// Region type labels
+const regionTypeLabels: Record<string, string> = {
+  region: 'Region (منطقة)',
+  province: 'Province (محافظة)',
+  state: 'State (ولاية)',
+  emirate: 'Emirate (إمارة)',
+  governorate: 'Governorate (محافظة)',
+  administrative: 'Administrative (إداري)',
+  free_zone: 'Free Zone (منطقة حرة)',
+};
 
-export default function RegionsPage() {
-  const { showToast } = useToast();
-  const { can } = usePermissions();
-  
-  const {
-    data,
-    loading,
-    error,
-    create,
-    update,
-    remove,
-    fetchList
-  } = useMasterData<Region>({ endpoint: '/api/regions' });
+function RegionsPage() {
+  const [countriesRef, setCountriesRef] = useState<Array<{ value: any; label: string }>>([]);
 
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingItem, setEditingItem] = useState<Region | null>(null);
-  const [formData, setFormData] = useState({
-    region_code: '',
-    region_name_en: '',
-    region_name_ar: '',
-    country_id: 1,
-    is_active: true
-  });
-
-  const handleAdd = () => {
-    setEditingItem(null);
-    setFormData({
-      region_code: '',
-      region_name_en: '',
-      region_name_ar: '',
-      country_id: 1,
-      is_active: true
-    });
-    setIsModalOpen(true);
-  };
-
-  const handleEdit = (id: number) => {
-    const item = data.find(d => d.id === id);
-    if (item) {
-      setEditingItem(item);
-      setFormData({
-        region_code: item.region_code,
-        region_name_en: item.region_name_en,
-        region_name_ar: item.region_name_ar,
-        country_id: item.country_id,
-        is_active: item.is_active
-      });
-      setIsModalOpen(true);
-    }
-  };
-
-  const handleSubmit = async () => {
+  // Load reference data for country select
+  const loadCountries = useCallback(async () => {
     try {
-      if (editingItem) {
-        await update(editingItem.id, formData);
-        showToast('Region updated successfully', 'success');
-      } else {
-        await create(formData);
-        showToast('Region created successfully', 'success');
+      const token = localStorage.getItem('accessToken');
+      const apiUrl = (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/$/, '').replace(/\/api$/, '');
+      const companyId = companyStore.getActiveCompanyId();
+      
+      const res = await fetch(`${apiUrl}/api/master/countries?limit=500&status=active`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          ...(companyId ? { 'X-Company-Id': String(companyId) } : {}),
+        },
+      });
+      
+      if (res.ok) {
+        const json = await res.json();
+        const items = json.data || json || [];
+        setCountriesRef(
+          items.map((c: any) => ({
+            value: c.id,
+            label: `${c.flag_emoji || ''} ${c.name}${c.code_2 ? ` (${c.code_2})` : ''}`.trim(),
+          }))
+        );
       }
-      setIsModalOpen(false);
-      fetchList();
-    } catch (error) {
-      showToast('Operation failed', 'error');
+    } catch (err) {
+      console.error('Failed to load countries reference:', err);
     }
-  };
+  }, []);
 
-  const handleDelete = async (id: number) => {
-    if (window.confirm('Are you sure you want to delete this region?')) {
-      try {
-        await remove(id);
-        showToast('Region deleted successfully', 'success');
-        fetchList();
-      } catch (error) {
-        showToast('Delete failed', 'error');
-      }
-    }
-  };
-
-  const columns = [
-    {
-      key: 'region_code',
-      label: 'Code / الرمز',
-      render: (item: Region) => item?.region_code || '-'
-    },
-    {
-      key: 'region_name_en',
-      label: 'Name (EN) / الاسم',
-      render: (item: Region) => item?.region_name_en || '-'
-    },
-    {
-      key: 'region_name_ar',
-      label: 'Name (AR) / الاسم بالعربية',
-      render: (item: Region) => item?.region_name_ar || '-'
-    },
-    {
-      key: 'is_active',
-      label: 'Status / الحالة',
-      render: (item: Region) => (
-        item?.is_active ?
-          <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs">Active</span> :
-          <span className="px-2 py-1 bg-gray-100 text-gray-800 rounded-full text-xs">Inactive</span>
-      )
-    }
-  ];
+  useEffect(() => {
+    loadCountries();
+  }, [loadCountries]);
 
   return (
-    <MainLayout>
-      <Head>
-        <title>Regions | SLMS</title>
-      </Head>
+    <EnterpriseMasterPage<Region>
+      config={regionsConfig}
+      referenceData={{
+        country_id: countriesRef,
+      }}
+      buildDetailSections={(record) => {
+        const typeLabel = regionTypeLabels[record.region_type] || record.region_type;
 
-      {/* Header Section */}
-      <div className="mb-6">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <MapIcon className="w-8 h-8 text-blue-600 dark:text-blue-400" />
-            <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">
-                Regions
-              </h1>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                المناطق
-              </p>
-            </div>
-          </div>
-          <Button
-            onClick={handleAdd}
-            variant="primary"
-            disabled={loading}
-          >
-            + Add Region / إضافة منطقة
-          </Button>
-        </div>
-      </div>
-
-      {/* Error Alert */}
-      {error && (
-        <div className="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900 rounded-lg text-red-800 dark:text-red-300">
-          {error}
-        </div>
-      )}
-
-      {/* Table Component */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
-        <MasterDataTable
-          data={data}
-          columns={columns}
-          loading={loading}
-          error={error}
-          onEdit={handleEdit}
-          onDelete={handleDelete}
-          canEdit={can('regions:edit')}
-          canDelete={can('regions:delete')}
-          emptyMessage="No regions yet. Click 'Add Region' to create one. / لا توجد مناطق بعد"
-        />
-      </div>
-
-      <Modal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        title={editingItem ? 'Edit Region' : 'Add Region'}
-      >
-        <div className="space-y-4">
-          <Input
-            label="Region Code / رمز المنطقة"
-            value={formData.region_code}
-            onChange={(e) => setFormData({ ...formData, region_code: e.target.value })}
-            required
-          />
-          <Input
-            label="Name (English) / الاسم بالإنجليزية"
-            value={formData.region_name_en}
-            onChange={(e) => setFormData({ ...formData, region_name_en: e.target.value })}
-            required
-          />
-          <Input
-            label="Name (Arabic) / الاسم بالعربية"
-            value={formData.region_name_ar}
-            onChange={(e) => setFormData({ ...formData, region_name_ar: e.target.value })}
-            required
-          />
-          <Input
-            label="Country ID / معرف الدولة"
-            type="number"
-            value={formData.country_id}
-            onChange={(e) => setFormData({ ...formData, country_id: parseInt(e.target.value) })}
-            required
-          />
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={formData.is_active}
-              onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
-              className="rounded border-gray-300"
-            />
-            <span className="text-sm text-gray-700 dark:text-gray-300">Active / نشط</span>
-          </label>
-          <div className="flex gap-3 pt-4">
-            <Button onClick={handleSubmit} variant="primary" className="flex-1">
-              {editingItem ? 'Update / تحديث' : 'Create / إنشاء'}
-            </Button>
-            <Button onClick={() => setIsModalOpen(false)} variant="secondary" className="flex-1">
-              Cancel / إلغاء
-            </Button>
-          </div>
-        </div>
-      </Modal>
-    </MainLayout>
+        return [
+          {
+            title: 'Basic Information / البيانات الأساسية',
+            fields: [
+              { label: 'Code (ISO 3166-2)', value: record.code || '—' },
+              { label: 'Name (English)', value: record.name_en || record.name },
+              { label: 'Name (Arabic)', value: record.name_ar || '—' },
+              { label: 'Country', value: `${record.country_flag || ''} ${record.country_name || '—'}`.trim() },
+              { label: 'Region Type', value: typeLabel, type: 'badge' as const },
+            ],
+          },
+          {
+            title: 'Administrative Details / التفاصيل الإدارية',
+            fields: [
+              { label: 'Capital / Center', value: record.capital_city || '—' },
+              { label: 'Parent Region', value: record.parent_name || '— (Top-level)' },
+              ...(record.parent_name_ar ? [{ label: 'Parent (Arabic)', value: record.parent_name_ar }] : []),
+              { label: 'Sort Order', value: record.sort_order?.toString() || '—' },
+            ],
+          },
+          {
+            title: 'Tax & Trade Classification / التصنيف الضريبي والتجاري',
+            fields: [
+              { label: 'Free Trade Zone', value: record.is_free_zone ? '🏭 Yes — Free Zone' : 'No', type: 'badge' as const },
+              { label: 'Tax Zone Override', value: record.tax_zone_override || '— (Inherits country tax zone)' },
+              ...(record.is_free_zone ? [{
+                label: '⚠️ Tax Notice',
+                value: 'This region is flagged as a Free Trade Zone. Different customs and tax rules may apply.',
+              }] : []),
+            ],
+          },
+          {
+            title: 'Status & Audit / الحالة والتدقيق',
+            fields: [
+              { label: 'Status', value: record.status || (record.is_active ? 'active' : 'inactive'), type: 'badge' as const },
+              { label: 'Created', value: record.created_at, type: 'date' as const },
+              { label: 'Updated', value: record.updated_at, type: 'date' as const },
+            ],
+          },
+        ];
+      }}
+      buildRelations={(record) => [
+        {
+          type: 'cities',
+          label: 'Cities in this region',
+          count: 0,
+          href: `/master/cities?state_province=${encodeURIComponent(record.name_en || record.name)}`,
+        },
+        {
+          type: 'sub-regions',
+          label: 'Sub-regions',
+          count: record.child_regions_count || 0,
+          href: `/master/regions?parent_region_id=${record.id}`,
+        },
+        {
+          type: 'branches',
+          label: 'Branches in this region',
+          count: 0,
+          href: `/master/branches?region_id=${record.id}`,
+        },
+      ]}
+    />
   );
 }
+
+export default withPermission(MenuPermissions.MasterData.Regions.View, RegionsPage);

@@ -6,7 +6,8 @@
  * 
  * الغرض:
  * ✅ منع الوصول للصفحة أصلاً بدون permission
- * ✅ إعادة توجيه تلقائية للـ 403
+ * ✅ إعادة توجيه للـ login إذا لم يكن مسجل دخول
+ * ✅ إعادة توجيه للـ 403 إذا كان مسجل دخول بدون صلاحية
  * ✅ Loading state أثناء التحقق
  * 
  * @example
@@ -21,6 +22,7 @@
 
 import { useEffect, ComponentType } from 'react';
 import { useRouter } from 'next/router';
+import { useAuth } from '../hooks/useAuth';
 import { usePermissions } from '../hooks/usePermissions';
 import { useTranslation } from '../hooks/useTranslation';
 import { Permission } from '../types/permissions';
@@ -52,28 +54,44 @@ export function withPermission<P extends object>(
 ): ComponentType<P> {
   const PermissionGuard = (props: P) => {
     const router = useRouter();
+    const { user, loading: authLoading, isAuthenticated, profileReady } = useAuth();
     const { can, loading: permissionsLoading } = usePermissions();
     const { t } = useTranslation();
 
+    // Wait for both auth loading AND the fresh profile from API
+    // This prevents redirects based on stale cached user data
+    const isLoading = authLoading || permissionsLoading || !profileReady;
     const hasPermission = can(permission);
 
     useEffect(() => {
-      // انتظر تحميل الصلاحيات
-      if (permissionsLoading) return;
+      // انتظر تحميل البيانات
+      if (isLoading) return;
+
+      // إذا لم يكن مسجل دخول، اذهب لصفحة تسجيل الدخول
+      if (!isAuthenticated || !user) {
+        console.warn(`[Route Guard] Not authenticated - redirecting to login from ${router.pathname}`);
+        router.replace('/');
+        return;
+      }
 
       // إذا لم يكن لديه صلاحية، اذهب لـ 403
       if (!hasPermission) {
         console.warn(`[Route Guard] Access denied to ${router.pathname} - Missing permission: ${permission}`);
         router.replace('/403');
       }
-    }, [hasPermission, permissionsLoading, router]);
+    }, [isAuthenticated, user, hasPermission, isLoading, router]);
 
     // Loading state
-    if (permissionsLoading) {
+    if (isLoading) {
       return <PermissionCheckingScreen />;
     }
 
-    // No permission - show nothing (سيتم التوجيه لـ 403)
+    // Not authenticated - show loading (سيتم التوجيه لـ login)
+    if (!isAuthenticated || !user) {
+      return <PermissionCheckingScreen />;
+    }
+
+    // No permission - show loading (سيتم التوجيه لـ 403)
     if (!hasPermission) {
       return <PermissionCheckingScreen />;
     }
@@ -104,20 +122,33 @@ export function withAnyPermission<P extends object>(
 ): ComponentType<P> {
   const PermissionGuard = (props: P) => {
     const router = useRouter();
+    const { user, loading: authLoading, isAuthenticated, profileReady } = useAuth();
     const { canAny, loading: permissionsLoading } = usePermissions();
 
+    const isLoading = authLoading || permissionsLoading || !profileReady;
     const hasAnyPermission = canAny(permissions);
 
     useEffect(() => {
-      if (permissionsLoading) return;
+      if (isLoading) return;
+
+      // إذا لم يكن مسجل دخول، اذهب لصفحة تسجيل الدخول
+      if (!isAuthenticated || !user) {
+        console.warn(`[Route Guard] Not authenticated - redirecting to login from ${router.pathname}`);
+        router.replace('/');
+        return;
+      }
 
       if (!hasAnyPermission) {
         console.warn(`[Route Guard] Access denied to ${router.pathname} - Missing any of: ${permissions.join(', ')}`);
         router.replace('/403');
       }
-    }, [hasAnyPermission, permissionsLoading, router]);
+    }, [isAuthenticated, user, hasAnyPermission, isLoading, router]);
 
-    if (permissionsLoading) {
+    if (isLoading) {
+      return <PermissionCheckingScreen />;
+    }
+
+    if (!isAuthenticated || !user) {
       return <PermissionCheckingScreen />;
     }
 
@@ -149,20 +180,33 @@ export function withAllPermissions<P extends object>(
 ): ComponentType<P> {
   const PermissionGuard = (props: P) => {
     const router = useRouter();
+    const { user, loading: authLoading, isAuthenticated, profileReady } = useAuth();
     const { canAll, loading: permissionsLoading } = usePermissions();
 
+    const isLoading = authLoading || permissionsLoading || !profileReady;
     const hasAllPermissions = canAll(permissions);
 
     useEffect(() => {
-      if (permissionsLoading) return;
+      if (isLoading) return;
+
+      // إذا لم يكن مسجل دخول، اذهب لصفحة تسجيل الدخول
+      if (!isAuthenticated || !user) {
+        console.warn(`[Route Guard] Not authenticated - redirecting to login from ${router.pathname}`);
+        router.replace('/');
+        return;
+      }
 
       if (!hasAllPermissions) {
         console.warn(`[Route Guard] Access denied to ${router.pathname} - Missing all of: ${permissions.join(', ')}`);
         router.replace('/403');
       }
-    }, [hasAllPermissions, permissionsLoading, router]);
+    }, [isAuthenticated, user, hasAllPermissions, isLoading, router]);
 
-    if (permissionsLoading) {
+    if (isLoading) {
+      return <PermissionCheckingScreen />;
+    }
+
+    if (!isAuthenticated || !user) {
       return <PermissionCheckingScreen />;
     }
 

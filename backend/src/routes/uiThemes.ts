@@ -2,9 +2,11 @@ import { Router, Request, Response } from 'express';
 import pool from '../db';
 import { authenticate } from '../middleware/auth';
 import { requirePermission } from '../middleware/rbac';
+import { loadCompanyContext } from '../middleware/companyContext';
 import { z } from 'zod';
 
 const router = Router();
+router.use(authenticate, loadCompanyContext);
 
 const uiThemeSchema = z.object({
   company_id: z.number().int().positive(),
@@ -112,10 +114,15 @@ router.get('/:id', authenticate, requirePermission('ui_themes:view'), async (req
 router.post('/', authenticate, requirePermission('ui_themes:create'), async (req: Request, res: Response) => {
   try {
     const validatedData = uiThemeSchema.parse(req.body);
-    const { companyId, id: userId } = req.user!;
+    const { companyId, id: userId, roles } = req.user!;
+
+    // Defense-in-depth: only super_admin can target other companies
+    const targetCompanyId = roles.includes('super_admin') && validatedData.company_id
+      ? validatedData.company_id
+      : companyId || null;
 
     // Verify company access
-    if (!req.user!.roles.includes('super_admin') && validatedData.company_id !== companyId) {
+    if (!roles.includes('super_admin') && validatedData.company_id && validatedData.company_id !== companyId) {
       return res.status(403).json({
         success: false,
         error: { message: 'Cannot create theme for another company' },
@@ -125,7 +132,7 @@ router.post('/', authenticate, requirePermission('ui_themes:create'), async (req
     // Deactivate other themes for this company
     await pool.query(
       `UPDATE ui_themes SET is_active = FALSE WHERE company_id = $1`,
-      [validatedData.company_id]
+      [targetCompanyId]
     );
 
     const result = await pool.query(
@@ -136,7 +143,7 @@ router.post('/', authenticate, requirePermission('ui_themes:create'), async (req
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
       RETURNING *`,
       [
-        validatedData.company_id,
+        targetCompanyId,
         validatedData.theme_name,
         validatedData.primary_color,
         validatedData.secondary_color,

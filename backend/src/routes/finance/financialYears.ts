@@ -130,9 +130,11 @@ router.post('/', requirePermission('finance:financial_year:create'), auditLog, a
       );
     }
 
+    const tenantId = (req as any).companyContext?.tenant_id || null;
+
     const fyResult = await client.query(
-      `INSERT INTO fiscal_years (company_id, year, name, start_date, end_date, is_closed, is_default, created_by)
-       VALUES ($1, $2, $3, $4::date, $5::date, FALSE, $6, $7)
+      `INSERT INTO fiscal_years (tenant_id, company_id, year, name, start_date, end_date, is_closed, is_default, created_by)
+       VALUES ($1, $2, $3, $4, $5::date, $6::date, FALSE, $7, $8)
        RETURNING id,
                  name AS year_name,
                  start_date,
@@ -142,6 +144,7 @@ router.post('/', requirePermission('finance:financial_year:create'), auditLog, a
                  created_at,
                  updated_at`,
       [
+        tenantId,
         companyId,
         Number(input.start_date.slice(0, 4)),
         input.year_name,
@@ -190,8 +193,11 @@ router.post('/', requirePermission('finance:financial_year:create'), auditLog, a
     };
 
     return res.status(201).json({ success: true, data: fyResult.rows[0] });
-  } catch {
+  } catch (err: any) {
     await client.query('ROLLBACK');
+    if (err?.code === '23505') {
+      return res.status(409).json({ error: 'Financial year already exists for this period', data: null });
+    }
     return res.status(500).json({ error: 'Failed to create financial year' });
   } finally {
     client.release();

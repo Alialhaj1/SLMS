@@ -122,7 +122,7 @@ interface ContractStatus {
   name_ar?: string;
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL || '') + '/api';
 
 function VendorContractsPage() {
   const { hasPermission } = usePermissions();
@@ -191,9 +191,9 @@ function VendorContractsPage() {
     try {
       const headers = getHeaders();
       const [vendorsRes, typesRes, statusesRes] = await Promise.all([
-        fetch(`${API_BASE}/api/procurement/vendors`, { headers }),
-        fetch(`${API_BASE}/api/procurement/contracts/types`, { headers }),
-        fetch(`${API_BASE}/api/procurement/contracts/statuses`, { headers }),
+        fetch(`${API_BASE}/procurement/vendors`, { headers }),
+        fetch(`${API_BASE}/procurement/contracts/types`, { headers }),
+        fetch(`${API_BASE}/procurement/contracts/statuses`, { headers }),
       ]);
 
       if (vendorsRes.ok) {
@@ -225,7 +225,7 @@ function VendorContractsPage() {
       if (statusFilter) params.append('status_id', statusFilter);
       if (typeFilter) params.append('type_id', typeFilter);
 
-      const res = await fetch(`${API_BASE}/api/procurement/contracts?${params}`, {
+      const res = await fetch(`${API_BASE}/procurement/contracts?${params}`, {
         headers: getHeaders(),
       });
 
@@ -285,8 +285,8 @@ function VendorContractsPage() {
       };
 
       const url = editingContract 
-        ? `${API_BASE}/api/procurement/contracts/${editingContract.id}`
-        : `${API_BASE}/api/procurement/contracts`;
+        ? `${API_BASE}/procurement/contracts/${editingContract.id}`
+        : `${API_BASE}/procurement/contracts`;
       
       const res = await fetch(url, {
         method: editingContract ? 'PUT' : 'POST',
@@ -321,7 +321,7 @@ function VendorContractsPage() {
 
     setApproving(true);
     try {
-      const res = await fetch(`${API_BASE}/api/procurement/contracts/${contractToApprove.id}/approve`, {
+      const res = await fetch(`${API_BASE}/procurement/contracts/${contractToApprove.id}/approve`, {
         method: 'PUT',
         headers: getHeaders(),
       });
@@ -348,7 +348,7 @@ function VendorContractsPage() {
 
     setDeleting(true);
     try {
-      const res = await fetch(`${API_BASE}/api/procurement/contracts/${contractToDelete.id}`, {
+      const res = await fetch(`${API_BASE}/procurement/contracts/${contractToDelete.id}`, {
         method: 'DELETE',
         headers: getHeaders(),
       });

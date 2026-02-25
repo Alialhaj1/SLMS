@@ -21,6 +21,7 @@ import {
   BuildingStorefrontIcon,
   UsersIcon,
   UserGroupIcon,
+  UserPlusIcon,
   ShieldCheckIcon,
   DocumentTextIcon,
   Cog6ToothIcon,
@@ -96,9 +97,11 @@ import {
   LinkIcon,
   ArrowUpOnSquareIcon,
   SignalIcon,
+  TrashIcon,
 } from '@heroicons/react/24/outline';
 import { useTranslation } from './useTranslation';
 import { usePermissions } from './usePermissions';
+import { useAuth } from './useAuth';
 import { useLocale } from '../contexts/LocaleContext';
 import { MENU_REGISTRY, MenuItemConfig, BadgeType } from '../config/menu.registry';
 import { useBadgeCounts } from './useBadgeCounts';
@@ -114,6 +117,7 @@ const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   BuildingStorefrontIcon,
   UsersIcon,
   UserGroupIcon,
+  UserPlusIcon,
   ShieldCheckIcon,
   DocumentTextIcon,
   Cog6ToothIcon,
@@ -189,6 +193,7 @@ const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   LinkIcon,
   ArrowUpOnSquareIcon,
   SignalIcon,
+  TrashIcon,
 };
 
 /**
@@ -208,24 +213,48 @@ export interface ProcessedMenuItem {
 }
 
 /**
+ * Context for module-based filtering (tenant module access control)
+ */
+interface ModuleFilterContext {
+  /** Whether the user is a platform user (not a tenant user) */
+  isPlatformUser: boolean;
+  /** List of module codes enabled for this tenant (null = all modules available) */
+  enabledModules: string[] | null;
+}
+
+/**
  * بناء القائمة من الـ Registry
  */
 function buildMenu(
   items: MenuItemConfig[],
   t: (key: string) => string,
   hasPermission: (permission: string) => boolean,
-  getBadgeCount: (badge: BadgeType | undefined) => number | undefined
+  getBadgeCount: (badge: BadgeType | undefined) => number | undefined,
+  moduleCtx: ModuleFilterContext
 ): ProcessedMenuItem[] {
   return items
     .map((item) => {
       const Icon = ICON_MAP[item.icon] || HomeIcon;
+
+      // ── Module-based filtering ──
+      // 1. platformOnly items: only visible to platform users
+      if (item.platformOnly && !moduleCtx.isPlatformUser) return null;
+
+      // 1b. tenantOnly items: only visible to tenant users
+      if (item.tenantOnly && moduleCtx.isPlatformUser) return null;
+
+      // 2. Module-tagged items: only visible if tenant has this module enabled
+      //    Platform users see everything. Tenant users only see enabled modules.
+      if (item.module && !moduleCtx.isPlatformUser && moduleCtx.enabledModules !== null) {
+        if (!moduleCtx.enabledModules.includes(item.module)) return null;
+      }
 
       // IMPORTANT:
       // Build children first so we can keep parent sections visible
       // if at least one child is permitted (even when parent permission is missing).
       const processedChildren =
         item.children && item.children.length > 0
-          ? buildMenu(item.children, t, hasPermission, getBadgeCount)
+          ? buildMenu(item.children, t, hasPermission, getBadgeCount, moduleCtx)
           : undefined;
 
       let allowedSelf = true;
@@ -270,6 +299,7 @@ export function useMenu() {
   const { t } = useTranslation();
   const { locale } = useLocale();
   const { hasPermission, loading: permissionsLoading } = usePermissions();
+  const { user } = useAuth();
   const { 
     getBadgeCount, 
     counts: badgeCounts,
@@ -277,12 +307,20 @@ export function useMenu() {
     isLoading: badgesLoading,
   } = useBadgeCounts();
 
+  // Module filter context: determines which modules the user can see
+  const moduleCtx = useMemo<ModuleFilterContext>(() => {
+    if (!user) return { isPlatformUser: true, enabledModules: null };
+    const isPlatformUser = !user.tenant_id;
+    const enabledModules = Array.isArray(user.enabled_modules) ? user.enabled_modules : null;
+    return { isPlatformUser, enabledModules };
+  }, [user]);
+
   // بناء القائمة مع إعادة البناء عند تغيير اللغة أو الصلاحيات أو الـ Badges
   const menu = useMemo(() => {
     if (permissionsLoading) return [];
     
-    return buildMenu(MENU_REGISTRY, t, hasPermission, getBadgeCount);
-  }, [locale, t, hasPermission, permissionsLoading, badgeCounts, getBadgeCount]);
+    return buildMenu(MENU_REGISTRY, t, hasPermission, getBadgeCount, moduleCtx);
+  }, [locale, t, hasPermission, permissionsLoading, badgeCounts, getBadgeCount, moduleCtx]);
 
   return {
     menu,

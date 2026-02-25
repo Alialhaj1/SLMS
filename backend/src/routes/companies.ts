@@ -5,6 +5,9 @@ import { authenticate } from '../middleware/auth';
 import { requirePermission } from '../middleware/rbac';
 import { auditLog, captureBeforeState } from '../middleware/auditLog';
 import { getPaginationParams, sendPaginated } from '../utils/response';
+import { buildTenantFilter, getIsolatedTenantId, getInsertTenantId } from '../middleware/tenantIsolation';
+import { companyScopeGuard, buildCompanyScopeFilter, getRequestCompanyScope } from '../middleware/companyScopeGuard';
+import { setupCompanyDefaults } from '../services/companySetup.service';
 
 const router = Router();
 
@@ -50,10 +53,11 @@ router.get(
   '/',
   authenticate,
   requirePermission('companies:view'),
+  companyScopeGuard,
   auditLog,
   async (req: AuthRequest, res: Response) => {
     try {
-      const { search, is_active, include_deleted } = req.query;
+      const { search, is_active, include_deleted, scope } = req.query;
       const { page, limit, offset } = getPaginationParams(req.query);
 
       let query = `
@@ -69,6 +73,19 @@ router.get(
 
       const params: any[] = [];
       let paramIndex = 1;
+
+      // TENANT ISOLATION: Filter companies by tenant_id
+      const tenantFilter = buildTenantFilter(req as any, 'c');
+      if (tenantFilter) {
+        query += tenantFilter;
+      }
+
+      // COMPANY SCOPE: Filter by user's assigned companies
+      // When scope=assigned (or for all tenant users by default), only show assigned companies
+      const companyScope = buildCompanyScopeFilter(req as any, 'c', 'id');
+      if (companyScope) {
+        query += companyScope;
+      }
 
       // Exclude soft-deleted by default
       if (include_deleted !== 'true') {
@@ -98,6 +115,16 @@ router.get(
       
       const countParams: any[] = [];
       let countParamIndex = 1;
+
+      // TENANT ISOLATION: Apply same tenant filter to count
+      if (tenantFilter) {
+        countQuery += tenantFilter;
+      }
+
+      // COMPANY SCOPE: Apply same company scope filter to count
+      if (companyScope) {
+        countQuery += companyScope;
+      }
 
       if (include_deleted !== 'true') {
         countQuery += ` AND c.deleted_at IS NULL`;
@@ -144,6 +171,17 @@ router.get(
     try {
       const { id } = req.params;
 
+      // SECURITY: Validate ID is a safe integer
+      const numericId = parseInt(id, 10);
+      if (isNaN(numericId) || numericId <= 0) {
+        return res.status(400).json({ error: 'Invalid company ID' });
+      }
+
+      // TENANT ISOLATION: Include tenant filter on single record fetch
+      const tenantFilter = buildTenantFilter(req as any, 'c');
+      // COMPANY SCOPE: Include company scope filter
+      const companyScope = buildCompanyScopeFilter(req as any, 'c', 'id');
+
       const result = await pool.query(
         `SELECT c.*, 
                 u1.full_name as created_by_name,
@@ -151,8 +189,8 @@ router.get(
          FROM companies c
          LEFT JOIN users u1 ON c.created_by = u1.id
          LEFT JOIN users u2 ON c.updated_by = u2.id
-         WHERE c.id = $1 AND c.deleted_at IS NULL`,
-        [id]
+         WHERE c.id = $1 AND c.deleted_at IS NULL${tenantFilter || ''}${companyScope || ''}`,
+        [numericId]
       );
 
       if (result.rows.length === 0) {
@@ -197,13 +235,22 @@ router.post(
       );
       const isFirstCompany = parseInt(companyCount.rows[0].count) === 0;
 
-      // Insert company
+      // TENANT ISOLATION: Get tenant_id for new company
+      const tenantId = getInsertTenantId(req as any);
+
+      // Check for duplicate code within the same tenant
+      const existingCheck = tenantId 
+        ? await pool.query('SELECT id FROM companies WHERE code = $1 AND tenant_id = $2 AND deleted_at IS NULL', [validatedData.code, tenantId])
+        : existingCompany;
+      // (existingCompany already checked above without tenant scope)
+
+      // Insert company with tenant_id
       const result = await pool.query(
         `INSERT INTO companies (
           code, name, name_ar, legal_name, tax_number, registration_number,
           country, city, address, phone, email, website, currency, is_active,
-          is_default, created_by, created_at, updated_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, NOW(), NOW())
+          is_default, created_by, tenant_id, created_at, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, NOW(), NOW())
         RETURNING *`,
         [
           validatedData.code,
@@ -222,10 +269,30 @@ router.post(
           validatedData.is_active,
           isFirstCompany, // First company is default
           req.user!.id,
+          tenantId || null,
         ]
       );
 
       res.status(201).json(result.rows[0]);
+
+      // Auto-setup company defaults (Chart of Accounts, Fiscal Year, Tax, etc.)
+      // Fire-and-forget - don't block the response
+      const newCompanyId = result.rows[0].id;
+      setupCompanyDefaults(
+        newCompanyId,
+        tenantId || null,
+        req.user!.id,
+        validatedData.currency || 'SAR',
+        validatedData.name
+      ).then(setupResult => {
+        if (setupResult.success) {
+          console.log(`✅ Auto-setup completed for company ${newCompanyId}: ${setupResult.accounts_created} accounts created`);
+        } else {
+          console.error(`⚠️ Auto-setup partial failure for company ${newCompanyId}:`, setupResult.errors);
+        }
+      }).catch(err => {
+        console.error(`❌ Auto-setup error for company ${newCompanyId}:`, err);
+      });
     } catch (error: any) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ 
@@ -252,16 +319,26 @@ router.put(
     try {
       const { id } = req.params;
 
+      // SECURITY: Validate ID is a safe integer
+      const numericId = parseInt(id, 10);
+      if (isNaN(numericId) || numericId <= 0) {
+        return res.status(400).json({ error: 'Invalid company ID' });
+      }
+
       // Capture before state for audit
-      await captureBeforeState(req as any, 'companies', parseInt(id));
+      await captureBeforeState(req as any, 'companies', numericId);
 
       // Validate input
       const validatedData = updateCompanySchema.parse(req.body);
 
-      // Check if company exists
+      // TENANT ISOLATION: Verify company belongs to user's tenant
+      const tenantFilter = buildTenantFilter(req as any, 'c');
+      const companyScope = buildCompanyScopeFilter(req as any, 'c', 'id');
+
+      // Check if company exists AND belongs to user's tenant
       const existingCompany = await pool.query(
-        'SELECT * FROM companies WHERE id = $1 AND deleted_at IS NULL',
-        [id]
+        `SELECT c.* FROM companies c WHERE c.id = $1 AND c.deleted_at IS NULL${tenantFilter || ''}${companyScope || ''}`,
+        [numericId]
       );
 
       if (existingCompany.rows.length === 0) {
@@ -272,7 +349,7 @@ router.put(
       if (validatedData.code) {
         const duplicateCode = await pool.query(
           'SELECT id FROM companies WHERE code = $1 AND id != $2 AND deleted_at IS NULL',
-          [validatedData.code, id]
+          [validatedData.code, numericId]
         );
 
         if (duplicateCode.rows.length > 0) {
@@ -293,7 +370,7 @@ router.put(
          SET ${setClause}, updated_by = $${fields.length + 2}, updated_at = NOW()
          WHERE id = $1 AND deleted_at IS NULL
          RETURNING *`,
-        [id, ...values, req.user!.id]
+        [numericId, ...values, req.user!.id]
       );
 
       res.json(result.rows[0]);
@@ -323,13 +400,23 @@ router.delete(
     try {
       const { id } = req.params;
 
-      // Capture before state for audit
-      await captureBeforeState(req as any, 'companies', parseInt(id));
+      // SECURITY: Validate ID is a safe integer
+      const numericId = parseInt(id, 10);
+      if (isNaN(numericId) || numericId <= 0) {
+        return res.status(400).json({ error: 'Invalid company ID' });
+      }
 
-      // Check if company exists
+      // Capture before state for audit
+      await captureBeforeState(req as any, 'companies', numericId);
+
+      // TENANT ISOLATION: Verify company before delete
+      const tenantFilter = buildTenantFilter(req as any, 'c');
+      const companyScope = buildCompanyScopeFilter(req as any, 'c', 'id');
+
+      // Check if company exists AND belongs to user's tenant
       const existingCompany = await pool.query(
-        'SELECT * FROM companies WHERE id = $1 AND deleted_at IS NULL',
-        [id]
+        `SELECT c.* FROM companies c WHERE c.id = $1 AND c.deleted_at IS NULL${tenantFilter || ''}${companyScope || ''}`,
+        [numericId]
       );
 
       if (existingCompany.rows.length === 0) {
@@ -346,7 +433,7 @@ router.delete(
       // Check for active branches
       const activeBranches = await pool.query(
         'SELECT COUNT(*) as count FROM branches WHERE company_id = $1 AND deleted_at IS NULL',
-        [id]
+        [numericId]
       );
 
       if (parseInt(activeBranches.rows[0].count) > 0) {
@@ -358,7 +445,7 @@ router.delete(
       // Soft delete
       await pool.query(
         'UPDATE companies SET deleted_at = NOW() WHERE id = $1',
-        [id]
+        [numericId]
       );
 
       res.json({ message: 'Company deleted successfully' });

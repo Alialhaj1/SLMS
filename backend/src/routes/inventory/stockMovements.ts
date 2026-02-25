@@ -108,7 +108,7 @@ router.get('/', requirePermission('stock_movements:view'), async (req: Request, 
         w.name AS warehouse_name,
         u.name AS unit_name,
         u.symbol AS unit_symbol,
-        cb.first_name || ' ' || cb.last_name AS created_by_name
+        cb.full_name AS created_by_name
       FROM stock_movements sm
       LEFT JOIN items i ON i.id = sm.item_id
       LEFT JOIN warehouses w ON w.id = sm.warehouse_id
@@ -157,7 +157,7 @@ router.get('/item/:itemId', requirePermission('stock_movements:view'), async (re
         sm.*,
         w.name AS warehouse_name,
         u.name AS unit_name,
-        cb.first_name || ' ' || cb.last_name AS created_by_name
+        cb.full_name AS created_by_name
       FROM stock_movements sm
       LEFT JOIN warehouses w ON w.id = sm.warehouse_id
       LEFT JOIN units u ON u.id = sm.unit_id

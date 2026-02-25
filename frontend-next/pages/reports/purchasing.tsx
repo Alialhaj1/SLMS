@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import Head from 'next/head';
 import MainLayout from '../../components/layout/MainLayout';
+import { exportToCSV } from '../../utils/exportData';
 import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
 import { useTranslation } from '../../hooks/useTranslation';
@@ -74,7 +75,18 @@ export default function PurchasingReportsPage() {
   };
 
   const handleExport = () => {
-    showToast(locale === 'ar' ? 'جاري التصدير...' : 'Exporting...', 'info');
+    exportToCSV(filteredReports, 'purchasing-report', [
+      { key: 'poNumber', label: 'PO Number' },
+      { key: 'supplier', label: 'Supplier' },
+      { key: 'category', label: 'Category' },
+      { key: 'amount', label: 'Amount (SAR)' },
+      { key: 'itemCount', label: 'Items' },
+      { key: 'status', label: 'Status' },
+      { key: 'orderDate', label: 'Order Date' },
+      { key: 'deliveryDate', label: 'Delivery Date' },
+      { key: 'leadTime', label: 'Lead Time (days)' },
+    ]);
+    showToast(locale === 'ar' ? 'تم التصدير بنجاح' : 'Exported successfully', 'success');
   };
 
   const getStatusBadge = (status: string) => {

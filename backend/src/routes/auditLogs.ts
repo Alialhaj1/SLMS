@@ -3,6 +3,7 @@ import pool from '../db';
 import { authenticate } from '../middleware/auth';
 import { requirePermission } from '../middleware/rbac';
 import { getPaginationParams, sendPaginated } from '../utils/response';
+import { buildTenantFilter, getIsolatedTenantId } from '../middleware/tenantIsolation';
 
 const router = Router();
 
@@ -33,6 +34,9 @@ router.get(
 
       const { page, limit, offset } = getPaginationParams(req.query);
 
+      // TENANT ISOLATION: Filter audit logs by tenant
+      const tenantFilter = buildTenantFilter(req, 'al');
+
       let query = `
         SELECT 
           al.*,
@@ -40,7 +44,7 @@ router.get(
           u.email as user_email
         FROM audit_logs al
         LEFT JOIN users u ON al.user_id = u.id
-        WHERE 1=1
+        WHERE 1=1 ${tenantFilter}
       `;
 
       const params: any[] = [];
@@ -124,6 +128,9 @@ router.get(
         date_to,
       } = req.query;
 
+      // TENANT ISOLATION: Filter exported audit logs by tenant
+      const exportTenantFilter = buildTenantFilter(req, 'al');
+
       let query = `
         SELECT 
           al.id,
@@ -138,7 +145,7 @@ router.get(
           al.after_data
         FROM audit_logs al
         LEFT JOIN users u ON al.user_id = u.id
-        WHERE 1=1
+        WHERE 1=1 ${exportTenantFilter}
       `;
 
       const params: any[] = [];
@@ -217,9 +224,10 @@ router.get(
   requirePermission('audit_logs:view'),
   async (req: Request, res: Response) => {
     try {
-      const result = await pool.query(
-        'SELECT DISTINCT resource FROM audit_logs ORDER BY resource'
-      );
+      // TENANT ISOLATION: Only show resources from this tenant's logs
+      const resTenantFilter = buildTenantFilter(req, '');
+      const resQuery = `SELECT DISTINCT resource FROM audit_logs WHERE 1=1 ${resTenantFilter} ORDER BY resource`;
+      const result = await pool.query(resQuery);
 
       res.json(result.rows.map(row => row.resource));
     } catch (error: any) {
@@ -239,9 +247,10 @@ router.get(
   requirePermission('audit_logs:view'),
   async (req: Request, res: Response) => {
     try {
-      const result = await pool.query(
-        'SELECT DISTINCT action FROM audit_logs ORDER BY action'
-      );
+      // TENANT ISOLATION: Only show actions from this tenant's logs
+      const actTenantFilter = buildTenantFilter(req, '');
+      const actQuery = `SELECT DISTINCT action FROM audit_logs WHERE 1=1 ${actTenantFilter} ORDER BY action`;
+      const result = await pool.query(actQuery);
 
       res.json(result.rows.map(row => row.action));
     } catch (error: any) {
@@ -263,6 +272,8 @@ router.get(
     try {
       const { id } = req.params;
 
+      // TENANT ISOLATION: Only allow viewing own tenant's logs
+      const detailTenantFilter = buildTenantFilter(req, 'al');
       const result = await pool.query(
         `SELECT 
           al.*,
@@ -270,7 +281,7 @@ router.get(
           u.email as user_email
          FROM audit_logs al
          LEFT JOIN users u ON al.user_id = u.id
-         WHERE al.id = $1`,
+         WHERE al.id = $1 ${detailTenantFilter}`,
         [id]
       );
 
@@ -298,7 +309,9 @@ router.get(
     try {
       const { date_from, date_to } = req.query;
 
-      let whereClause = '1=1';
+      // TENANT ISOLATION: Stats filtered by tenant
+      const statsTenantFilter = buildTenantFilter(req, '');
+      let whereClause = `1=1 ${statsTenantFilter}`;
       const params: any[] = [];
       let paramIndex = 1;
 
@@ -335,7 +348,9 @@ router.get(
         params
       );
 
-      // Top users
+      // Top users - also filter by tenant
+      const userStatsTenantFilter = buildTenantFilter(req, 'al');
+      const userStatsWhere = whereClause.replace(statsTenantFilter, userStatsTenantFilter);
       const userStats = await pool.query(
         `SELECT 
            u.full_name,
@@ -343,7 +358,7 @@ router.get(
            COUNT(*) as action_count
          FROM audit_logs al
          LEFT JOIN users u ON al.user_id = u.id
-         WHERE ${whereClause}
+         WHERE ${userStatsWhere}
          GROUP BY u.id, u.full_name, u.email
          ORDER BY action_count DESC
          LIMIT 10`,

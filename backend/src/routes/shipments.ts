@@ -1,18 +1,28 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import pool from '../db';
 import { authenticate, authorize } from '../middleware/auth';
+import { loadCompanyContext, requireCompany } from '../middleware/companyContext';
 import { getPaginationParams, sendPaginated } from '../utils/response';
 
 const router = Router();
 
-// Create shipment (Admin, Logistics)
-router.post('/', authenticate, authorize('Admin', 'Logistics'), async (req, res) => {
+// Apply authentication and company context to all routes
+router.use(authenticate);
+router.use(loadCompanyContext);
+
+// Create shipment (Admin, Logistics) - SECURED with company_id
+router.post('/', requireCompany, authorize('Admin', 'Logistics'), async (req: Request, res: Response) => {
   const { supplier_id, tracking_number, status, origin, destination, est_arrival, notes } = req.body;
+  const companyId = req.companyId;
   const client = await pool.connect();
   try {
+    // Set company context for RLS
+    await client.query('SELECT set_company_context($1, $2)', [companyId, (req as any).user?.id]);
+    
     const r = await client.query(
-      `INSERT INTO shipments(supplier_id,tracking_number,status,origin,destination,est_arrival,notes) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
-      [supplier_id, tracking_number, status || 'created', origin, destination, est_arrival, notes]
+      `INSERT INTO shipments(tenant_id, company_id, supplier_id, tracking_number, status, origin, destination, est_arrival, notes) 
+       VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+      [(req as any).companyContext?.tenant_id, companyId, supplier_id, tracking_number, status || 'created', origin, destination, est_arrival, notes]
     );
     res.json(r.rows[0]);
   } catch (e) {
@@ -21,9 +31,10 @@ router.post('/', authenticate, authorize('Admin', 'Logistics'), async (req, res)
   } finally { client.release(); }
 });
 
-// List shipments (any authenticated user)
-router.get('/', authenticate, authorize(), async (req, res) => {
+// List shipments (any authenticated user) - SECURED with company_id
+router.get('/', requireCompany, authorize(), async (req: Request, res: Response) => {
   const { page, limit, offset } = getPaginationParams(req.query);
+  const companyId = req.companyId;
   const shipmentNumber = typeof req.query.shipment_number === 'string' ? req.query.shipment_number.trim() : undefined;
   const containerNo = typeof req.query.container_no === 'string' ? req.query.container_no.trim() : undefined;
   const blNo = typeof req.query.bl_no === 'string' ? req.query.bl_no.trim() : undefined;
@@ -34,26 +45,40 @@ router.get('/', authenticate, authorize(), async (req, res) => {
   const refFilter = shipmentNumber || containerNo || blNo || trackingNumber;
   const client = await pool.connect();
   try {
-    // Get total count
+    // Set company context for RLS
+    await client.query('SELECT set_company_context($1, $2)', [companyId, (req as any).user?.id]);
+    
+    // Get total count - FILTERED BY COMPANY
     const countResult = refFilter
-      ? await client.query('SELECT COUNT(*) as total FROM shipments WHERE tracking_number ILIKE $1', [`%${refFilter}%`])
-      : await client.query('SELECT COUNT(*) as total FROM shipments');
+      ? await client.query(
+          'SELECT COUNT(*) as total FROM shipments WHERE company_id = $1 AND tracking_number ILIKE $2', 
+          [companyId, `%${refFilter}%`]
+        )
+      : await client.query(
+          'SELECT COUNT(*) as total FROM shipments WHERE company_id = $1', 
+          [companyId]
+        );
     const total = parseInt(countResult.rows[0].total);
 
-    // Get paginated data
+    // Get paginated data - FILTERED BY COMPANY
     const r = refFilter
       ? await client.query(
           `SELECT s.*, sp.name as supplier_name
            FROM shipments s
            LEFT JOIN suppliers sp ON sp.id = s.supplier_id
-           WHERE s.tracking_number ILIKE $1
+           WHERE s.company_id = $1 AND s.tracking_number ILIKE $2
            ORDER BY s.created_at DESC
-           LIMIT $2 OFFSET $3`,
-          [`%${refFilter}%`, limit, offset]
+           LIMIT $3 OFFSET $4`,
+          [companyId, `%${refFilter}%`, limit, offset]
         )
       : await client.query(
-          `SELECT s.*, sp.name as supplier_name FROM shipments s LEFT JOIN suppliers sp ON sp.id = s.supplier_id ORDER BY s.created_at DESC LIMIT $1 OFFSET $2`,
-          [limit, offset]
+          `SELECT s.*, sp.name as supplier_name 
+           FROM shipments s 
+           LEFT JOIN suppliers sp ON sp.id = s.supplier_id 
+           WHERE s.company_id = $1
+           ORDER BY s.created_at DESC 
+           LIMIT $2 OFFSET $3`,
+          [companyId, limit, offset]
         );
     return sendPaginated(res, r.rows, page, limit, total);
   } catch (e) {
@@ -62,15 +87,26 @@ router.get('/', authenticate, authorize(), async (req, res) => {
   } finally { client.release(); }
 });
 
-// Get shipment details including expenses
-router.get('/:id', authenticate, authorize(), async (req, res) => {
+// Get shipment details including expenses - SECURED with company_id
+router.get('/:id', requireCompany, authorize(), async (req: Request, res: Response) => {
   const id = Number(req.params.id);
+  const companyId = req.companyId;
   const client = await pool.connect();
   try {
-    const r = await client.query('SELECT * FROM shipments WHERE id=$1', [id]);
+    // Set company context for RLS
+    await client.query('SELECT set_company_context($1, $2)', [companyId, (req as any).user?.id]);
+    
+    // CRITICAL: Filter by company_id to prevent cross-tenant access
+    const r = await client.query(
+      'SELECT * FROM shipments WHERE id = $1 AND company_id = $2', 
+      [id, companyId]
+    );
     if (r.rowCount === 0) return res.status(404).json({ error: 'not found' });
     const shipment = r.rows[0];
-    const er = await client.query('SELECT * FROM expenses WHERE shipment_id=$1 ORDER BY created_at', [id]);
+    const er = await client.query(
+      'SELECT * FROM expenses WHERE shipment_id = $1 AND company_id = $2 ORDER BY created_at', 
+      [id, companyId]
+    );
     shipment.expenses = er.rows;
     res.json(shipment);
   } catch (e) {
@@ -79,15 +115,23 @@ router.get('/:id', authenticate, authorize(), async (req, res) => {
   } finally { client.release(); }
 });
 
-// Update shipment (Admin, Logistics)
-router.put('/:id', authenticate, authorize('Admin', 'Logistics'), async (req, res) => {
+// Update shipment (Admin, Logistics) - SECURED with company_id
+router.put('/:id', requireCompany, authorize('Admin', 'Logistics'), async (req: Request, res: Response) => {
   const id = Number(req.params.id);
+  const companyId = req.companyId;
   const { supplier_id, tracking_number, status, origin, destination, est_arrival, notes } = req.body;
   const client = await pool.connect();
   try {
+    // Set company context for RLS
+    await client.query('SELECT set_company_context($1, $2)', [companyId, (req as any).user?.id]);
+    
+    // CRITICAL: Filter by company_id to prevent cross-tenant modification
     const r = await client.query(
-      `UPDATE shipments SET supplier_id=$1, tracking_number=$2, status=$3, origin=$4, destination=$5, est_arrival=$6, notes=$7, updated_at=now() WHERE id=$8 RETURNING *`,
-      [supplier_id, tracking_number, status, origin, destination, est_arrival, notes, id]
+      `UPDATE shipments 
+       SET supplier_id=$1, tracking_number=$2, status=$3, origin=$4, destination=$5, est_arrival=$6, notes=$7, updated_at=now() 
+       WHERE id=$8 AND company_id=$9 
+       RETURNING *`,
+      [supplier_id, tracking_number, status, origin, destination, est_arrival, notes, id, companyId]
     );
     if (r.rowCount === 0) return res.status(404).json({ error: 'not found' });
     res.json(r.rows[0]);
@@ -97,12 +141,23 @@ router.put('/:id', authenticate, authorize('Admin', 'Logistics'), async (req, re
   } finally { client.release(); }
 });
 
-// Delete shipment (Admin only)
-router.delete('/:id', authenticate, authorize('Admin'), async (req, res) => {
+// Delete shipment (Admin only) - SECURED with company_id
+router.delete('/:id', requireCompany, authorize('Admin'), async (req: Request, res: Response) => {
   const id = Number(req.params.id);
+  const companyId = req.companyId;
   const client = await pool.connect();
   try {
-    await client.query('DELETE FROM shipments WHERE id=$1', [id]);
+    // Set company context for RLS
+    await client.query('SELECT set_company_context($1, $2)', [companyId, (req as any).user?.id]);
+    
+    // CRITICAL: Filter by company_id to prevent cross-tenant deletion
+    const result = await client.query(
+      'DELETE FROM shipments WHERE id = $1 AND company_id = $2', 
+      [id, companyId]
+    );
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'not found or access denied' });
+    }
     res.json({ ok: true });
   } catch (e) {
     console.error(e);
@@ -110,14 +165,30 @@ router.delete('/:id', authenticate, authorize('Admin'), async (req, res) => {
   } finally { client.release(); }
 });
 
-// Create expense for a shipment (Accountant, Admin)
-router.post('/:id/expenses', authenticate, authorize('Accountant', 'Admin'), async (req, res) => {
+// Create expense for a shipment (Accountant, Admin) - SECURED with company_id
+router.post('/:id/expenses', requireCompany, authorize('Accountant', 'Admin'), async (req: Request, res: Response) => {
   const shipmentId = Number(req.params.id);
+  const companyId = req.companyId;
   const { amount, currency, description } = req.body;
-  const createdBy = (req as any).user && (req as any).user.sub;
+  const createdBy = (req as any).user?.id || (req as any).user?.sub;
   const client = await pool.connect();
   try {
-    const r = await client.query('INSERT INTO expenses(shipment_id,amount,currency,description,created_by) VALUES($1,$2,$3,$4,$5) RETURNING *', [shipmentId, amount, currency || 'USD', description, createdBy]);
+    // Set company context for RLS
+    await client.query('SELECT set_company_context($1, $2)', [companyId, (req as any).user?.id]);
+    
+    // First verify shipment belongs to this company
+    const shipmentCheck = await client.query(
+      'SELECT id FROM shipments WHERE id = $1 AND company_id = $2',
+      [shipmentId, companyId]
+    );
+    if (shipmentCheck.rowCount === 0) {
+      return res.status(404).json({ error: 'shipment not found or access denied' });
+    }
+    
+    const r = await client.query(
+      'INSERT INTO expenses(tenant_id, shipment_id, company_id, amount, currency, description, created_by) VALUES($1, $2, $3, $4, $5, $6, $7) RETURNING *', 
+      [(req as any).companyContext?.tenant_id, shipmentId, companyId, amount, currency || 'USD', description, createdBy]
+    );
     res.json(r.rows[0]);
   } catch (e) {
     console.error(e);
@@ -125,12 +196,24 @@ router.post('/:id/expenses', authenticate, authorize('Accountant', 'Admin'), asy
   } finally { client.release(); }
 });
 
-// List expenses for a shipment (any authenticated user)
-router.get('/:id/expenses', authenticate, authorize(), async (req, res) => {
+// List expenses for a shipment (any authenticated user) - SECURED with company_id
+router.get('/:id/expenses', requireCompany, authorize(), async (req: Request, res: Response) => {
   const shipmentId = Number(req.params.id);
+  const companyId = req.companyId;
   const client = await pool.connect();
   try {
-    const r = await client.query('SELECT e.*, u.email as created_by_email FROM expenses e LEFT JOIN users u ON u.id = e.created_by WHERE shipment_id=$1 ORDER BY created_at', [shipmentId]);
+    // Set company context for RLS
+    await client.query('SELECT set_company_context($1, $2)', [companyId, (req as any).user?.id]);
+    
+    // CRITICAL: Filter by company_id to prevent cross-tenant access
+    const r = await client.query(
+      `SELECT e.*, u.email as created_by_email 
+       FROM expenses e 
+       LEFT JOIN users u ON u.id = e.created_by 
+       WHERE e.shipment_id = $1 AND e.company_id = $2
+       ORDER BY e.created_at`, 
+      [shipmentId, companyId]
+    );
     res.json(r.rows);
   } catch (e) {
     console.error(e);

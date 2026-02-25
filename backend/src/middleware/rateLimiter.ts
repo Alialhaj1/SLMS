@@ -1,7 +1,13 @@
 import rateLimit from 'express-rate-limit';
+import { Request, Response, NextFunction } from 'express';
 
 // Check if we're in development mode
 const isDev = process.env.NODE_ENV !== 'production';
+
+/**
+ * No-op middleware that skips rate limiting entirely (used in development)
+ */
+const noOpLimiter = (_req: Request, _res: Response, next: NextFunction) => next();
 
 /**
  * Rate limiter for authentication endpoints (login, register)
@@ -9,7 +15,7 @@ const isDev = process.env.NODE_ENV !== 'production';
  */
 export const authRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: isDev ? 500 : 50, // Much higher in dev for testing
+  max: isDev ? 500 : 50, // 500 in dev, 50 in production — prevents brute force
   message: { error: 'Too many login attempts, please try again later' },
   standardHeaders: true, // Return rate limit info in `RateLimit-*` headers
   legacyHeaders: false, // Disable `X-RateLimit-*` headers
@@ -19,11 +25,13 @@ export const authRateLimiter = rateLimit({
 
 /**
  * General API rate limiter
- * Prevents API abuse and DoS attacks
+ * Disabled in development — React StrictMode double-mounts, HMR reconnections,
+ * and multiple hooks cause request storms that hit limits during normal dev usage.
+ * In production: 300 requests per minute per IP.
  */
-export const apiRateLimiter = rateLimit({
+export const apiRateLimiter = isDev ? noOpLimiter : rateLimit({
   windowMs: 60 * 1000, // 1 minute
-  max: isDev ? 2000 : 300, // 2000 in dev (React StrictMode doubles requests), 300 in production
+  max: 300, // 300 in production
   message: { error: 'Too many requests, please slow down' },
   standardHeaders: true,
   legacyHeaders: false,

@@ -2,9 +2,11 @@ import { Router, Request, Response } from 'express';
 import pool from '../db';
 import { authenticate } from '../middleware/auth';
 import { requirePermission } from '../middleware/rbac';
+import { loadCompanyContext } from '../middleware/companyContext';
 import { z } from 'zod';
 
 const router = Router();
+router.use(authenticate, loadCompanyContext);
 
 // Validation schema
 const customsOfficeSchema = z.object({
@@ -191,8 +193,10 @@ router.post(
       // Validate input
       const validatedData = customsOfficeSchema.parse(req.body);
 
-      // Determine target company
-      let targetCompanyId = validatedData.company_id || companyId || null;
+      // Determine target company - defense-in-depth: only super_admin can target other companies
+      const targetCompanyId = roles.includes('super_admin') && validatedData.company_id
+        ? validatedData.company_id
+        : companyId || null;
 
       // Security: Non-super_admin cannot create customs offices for other companies
       if (!roles.includes('super_admin') && validatedData.company_id && validatedData.company_id !== companyId) {
@@ -347,6 +351,14 @@ router.put(
         });
       }
 
+      // Protect global system records from modification
+      if (existingOffice.rows[0].is_system && existingOffice.rows[0].is_global) {
+        return res.status(400).json({
+          success: false,
+          error: { message: 'System customs offices cannot be modified. Clone to your company scope first.' },
+        });
+      }
+
       // Validate country if provided
       if (validatedData.country_id) {
         const countryCheck = await pool.query(
@@ -489,6 +501,14 @@ router.delete(
           error: {
             message: 'Customs office not found',
           },
+        });
+      }
+
+      // Protect global system records from deletion
+      if (existingOffice.rows[0].is_system && existingOffice.rows[0].is_global) {
+        return res.status(400).json({
+          success: false,
+          error: { message: 'System customs offices cannot be deleted. Clone to your company scope first.' },
         });
       }
 

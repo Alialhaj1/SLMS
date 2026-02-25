@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import Head from 'next/head';
 import MainLayout from '../../components/layout/MainLayout';
+import { exportToCSV } from '../../utils/exportData';
 import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
 import { useTranslation } from '../../hooks/useTranslation';
@@ -69,7 +70,17 @@ export default function ComplianceReportsPage() {
   });
 
   const handleExport = () => {
-    showToast(locale === 'ar' ? 'جاري التصدير...' : 'Exporting...', 'info');
+    exportToCSV(filteredItems, 'compliance-report', [
+      { key: 'name', label: 'Name' },
+      { key: 'category', label: 'Category' },
+      { key: 'status', label: 'Status' },
+      { key: 'expiryDate', label: 'Expiry Date' },
+      { key: 'daysRemaining', label: 'Days Remaining' },
+      { key: 'lastReview', label: 'Last Review' },
+      { key: 'nextReview', label: 'Next Review' },
+      { key: 'responsible', label: 'Responsible' },
+    ]);
+    showToast(locale === 'ar' ? 'تم التصدير بنجاح' : 'Exported successfully', 'success');
   };
 
   const getStatusIcon = (status: string) => {

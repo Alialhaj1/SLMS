@@ -2,9 +2,11 @@ import { Router, Request, Response } from 'express';
 import pool from '../db';
 import { authenticate } from '../middleware/auth';
 import { requirePermission } from '../middleware/rbac';
+import { loadCompanyContext } from '../middleware/companyContext';
 import { z } from 'zod';
 
 const router = Router();
+router.use(authenticate, loadCompanyContext);
 
 // Validation schema
 const portSchema = z.object({
@@ -190,8 +192,10 @@ router.post(
       // Validate input
       const validatedData = portSchema.parse(req.body);
 
-      // Determine target company
-      let targetCompanyId = validatedData.company_id || companyId || null;
+      // Determine target company - defense-in-depth: only super_admin can target other companies
+      const targetCompanyId = roles.includes('super_admin') && validatedData.company_id
+        ? validatedData.company_id
+        : companyId || null;
 
       // Security: Non-super_admin cannot create ports for other companies
       if (!roles.includes('super_admin') && validatedData.company_id && validatedData.company_id !== companyId) {

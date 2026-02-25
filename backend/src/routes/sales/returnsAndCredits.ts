@@ -9,8 +9,10 @@ import { Router, Request, Response } from 'express';
 import { authenticate } from '../../middleware/auth';
 import { requirePermission } from '../../middleware/rbac';
 import { SalesReturnService, CreditNoteService } from '../../services/salesReturnService';
+import { loadCompanyContext } from '../../middleware/companyContext';
 
 const router = Router();
+router.use(authenticate, loadCompanyContext);
 const salesReturnService = new SalesReturnService();
 const creditNoteService = new CreditNoteService();
 

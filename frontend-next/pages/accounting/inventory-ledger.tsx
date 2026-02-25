@@ -64,7 +64,7 @@ export default function InventoryLedgerPage() {
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [adjustForm, setAdjustForm] = useState<AdjustmentForm>({ itemId: '', warehouseId: null, quantityDelta: '', notes: '' });
 
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
+  const apiUrl = (process.env.NEXT_PUBLIC_API_URL || '') + '/api';
 
   const parseApiError = async (res: Response) => {
     try {
@@ -86,7 +86,7 @@ export default function InventoryLedgerPage() {
         return;
       }
 
-      const res = await fetch(`${apiUrl}/api/inventory/ledger`, {
+      const res = await fetch(`${apiUrl}/inventory/ledger`, {
         headers: {
           Authorization: `Bearer ${token}`,
           'X-Company-Id': String(companyId),
@@ -181,8 +181,8 @@ export default function InventoryLedgerPage() {
     setAdjustSubmitting(true);
     try {
       const url = editingId
-        ? `${apiUrl}/api/inventory/adjustments/${editingId}`
-        : `${apiUrl}/api/inventory/adjustments`;
+        ? `${apiUrl}/inventory/adjustments/${editingId}`
+        : `${apiUrl}/inventory/adjustments`;
 
       const res = await fetch(url, {
         method: editingId ? 'PUT' : 'POST',
@@ -229,7 +229,7 @@ export default function InventoryLedgerPage() {
 
     setAdjustSubmitting(true);
     try {
-      const res = await fetch(`${apiUrl}/api/inventory/adjustments/${selected.id}`, {
+      const res = await fetch(`${apiUrl}/inventory/adjustments/${selected.id}`, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${token}`,

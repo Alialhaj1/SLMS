@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import Head from 'next/head';
 import MainLayout from '../../components/layout/MainLayout';
+import { exportToCSV } from '../../utils/exportData';
 import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
 import { useTranslation } from '../../hooks/useTranslation';
@@ -73,7 +74,16 @@ export default function CostsPricingReportsPage() {
   };
 
   const handleExport = (format: 'pdf' | 'excel') => {
-    showToast(locale === 'ar' ? `جاري التصدير كـ ${format.toUpperCase()}...` : `Exporting as ${format.toUpperCase()}...`, 'info');
+    exportToCSV(filteredReports, 'costs-pricing-report', [
+      { key: 'name', label: 'Cost Item' },
+      { key: 'category', label: 'Category' },
+      { key: 'currentPeriod', label: 'Current Period (SAR)' },
+      { key: 'previousPeriod', label: 'Previous Period (SAR)' },
+      { key: 'variance', label: 'Variance (SAR)' },
+      { key: 'variancePercent', label: 'Variance %' },
+      { key: 'trend', label: 'Trend' },
+    ]);
+    showToast(locale === 'ar' ? 'تم التصدير بنجاح' : 'Exported successfully', 'success');
   };
 
   const getTrendIcon = (trend: string) => {

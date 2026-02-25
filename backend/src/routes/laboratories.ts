@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Laboratories API
  * Manages laboratories for testing and certification expenses
  */
@@ -7,12 +7,16 @@ import { Router, Request, Response } from 'express';
 import pool from '../db';
 import { authenticate } from '../middleware/auth';
 import { requirePermission } from '../middleware/rbac';
+import { loadCompanyContext } from '../middleware/companyContext';
 
 const router = Router();
 
+// Apply company context globally to all laboratory routes
+router.use(authenticate, loadCompanyContext);
+
 router.get('/', authenticate, requirePermission('laboratories:view'), async (req: Request, res: Response) => {
   try {
-    const companyId = (req as any).user?.companyId || 1;
+    const companyId = (req as any).companyId;
     const result = await pool.query(`
       SELECT id, code, name, name_ar, lab_type, accreditation_number, is_saber_certified,
              contact_person, phone, email, address, is_active, created_at
@@ -28,7 +32,7 @@ router.get('/', authenticate, requirePermission('laboratories:view'), async (req
 
 router.post('/', authenticate, requirePermission('laboratories:create'), async (req: Request, res: Response) => {
   try {
-    const companyId = (req as any).user?.companyId || 1;
+    const companyId = (req as any).companyId;
     const userId = (req as any).user?.id;
     const { code, name, name_ar, lab_type, accreditation_number, is_saber_certified, contact_person, phone, email, address } = req.body;
     
@@ -49,7 +53,7 @@ router.post('/', authenticate, requirePermission('laboratories:create'), async (
 router.put('/:id', authenticate, requirePermission('laboratories:update'), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const companyId = (req as any).user?.companyId || 1;
+    const companyId = (req as any).companyId;
     const userId = (req as any).user?.id;
     const { code, name, name_ar, lab_type, accreditation_number, is_saber_certified, contact_person, phone, email, address, is_active } = req.body;
     
@@ -75,7 +79,7 @@ router.put('/:id', authenticate, requirePermission('laboratories:update'), async
 router.delete('/:id', authenticate, requirePermission('laboratories:delete'), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const companyId = (req as any).user?.companyId || 1;
+    const companyId = (req as any).companyId;
     const userId = (req as any).user?.id;
     
     await pool.query(`

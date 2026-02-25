@@ -1,27 +1,39 @@
-const axios = require('axios');
+const http = require('http');
 
-async function testLogin() {
-  try {
-    console.log('🔄 Testing login...\n');
-    
-    const response = await axios.post('http://localhost:4000/api/auth/login', {
-      email: 'ali@alhajco.com',
-      password: 'A11A22A33'
+function request(opts, body) {
+  return new Promise((resolve, reject) => {
+    const req = http.request(opts, res => {
+      let d = '';
+      res.on('data', c => d += c);
+      res.on('end', () => { try { resolve(JSON.parse(d)); } catch(e) { resolve(d); } });
     });
-    
-    console.log('✅ Login successful!');
-    console.log('📧 Email:', response.data.user.email);
-    console.log('🔑 Token:', response.data.accessToken.substring(0, 50) + '...');
-    
-  } catch (error) {
-    if (error.response) {
-      console.log('❌ Login failed:');
-      console.log('   Status:', error.response.status);
-      console.log('   Message:', error.response.data.message || error.response.data);
-    } else {
-      console.log('❌ Error:', error.message);
-    }
-  }
+    req.on('error', reject);
+    if (body) req.write(JSON.stringify(body));
+    req.end();
+  });
 }
 
-testLogin();
+async function main() {
+  // Try login with tenant_code
+  const r1 = await request({
+    hostname: 'localhost', port: 4000, path: '/api/auth/login',
+    method: 'POST', headers: {'Content-Type':'application/json'}
+  }, {email:'test-admin@alhajco.com', password:'Admin123!'});
+  console.log('Login without tenant:', JSON.stringify(r1).substring(0,200));
+
+  // If that fails, check if there's a super_admins entry
+  // Let's try other users
+  const { Pool } = require('pg');
+  const pool = new Pool({connectionString: process.env.DATABASE_URL || 'postgresql://slms:slms_password@postgres:5432/slms_db'});
+  
+  // Check super_admins
+  const sa = await pool.query('SELECT sa.user_id, u.email FROM super_admins sa JOIN users u ON sa.user_id = u.id');
+  console.log('Super admins:', sa.rows);
+  
+  // Find platform users (tenant_id IS NULL)
+  const pu = await pool.query("SELECT id, email, status, tenant_id FROM users WHERE tenant_id IS NULL AND deleted_at IS NULL LIMIT 5");
+  console.log('Platform users:', pu.rows);
+  
+  await pool.end();
+}
+main().catch(console.error);

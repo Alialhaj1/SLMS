@@ -2,12 +2,14 @@ import Head from 'next/head';
 import MainLayout from '../../components/layout/MainLayout';
 import PolicyCrudTable from '../../components/settings/PolicyCrudTable';
 import { withAllPermissions } from '../../utils/withPermission';
+import { useTranslation } from '../../hooks/useTranslation';
 
 function PasswordPoliciesPage() {
+  const { t } = useTranslation();
   return (
     <MainLayout>
       <Head>
-        <title>Password Policies - SLMS</title>
+        <title>{t('settingsAdmin.pages.passwordPolicies.title')} - SLMS</title>
       </Head>
 
       <PolicyCrudTable

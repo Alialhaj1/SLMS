@@ -15,8 +15,10 @@ import { useToast } from './ToastContext';
 interface AuthContextType {
   user: UserProfile | null;
   loading: boolean;
+  /** True once the fresh profile from /api/me has been loaded (not just cached user) */
+  profileReady: boolean;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<LoginResult>;
+  login: (email: string, password: string, tenantId?: number) => Promise<LoginResult>;
   logout: () => Promise<void>;
   changePassword: (currentPassword: string, newPassword: string, confirmPassword: string) => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -28,6 +30,12 @@ interface LoginResult {
   redirect_to?: string;
   message?: string;
   user?: UserProfile;
+  login_context?: 'platform' | 'tenant';
+  // MFA fields
+  mfa_required?: boolean;
+  mfa_setup_required?: boolean;
+  mfa_code?: string;
+  mfa_token?: string;
 }
 
 // ===========================
@@ -43,6 +51,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [profileReady, setProfileReady] = useState(false);
   const router = useRouter();
   const { showToast } = useToast();
 
@@ -53,6 +62,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       if (!authService.isAuthenticated()) {
         setUser(null);
+        setProfileReady(true);
         return;
       }
       // Prefer cached user first to avoid hard-failing when /api/me is unavailable
@@ -70,6 +80,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const profile = await authService.getProfile();
         setUser(profile);
+        setProfileReady(true);
         if (typeof window !== 'undefined') {
           localStorage.setItem('user', JSON.stringify(profile));
         }
@@ -80,10 +91,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setUser(null);
           authService.clearLocalAuth();
         }
+        // Even on failure, mark profile as ready so permission guards can proceed
+        setProfileReady(true);
       }
     } catch (error) {
       console.error('Failed to load user profile:', error);
       setUser(null);
+      setProfileReady(true);
       authService.clearLocalAuth();
     } finally {
       setLoading(false);
@@ -96,10 +110,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   /**
    * Login user
+   * @param tenantId Optional tenant ID for tenant-scoped logins
    */
-  const login = useCallback(async (email: string, password: string): Promise<LoginResult> => {
+  const login = useCallback(async (email: string, password: string, tenantId?: number): Promise<LoginResult> => {
     try {
-      const response = await authService.login(email, password);
+      const response = await authService.login(email, password, tenantId);
+
+      // Pass MFA responses directly to login page (don't throw)
+      if (response.mfa_required || response.mfa_setup_required) {
+        return {
+          success: false,
+          mfa_required: response.mfa_required,
+          mfa_setup_required: response.mfa_setup_required,
+          mfa_code: response.mfa_code,
+          mfa_token: response.mfa_token,
+        };
+      }
 
       if (!response.success) {
         throw new Error('Login failed');
@@ -125,10 +151,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Normal login - save tokens and load user
       authService.saveTokens(data.accessToken, data.refreshToken);
 
+      // Notify AuthorizationContext (same-tab; StorageEvent only fires cross-tab)
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('auth:login'));
+      }
+
       // Use user info from login response immediately to avoid blocking on /api/me
       const loginUser = (data as any).user as UserProfile | undefined;
       if (loginUser) {
         setUser(loginUser);
+        setProfileReady(true);
         if (typeof window !== 'undefined') {
           localStorage.setItem('user', JSON.stringify(loginUser));
         }
@@ -152,7 +184,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return {
         success: true,
         must_change_password: false,
-        user: loginUser
+        user: loginUser,
+        login_context: (data as any).login_context || undefined
       };
     } catch (error: any) {
       console.error('Login error:', error);
@@ -179,6 +212,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.error('Logout error:', error);
     } finally {
       setUser(null);
+      setProfileReady(false);
       authService.clearLocalAuth();
       router.push('/');
     }
@@ -230,6 +264,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const value: AuthContextType = {
     user,
     loading,
+    profileReady,
     isAuthenticated: !!user && authService.isAuthenticated(),
     login,
     logout,

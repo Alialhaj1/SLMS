@@ -12,6 +12,7 @@ interface ConfirmDialogProps {
   cancelText?: string;
   variant?: 'danger' | 'primary';
   loading?: boolean;
+  children?: React.ReactNode;
 }
 
 export default function ConfirmDialog({
@@ -24,6 +25,7 @@ export default function ConfirmDialog({
   cancelText = 'Cancel',
   variant = 'danger',
   loading = false,
+  children,
 }: ConfirmDialogProps) {
   const handleConfirm = async () => {
     await onConfirm();
@@ -49,6 +51,7 @@ export default function ConfirmDialog({
       }
     >
       <p className="text-gray-700 dark:text-gray-300">{message}</p>
+      {children}
     </Modal>
   );
 }

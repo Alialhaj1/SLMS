@@ -8,10 +8,12 @@ import { Router, Request, Response } from 'express';
 import { PasswordResetService } from '../services/passwordResetService';
 import { authenticate } from '../middleware/auth';
 import { requirePermission } from '../middleware/rbac';
+import { getIsolatedTenantId } from '../middleware/tenantIsolation';
 import { passwordResetRateLimiter } from '../middleware/rateLimiter';
 import { sendSuccess, sendError } from '../utils/response';
 import { getPaginationParams, sendPaginated } from '../utils/response';
 import { logger } from '../utils/logger';
+import { auditLog } from '../middleware/auditLog';
 
 const router = Router();
 
@@ -43,7 +45,7 @@ interface AuthRequest extends Request {
  * Rate limited: 3 requests per hour per IP
  * Security: Never reveals if user exists
  */
-router.post('/request', passwordResetRateLimiter, async (req: Request, res: Response) => {
+router.post('/request', passwordResetRateLimiter, auditLog, async (req: Request, res: Response) => {
   try {
     const { email, reason } = req.body;
 
@@ -101,9 +103,13 @@ router.get('/requests', authenticate, requirePermission('password_requests:view'
       return sendError(res, 'VALIDATION_ERROR', 'Invalid status. Must be one of: pending, approved, rejected, cancelled', 400);
     }
 
+    // Tenant admins can only see their own tenant's requests (secure: via isolation middleware)
+    const tenantId = getIsolatedTenantId(req as any) || undefined;
+
     // Get requests
     const { requests, total } = await PasswordResetService.getRequests({
       status: status as any,
+      tenantId,
       limit,
       offset
     });
@@ -149,7 +155,7 @@ router.get('/requests/:id', authenticate, requirePermission('password_requests:v
  * Approve password reset request and generate temporary password
  * Permission: password_requests:approve
  */
-router.post('/requests/:id/approve', authenticate, requirePermission('password_requests:approve'), async (req: AuthRequest, res: Response) => {
+router.post('/requests/:id/approve', authenticate, requirePermission('password_requests:approve'), auditLog, async (req: AuthRequest, res: Response) => {
   try {
     const requestId = parseInt(req.params.id);
     const { admin_notes, expires_in_hours } = req.body;
@@ -203,7 +209,7 @@ router.post('/requests/:id/approve', authenticate, requirePermission('password_r
  * Reject password reset request
  * Permission: password_requests:reject
  */
-router.post('/requests/:id/reject', authenticate, requirePermission('password_requests:reject'), async (req: AuthRequest, res: Response) => {
+router.post('/requests/:id/reject', authenticate, requirePermission('password_requests:reject'), auditLog, async (req: AuthRequest, res: Response) => {
   try {
     const requestId = parseInt(req.params.id);
     const { reason } = req.body;
@@ -253,7 +259,7 @@ router.post('/requests/:id/reject', authenticate, requirePermission('password_re
  * Cancel own password reset request
  * Permission: password_requests:cancel (or own request)
  */
-router.post('/requests/:id/cancel', authenticate, async (req: AuthRequest, res: Response) => {
+router.post('/requests/:id/cancel', authenticate, auditLog, async (req: AuthRequest, res: Response) => {
   try {
     const requestId = parseInt(req.params.id);
 

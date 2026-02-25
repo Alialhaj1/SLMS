@@ -230,7 +230,20 @@ export default function MaintenanceContractsPage() {
           </div>
           
           <div className="flex gap-2">
-            <Button variant="secondary">
+            <Button variant="secondary" onClick={() => {
+              const { exportToCSV } = require('../../utils/exportData');
+              exportToCSV(contracts, 'maintenance-contracts', [
+                { key: 'contract_number', label: 'Contract #' },
+                { key: 'title', label: 'Title' },
+                { key: 'vendor_name', label: 'Vendor' },
+                { key: 'contract_type', label: 'Type' },
+                { key: 'start_date', label: 'Start Date' },
+                { key: 'end_date', label: 'End Date' },
+                { key: 'contract_value', label: 'Value' },
+                { key: 'status', label: 'Status' },
+              ]);
+              showToast('success', locale === 'ar' ? 'تم التصدير بنجاح' : 'Exported successfully');
+            }}>
               <DocumentArrowDownIcon className="w-5 h-5 me-2" />
               Export
             </Button>

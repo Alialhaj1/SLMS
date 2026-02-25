@@ -16,6 +16,7 @@ import Card from '../../components/ui/Card';
 import { usePermissions } from '../../hooks/usePermissions';
 import { useTranslation } from '../../hooks/useTranslation';
 import { useToast } from '../../contexts/ToastContext';
+import { useContainerTypes } from '../../hooks/useReferenceData';
 import {
   ArrowLeftIcon,
   DocumentTextIcon,
@@ -152,7 +153,7 @@ const initialFormData: FormData = {
   internal_notes: '',
 };
 
-const containerTypes = ['20GP', '40GP', '40HC', '20RF', '40RF', '20OT', '40OT', 'FLAT', 'TANK', 'LCL'];
+// Container types loaded from API via useContainerTypes hook
 
 const freightTermsOptions = [
   { value: 'Prepaid', label: { en: 'Prepaid', ar: 'مسبق الدفع' } },
@@ -166,6 +167,10 @@ function NewShippingBillPage() {
   const { t, locale } = useTranslation();
   const router = useRouter();
   const isArabic = locale === 'ar';
+  const { containerTypes: containerTypeOptions } = useContainerTypes();
+  const containerTypes = containerTypeOptions.length > 0
+    ? containerTypeOptions.map(ct => ct.code)
+    : ['20GP', '40GP', '40HC', '20RF', '40RF', '20OT', '40OT', 'FLAT', 'TANK', 'LCL'];
 
   // Get query parameters for pre-selection from shipment page
   const { shipment_id, shipment_number } = router.query as { shipment_id?: string; shipment_number?: string };

@@ -6,6 +6,8 @@ import Input from '../../components/ui/Input';
 import Modal from '../../components/ui/Modal';
 import { useTranslation } from '../../hooks/useTranslation';
 import { useToast } from '../../contexts/ToastContext';
+import { useCurrencies } from '../../hooks/useReferenceData';
+import { exportToCSV } from '../../utils/exportData';
 import {
   ShieldCheckIcon,
   PlusIcon,
@@ -29,7 +31,7 @@ interface ShippingInsurancePolicy {
   coverageType: 'all_risk' | 'basic' | 'special';
   insuredValue: number;
   premium: number;
-  currency: 'SAR' | 'USD';
+  currency: string;
   startDate: string;
   endDate: string;
   status: InsuranceStatus;
@@ -46,6 +48,7 @@ const mockPolicies: ShippingInsurancePolicy[] = [
 export default function ShippingInsurancePage() {
   const { locale } = useTranslation();
   const { showToast } = useToast();
+  const { currencies: currencyOptions } = useCurrencies();
 
   const [policies] = useState<ShippingInsurancePolicy[]>(mockPolicies);
   const [selectedStatus, setSelectedStatus] = useState<'all' | InsuranceStatus>('all');
@@ -101,7 +104,7 @@ export default function ShippingInsurancePage() {
   const insuredTotalSar = policies.reduce((sum, p) => sum + (p.currency === 'SAR' ? p.insuredValue : 0), 0);
 
   const handleCreate = () => {
-    showToast(locale === 'ar' ? 'تم الإنشاء (تجريبي)' : 'Created (demo)', 'success');
+    showToast(locale === 'ar' ? 'تم الإنشاء (تجريبي) - قيد التطوير' : 'Created (demo) - Feature under development', 'warning');
     setCreateOpen(false);
     setFormData({ policyNo: '', shipmentRef: '', provider: '', coverageType: 'all_risk', insuredValue: '', premium: '', currency: 'SAR', startDate: '', endDate: '', status: 'requested' });
   };
@@ -178,7 +181,7 @@ export default function ShippingInsurancePage() {
               <option value="expired">{locale === 'ar' ? 'منتهي' : 'Expired'}</option>
               <option value="rejected">{locale === 'ar' ? 'مرفوض' : 'Rejected'}</option>
             </select>
-            <Button variant="secondary" onClick={() => showToast(locale === 'ar' ? 'تصدير (تجريبي)' : 'Export (demo)', 'info')}>
+            <Button variant="secondary" onClick={() => exportToCSV(filtered, 'insurance-policies')}>
               <ArrowDownTrayIcon className="h-4 w-4" />
               {locale === 'ar' ? 'تصدير' : 'Export'}
             </Button>
@@ -249,15 +252,15 @@ export default function ShippingInsurancePage() {
               </div>
             </div>
             <div className="flex flex-wrap gap-2 pt-4 border-t dark:border-gray-700">
-              <Button onClick={() => showToast(locale === 'ar' ? 'تم التفعيل (تجريبي)' : 'Activated (demo)', 'success')}>
+              <Button onClick={() => showToast(locale === 'ar' ? 'تم التفعيل (تجريبي) - قيد التطوير' : 'Activated (demo) - Feature under development', 'warning')}>
                 <CheckCircleIcon className="h-4 w-4" />
                 {locale === 'ar' ? 'تفعيل' : 'Activate'}
               </Button>
-              <Button variant="danger" onClick={() => showToast(locale === 'ar' ? 'تم الرفض (تجريبي)' : 'Rejected (demo)', 'error')}>
+              <Button variant="danger" onClick={() => showToast(locale === 'ar' ? 'تم الرفض (تجريبي) - قيد التطوير' : 'Rejected (demo) - Feature under development', 'warning')}>
                 <XCircleIcon className="h-4 w-4" />
                 {locale === 'ar' ? 'رفض' : 'Reject'}
               </Button>
-              <Button variant="secondary" onClick={() => showToast(locale === 'ar' ? 'تصدير (تجريبي)' : 'Export (demo)', 'info')}>
+              <Button variant="secondary" onClick={() => showToast(locale === 'ar' ? 'تصدير PDF (قريباً)' : 'PDF Export (Coming soon)', 'info')}>
                 <ArrowDownTrayIcon className="h-4 w-4" />
                 PDF
               </Button>
@@ -285,8 +288,9 @@ export default function ShippingInsurancePage() {
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{locale === 'ar' ? 'العملة' : 'Currency'}</label>
               <select value={formData.currency} onChange={(e) => setFormData({ ...formData, currency: e.target.value as any })} className="input">
-                <option value="SAR">SAR</option>
-                <option value="USD">USD</option>
+                {currencyOptions.map(c => (
+                  <option key={c.code} value={c.code}>{c.code} - {c.name}</option>
+                ))}
               </select>
             </div>
             <Input label={locale === 'ar' ? 'من' : 'Start date'} value={formData.startDate} onChange={(e) => setFormData({ ...formData, startDate: e.target.value })} placeholder="YYYY-MM-DD" />

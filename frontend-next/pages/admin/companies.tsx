@@ -17,7 +17,10 @@ import {
   TrashIcon,
   BuildingOfficeIcon,
   MagnifyingGlassIcon,
+  ListBulletIcon,
+  Squares2X2Icon,
 } from '@heroicons/react/24/outline';
+import CompanyTree, { CompanyNode } from '../../components/company/CompanyTree';
 
 interface Company {
   id: number;
@@ -36,7 +39,10 @@ interface Company {
   currency: string;
   is_active: boolean;
   is_default: boolean;
+  parent_id?: number | null;
+  hierarchy_level?: number;
   branches_count: number;
+  users_count?: number;
   created_at: string;
   updated_at: string;
 }
@@ -55,6 +61,7 @@ interface FormData {
   email: string;
   website: string;
   currency: string;
+  parent_id: number | null;
   is_active: boolean;
   is_default: boolean;
 }
@@ -73,6 +80,7 @@ const initialFormData: FormData = {
   email: '',
   website: '',
   currency: 'USD',
+  parent_id: null,
   is_active: true,
   is_default: false,
 };
@@ -87,6 +95,9 @@ function CompaniesPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [showActiveOnly, setShowActiveOnly] = useState(true);
+  const [viewMode, setViewMode] = useState<'list' | 'tree'>('list');
+  const [selectedCompanyId, setSelectedCompanyId] = useState<number | null>(null);
+  const [parentCompanyForNew, setParentCompanyForNew] = useState<Company | null>(null);
 
   // Modal states
   const [modalOpen, setModalOpen] = useState(false);
@@ -149,7 +160,7 @@ function CompaniesPage() {
     return Object.keys(errors).length === 0;
   };
 
-  const handleOpenModal = (company?: Company) => {
+  const handleOpenModal = (company?: Company, parentCompany?: Company) => {
     if (company) {
       setEditingCompany(company);
       setFormData({
@@ -166,12 +177,17 @@ function CompaniesPage() {
         email: company.email || '',
         website: company.website || '',
         currency: company.currency,
+        parent_id: company.parent_id || null,
         is_active: company.is_active,
         is_default: company.is_default,
       });
     } else {
       setEditingCompany(null);
-      setFormData(initialFormData);
+      setFormData({
+        ...initialFormData,
+        parent_id: parentCompany?.id || null,
+      });
+      setParentCompanyForNew(parentCompany || null);
     }
     setFormErrors({});
     setModalOpen(true);
@@ -264,21 +280,6 @@ function CompaniesPage() {
     return matchesSearch && matchesActive;
   });
 
-  // Permission check
-  if (!hasPermission('companies:view')) {
-    return (
-      <MainLayout>
-        <div className="text-center py-12">
-          <BuildingOfficeIcon className="w-16 h-16 mx-auto text-gray-400 mb-4" />
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Access Denied</h2>
-          <p className="text-gray-600 dark:text-gray-400 mt-2">
-            You don't have permission to view companies.
-          </p>
-        </div>
-      </MainLayout>
-    );
-  }
-
   return (
     <MainLayout>
       <Head>
@@ -317,7 +318,35 @@ function CompaniesPage() {
                 />
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
+              {/* View Toggle */}
+              <div className="flex items-center bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+                <button
+                  onClick={() => setViewMode('list')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded transition-colors text-sm ${
+                    viewMode === 'list'
+                      ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'
+                  }`}
+                  title={t('companies.listView')}
+                >
+                  <ListBulletIcon className="w-4 h-4" />
+                  <span>{t('companies.listView')}</span>
+                </button>
+                <button
+                  onClick={() => setViewMode('tree')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded transition-colors text-sm ${
+                    viewMode === 'tree'
+                      ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'
+                  }`}
+                  title={t('companies.treeView')}
+                >
+                  <Squares2X2Icon className="w-4 h-4" />
+                  <span>{t('companies.treeView')}</span>
+                </button>
+              </div>
+              <div className="h-8 w-px bg-gray-200 dark:bg-gray-700"></div>
               <input
                 type="checkbox"
                 id="activeOnly"
@@ -332,8 +361,32 @@ function CompaniesPage() {
           </div>
         </div>
 
-        {/* Companies table */}
-        <div className="card overflow-hidden">
+        {/* Content Area - Tree or List View */}
+        {viewMode === 'tree' ? (
+          <div className="card">
+            {loading ? (
+              <div className="text-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
+                <p className="text-gray-500 dark:text-gray-400 mt-4">{t('common.loading')}</p>
+              </div>
+            ) : (
+              <CompanyTree
+                companies={filteredCompanies.map(c => ({
+                  ...c,
+                  hierarchy_level: c.hierarchy_level || 1,
+                  parent_id: c.parent_id || null,
+                  users_count: c.users_count || 0,
+                }))}
+                onEdit={hasPermission('companies:edit') ? handleOpenModal : undefined}
+                onAddChild={hasPermission('companies:create') ? (parent) => handleOpenModal(undefined, parent) : undefined}
+                onSelect={(company) => setSelectedCompanyId(company.id)}
+                selectedId={selectedCompanyId}
+              />
+            )}
+          </div>
+        ) : (
+          /* List View - Companies table */
+          <div className="card overflow-hidden">
           {loading ? (
             <div className="text-center py-12">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
@@ -454,7 +507,8 @@ function CompaniesPage() {
               </table>
             </div>
           )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Create/Edit Modal */}
@@ -483,7 +537,33 @@ function CompaniesPage() {
               error={formErrors.name}
             />
           </div>
-
+          {/* Parent Company Selection */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              {t('companies.parentCompany')}
+            </label>
+            <select
+              value={formData.parent_id || ''}
+              onChange={(e) => setFormData({ ...formData, parent_id: e.target.value ? Number(e.target.value) : null })}
+              className="input w-full"
+              disabled={!editingCompany && !!parentCompanyForNew}
+            >
+              <option value="">{t('companies.noParent')}</option>
+              {companies
+                .filter(c => c.id !== editingCompany?.id) // Prevent setting itself as parent
+                .map(company => (
+                  <option key={company.id} value={company.id}>
+                    {company.name} ({company.code})
+                    {company.hierarchy_level ? ` - ${t('companies.level')} ${company.hierarchy_level}` : ''}
+                  </option>
+                ))}
+            </select>
+            {parentCompanyForNew && (
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                {t('companies.addBranch')}: {parentCompanyForNew.name}
+              </p>
+            )}
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Input
               label="Company Name (Arabic)"

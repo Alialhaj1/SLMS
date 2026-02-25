@@ -1,7 +1,11 @@
 /**
  * 📊 JOURNAL ENTRY SERVICE
  * =========================
- * Creates real accounting entries for procurement transactions
+ * Creates real accounting entries for procurement transactions.
+ * 
+ * Now routes ALL entries through the unified FinancialPostingEngine,
+ * which writes to journal_lines (not journal_entry_lines) and posts
+ * to general_ledger for real trial balance / balance sheet.
  * 
  * Entry Types:
  * ✅ Purchase Invoice: Dr Inventory/Expense, Cr AP
@@ -12,6 +16,7 @@
 
 import pool from '../db';
 import { logger } from '../utils/logger';
+import { financialPostingEngine, PostingLine, PostingRequest } from './financialPostingEngine';
 
 // Journal Entry Types
 export type JournalEntryType = 
@@ -80,13 +85,14 @@ const DEFAULT_ACCOUNTS = {
 export class JournalEntryService {
   
   /**
-   * Get account ID by code for a company
+   * Get account ID by code for a company.
+   * Uses the `accounts` table (not chart_of_accounts — that table doesn't exist).
    */
   private static async getAccountId(companyId: number, accountCode: string): Promise<number | null> {
     try {
       const result = await pool.query(
-        `SELECT id FROM chart_of_accounts 
-         WHERE company_id = $1 AND account_code = $2 AND deleted_at IS NULL`,
+        `SELECT id FROM accounts 
+         WHERE company_id = $1 AND code = $2 AND deleted_at IS NULL`,
         [companyId, accountCode]
       );
       return result.rows[0]?.id || null;
@@ -112,77 +118,70 @@ export class JournalEntryService {
   }
   
   /**
-   * Create journal entry with lines
+   * Create journal entry with lines.
+   * Routes through the unified FinancialPostingEngine for proper GL posting.
    */
   static async createEntry(entry: JournalEntryHeader): Promise<number> {
-    const client = await pool.connect();
-    
-    try {
-      await client.query('BEGIN');
-      
-      // Validate balanced entry
-      const totalDebit = entry.lines.reduce((sum, line) => sum + line.debit_amount, 0);
-      const totalCredit = entry.lines.reduce((sum, line) => sum + line.credit_amount, 0);
-      
-      if (Math.abs(totalDebit - totalCredit) > 0.01) {
-        throw new Error(`Journal entry is not balanced. Debit: ${totalDebit}, Credit: ${totalCredit}`);
+    // Resolve account IDs for lines that only have codes
+    const resolvedLines: PostingLine[] = [];
+
+    for (const line of entry.lines) {
+      const accountId = line.account_id || await this.getAccountId(entry.company_id, line.account_code);
+      if (!accountId) {
+        throw new Error(`Account not found: ${line.account_code} for company ${entry.company_id}`);
       }
-      
-      // Generate entry number
-      const entryNumber = await this.generateEntryNumber(entry.company_id);
-      
-      // Insert header
-      const headerResult = await client.query(
-        `INSERT INTO journal_entries (
-          company_id, entry_number, entry_date, entry_type, 
-          reference_type, reference_id, reference_number,
-          description, description_ar, currency_id, exchange_rate,
-          total_debit, total_credit, status, created_by, created_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'posted', $14, NOW())
-        RETURNING id`,
-        [
-          entry.company_id, entryNumber, entry.entry_date, entry.entry_type,
-          entry.reference_type, entry.reference_id, entry.reference_number,
-          entry.description, entry.description_ar, entry.currency_id, entry.exchange_rate || 1,
-          totalDebit, totalCredit, entry.created_by
-        ]
-      );
-      
-      const journalEntryId = headerResult.rows[0].id;
-      
-      // Insert lines
-      for (let i = 0; i < entry.lines.length; i++) {
-        const line = entry.lines[i];
-        const accountId = line.account_id || await this.getAccountId(entry.company_id, line.account_code);
-        
-        await client.query(
-          `INSERT INTO journal_entry_lines (
-            journal_entry_id, line_number, account_id, account_code,
-            description, description_ar, debit_amount, credit_amount,
-            cost_center_id, project_id, department_id, vendor_id, item_id, warehouse_id
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
-          [
-            journalEntryId, i + 1, accountId, line.account_code,
-            line.description, line.description_ar, line.debit_amount, line.credit_amount,
-            line.cost_center_id, line.project_id, line.department_id,
-            line.vendor_id, line.item_id, line.warehouse_id
-          ]
-        );
-      }
-      
-      await client.query('COMMIT');
-      
-      logger.info(`Journal entry created: ${entryNumber} for ${entry.reference_type} ${entry.reference_number}`);
-      
-      return journalEntryId;
-      
-    } catch (error) {
-      await client.query('ROLLBACK');
-      logger.error('Failed to create journal entry:', error);
-      throw error;
-    } finally {
-      client.release();
+
+      resolvedLines.push({
+        accountId,
+        accountCode: line.account_code,
+        debit: line.debit_amount,
+        credit: line.credit_amount,
+        description: line.description,
+        costCenterId: line.cost_center_id,
+        projectId: line.project_id,
+        partnerType: line.vendor_id ? 'vendor' : undefined,
+        partnerId: line.vendor_id || undefined
+      });
     }
+
+    // Map entry_type to journal type prefix
+    const journalTypeMap: Record<string, string> = {
+      'purchase_invoice': 'PJ',
+      'purchase_invoice_reversal': 'PJ',
+      'purchase_return': 'PJ',
+      'purchase_return_reversal': 'PJ',
+      'goods_receipt': 'GRJ',
+      'goods_receipt_reversal': 'GRJ',
+      'vendor_payment': 'CPJ',
+      'vendor_payment_reversal': 'CPJ',
+      'customs_expense': 'PJ',
+      'freight_expense': 'PJ',
+      'manual_adjustment': 'ADJ'
+    };
+
+    const result = await financialPostingEngine.post({
+      companyId: entry.company_id,
+      entryDate: entry.entry_date,
+      journalType: journalTypeMap[entry.entry_type] || 'GJ',
+      entryType: entry.entry_type,
+      sourceType: entry.reference_type,
+      sourceId: entry.reference_id,
+      sourceNumber: entry.reference_number,
+      description: entry.description,
+      descriptionAr: entry.description_ar,
+      currencyId: entry.currency_id,
+      exchangeRate: entry.exchange_rate,
+      lines: resolvedLines,
+      userId: entry.created_by,
+      isReversal: entry.entry_type.includes('reversal')
+    });
+
+    if (!result.success || !result.journalEntryId) {
+      throw new Error(result.message || 'Failed to post journal entry');
+    }
+
+    logger.info(`Journal entry created via engine: ${result.entryNumber} for ${entry.reference_type} ${entry.reference_number}`);
+    return result.journalEntryId;
   }
   
   /**
@@ -513,11 +512,11 @@ export class JournalEntryService {
   ): Promise<any[]> {
     const result = await pool.query(
       `SELECT je.*, 
-        (SELECT json_agg(jel ORDER BY jel.line_number)
-         FROM journal_entry_lines jel 
-         WHERE jel.journal_entry_id = je.id) as lines
+        (SELECT json_agg(jl ORDER BY jl.line_number)
+         FROM journal_lines jl 
+         WHERE jl.journal_entry_id = je.id) as lines
        FROM journal_entries je
-       WHERE je.reference_type = $1 AND je.reference_id = $2
+       WHERE je.source_document_type = $1 AND je.source_document_id = $2
        ORDER BY je.created_at DESC`,
       [referenceType, referenceId]
     );
@@ -525,19 +524,18 @@ export class JournalEntryService {
   }
   
   /**
-   * Reverse a journal entry by creating a contra entry
+   * Reverse a journal entry via the Financial Posting Engine.
+   * Never deletes — only creates a contra entry.
    */
   static async reverseEntry(
     originalEntryId: number,
     createdBy: number,
     reason: string,
-    client?: any
+    _client?: any
   ): Promise<number> {
-    const db = client || pool;
-    
-    // Get original entry
-    const entryResult = await db.query(
-      `SELECT * FROM journal_entries WHERE id = $1`,
+    // Get original entry to find company
+    const entryResult = await pool.query(
+      `SELECT company_id FROM journal_entries WHERE id = $1`,
       [originalEntryId]
     );
     
@@ -545,87 +543,19 @@ export class JournalEntryService {
       throw new Error('Original journal entry not found');
     }
     
-    const original = entryResult.rows[0];
-    
-    // Get original lines
-    const linesResult = await db.query(
-      `SELECT * FROM journal_entry_lines WHERE journal_entry_id = $1 ORDER BY line_number`,
-      [originalEntryId]
-    );
-    
-    // Create reversal entry with swapped debits/credits
-    const reversalNumber = await this.generateEntryNumber(original.company_id);
-    
-    const reversalResult = await db.query(`
-      INSERT INTO journal_entries (
-        company_id, entry_number, entry_date, entry_type, 
-        reference_type, reference_id, reference_number, 
-        description, description_ar, 
-        currency_id, exchange_rate, 
-        total_debit, total_credit, 
-        status, is_reversing, reversing_entry_id,
-        created_by
-      ) VALUES ($1, $2, CURRENT_DATE, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'posted', true, $13, $14)
-      RETURNING id
-    `, [
-      original.company_id,
-      reversalNumber,
-      original.entry_type + '_reversal',
-      original.reference_type,
-      original.reference_id,
-      original.reference_number,
-      `Reversal: ${original.description} - ${reason}`,
-      original.description_ar ? `عكس: ${original.description_ar}` : null,
-      original.currency_id,
-      original.exchange_rate,
-      original.total_credit, // Swap totals
-      original.total_debit,
-      originalEntryId,
-      createdBy
-    ]);
-    
-    const reversalId = reversalResult.rows[0].id;
-    
-    // Insert reversed lines (swap debit/credit)
-    for (const line of linesResult.rows) {
-      await db.query(`
-        INSERT INTO journal_entry_lines (
-          journal_entry_id, line_number, 
-          account_id, description, description_ar,
-          debit_amount, credit_amount,
-          cost_center_id, project_id, department_id,
-          vendor_id, customer_id, item_id, warehouse_id
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-      `, [
-        reversalId,
-        line.line_number,
-        line.account_id,
-        `Reversal: ${line.description}`,
-        line.description_ar ? `عكس: ${line.description_ar}` : null,
-        line.credit_amount, // Swap debit/credit
-        line.debit_amount,
-        line.cost_center_id,
-        line.project_id,
-        line.department_id,
-        line.vendor_id,
-        line.customer_id,
-        line.item_id,
-        line.warehouse_id
-      ]);
+    const result = await financialPostingEngine.reverse({
+      journalEntryId: originalEntryId,
+      companyId: entryResult.rows[0].company_id,
+      userId: createdBy,
+      reason
+    });
+
+    if (!result.success || !result.journalEntryId) {
+      throw new Error(result.message || 'Failed to reverse journal entry');
     }
-    
-    // Mark original entry as reversed
-    await db.query(`
-      UPDATE journal_entries SET 
-        is_reversed = true, 
-        reversed_by_entry_id = $1, 
-        reversed_at = CURRENT_TIMESTAMP
-      WHERE id = $2
-    `, [reversalId, originalEntryId]);
-    
-    logger.info(`Reversed journal entry ${original.entry_number} -> ${reversalNumber}`);
-    
-    return reversalId;
+
+    logger.info(`Reversed journal entry ${originalEntryId} -> ${result.entryNumber}`);
+    return result.journalEntryId;
   }
 }
 

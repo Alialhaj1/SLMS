@@ -133,7 +133,7 @@ interface OrderStatus {
   color?: string;
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL || '') + '/api';
 
 function PurchaseOrdersPage() {
   const router = useRouter();
@@ -253,16 +253,16 @@ function PurchaseOrdersPage() {
       const headers = getHeaders();
 
       const [vendorsRes, typesRes, statusesRes, paymentsRes, deliveryTermsRes, projectsRes, countriesRes, citiesRes, portsRes, itemsRes] = await Promise.all([
-        fetch(`${API_BASE}/api/procurement/vendors?limit=10000`, { headers }),
-        fetch(`${API_BASE}/api/procurement/purchase-orders/order-types`, { headers }),
-        fetch(`${API_BASE}/api/procurement/purchase-orders/order-statuses`, { headers }),
-        fetch(`${API_BASE}/api/payment-methods?limit=100`, { headers }),
-        fetch(`${API_BASE}/api/procurement/reference/delivery-terms`, { headers }),
-        fetch(`${API_BASE}/api/projects?limit=500`, { headers }),
-        fetch(`${API_BASE}/api/countries?limit=1000`, { headers }),
-        fetch(`${API_BASE}/api/cities?limit=10000`, { headers }),
-        fetch(`${API_BASE}/api/ports?limit=1000&country_id=1`, { headers }), // Saudi Arabia ports (country_id=1)
-        fetch(`${API_BASE}/api/master/items/for-invoice?is_active=true&limit=10000`, { headers }),
+        fetch(`${API_BASE}/procurement/vendors?limit=10000`, { headers }),
+        fetch(`${API_BASE}/procurement/purchase-orders/order-types`, { headers }),
+        fetch(`${API_BASE}/procurement/purchase-orders/order-statuses`, { headers }),
+        fetch(`${API_BASE}/payment-methods?limit=100`, { headers }),
+        fetch(`${API_BASE}/procurement/reference/delivery-terms`, { headers }),
+        fetch(`${API_BASE}/projects?limit=500`, { headers }),
+        fetch(`${API_BASE}/countries?limit=1000`, { headers }),
+        fetch(`${API_BASE}/cities?limit=10000`, { headers }),
+        fetch(`${API_BASE}/ports?limit=1000&country_id=1`, { headers }), // Saudi Arabia ports (country_id=1)
+        fetch(`${API_BASE}/master/items/for-invoice?is_active=true&limit=10000`, { headers }),
       ]);
 
       if (vendorsRes.ok) {
@@ -336,7 +336,7 @@ function PurchaseOrdersPage() {
       if (searchTerm) params.append('search', searchTerm);
       if (statusFilter) params.append('status_id', statusFilter);
 
-      const res = await fetch(`${API_BASE}/api/procurement/purchase-orders?${params}`, {
+      const res = await fetch(`${API_BASE}/procurement/purchase-orders?${params}`, {
         headers: getHeaders(),
       });
 
@@ -361,7 +361,7 @@ function PurchaseOrdersPage() {
   // Fetch order details
   const fetchOrderDetails = async (id: number) => {
     try {
-      const res = await fetch(`${API_BASE}/api/procurement/purchase-orders/${id}`, {
+      const res = await fetch(`${API_BASE}/procurement/purchase-orders/${id}`, {
         headers: getHeaders(),
       });
       if (res.ok) {
@@ -409,8 +409,8 @@ function PurchaseOrdersPage() {
     setSubmitting(true);
     try {
       const url = editingOrder
-        ? `${API_BASE}/api/procurement/purchase-orders/${editingOrder.id}`
-        : `${API_BASE}/api/procurement/purchase-orders`;
+        ? `${API_BASE}/procurement/purchase-orders/${editingOrder.id}`
+        : `${API_BASE}/procurement/purchase-orders`;
       const method = editingOrder ? 'PUT' : 'POST';
 
       const body = {
@@ -479,7 +479,7 @@ function PurchaseOrdersPage() {
   // Handle approve
   const handleApprove = async (order: PurchaseOrder) => {
     try {
-      const res = await fetch(`${API_BASE}/api/procurement/purchase-orders/${order.id}/approve`, {
+      const res = await fetch(`${API_BASE}/procurement/purchase-orders/${order.id}/approve`, {
         method: 'PUT',
         headers: getHeaders(),
       });
@@ -502,7 +502,7 @@ function PurchaseOrdersPage() {
 
     setDeleting(true);
     try {
-      const res = await fetch(`${API_BASE}/api/procurement/purchase-orders/${orderToDelete.id}`, {
+      const res = await fetch(`${API_BASE}/procurement/purchase-orders/${orderToDelete.id}`, {
         method: 'DELETE',
         headers: getHeaders(),
       });

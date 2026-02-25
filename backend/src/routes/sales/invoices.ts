@@ -11,8 +11,10 @@ import { requirePermission } from '../../middleware/rbac';
 import salesInvoiceService from '../../services/salesInvoiceService';
 import { checkNeedsApproval, createApprovalRequest, isDocumentApproved } from '../../utils/approvalHelpers';
 import pool from '../../db';
+import { loadCompanyContext } from '../../middleware/companyContext';
 
 const router = Router();
+router.use(authenticate, loadCompanyContext);
 
 // ═══════════════════════════════════════════════════════════════════════════
 // LIST INVOICES

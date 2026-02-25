@@ -78,7 +78,7 @@ export default function ShipmentEventsPage() {
     try {
       const token = localStorage.getItem('accessToken');
       const companyId = companyStore.getActiveCompanyId();
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || '';
+      const baseUrl = (process.env.NEXT_PUBLIC_API_URL || '') + '/api';
 
       const query = new URLSearchParams();
       if (search.trim()) query.append('search', search.trim());
@@ -87,7 +87,7 @@ export default function ShipmentEventsPage() {
       if (fromDate) query.append('from', fromDate);
       if (toDate) query.append('to', toDate);
 
-      const res = await fetch(`${baseUrl}/api/shipment-events/export?${query.toString()}`, {
+      const res = await fetch(`${baseUrl}/shipment-events/export?${query.toString()}`, {
         headers: {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
           ...(companyId ? { 'X-Company-Id': String(companyId) } : {}),

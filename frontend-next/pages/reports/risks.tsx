@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import Head from 'next/head';
 import MainLayout from '../../components/layout/MainLayout';
+import { exportToCSV } from '../../utils/exportData';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import Modal from '../../components/ui/Modal';
@@ -138,7 +139,18 @@ export default function RisksReportsPage() {
             </div>
           </div>
           {canExport && (
-            <Button variant="secondary" onClick={() => showToast(locale === 'ar' ? 'تصدير (تجريبي)' : 'Export (demo)', 'info')}>
+            <Button variant="secondary" onClick={() => {
+              exportToCSV(filtered, 'risks-report', [
+                { key: 'ref', label: 'Reference' },
+                { key: 'type', label: 'Type' },
+                { key: 'severity', label: 'Severity' },
+                { key: 'status', label: 'Status' },
+                { key: 'date', label: 'Date' },
+                { key: 'owner', label: 'Owner' },
+                { key: 'description', label: 'Description' },
+              ]);
+              showToast(locale === 'ar' ? 'تم التصدير بنجاح' : 'Exported successfully', 'success');
+            }}>
               <ArrowDownTrayIcon className="h-4 w-4" />
               {locale === 'ar' ? 'تصدير' : 'Export'}
             </Button>

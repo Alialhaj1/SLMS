@@ -77,7 +77,7 @@ interface PurchaseReturnItem {
 type Vendor = SharedVendor;
 type Warehouse = SharedWarehouse;
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL || '') + '/api';
 
 function PurchaseReturnsPage() {
   const { hasPermission } = usePermissions();
@@ -141,8 +141,8 @@ function PurchaseReturnsPage() {
     try {
       const headers = getHeaders();
       const [vendorsRes, warehousesRes] = await Promise.all([
-        fetch(`${API_BASE}/api/procurement/vendors`, { headers }),
-        fetch(`${API_BASE}/api/master/warehouses`, { headers }),
+        fetch(`${API_BASE}/procurement/vendors`, { headers }),
+        fetch(`${API_BASE}/master/warehouses`, { headers }),
       ]);
 
       if (vendorsRes.ok) {
@@ -169,7 +169,7 @@ function PurchaseReturnsPage() {
       if (searchTerm) params.append('search', searchTerm);
       if (statusFilter) params.append('status', statusFilter);
 
-      const res = await fetch(`${API_BASE}/api/procurement/purchase-returns?${params}`, {
+      const res = await fetch(`${API_BASE}/procurement/purchase-returns?${params}`, {
         headers: getHeaders(),
       });
 
@@ -193,7 +193,7 @@ function PurchaseReturnsPage() {
   // Fetch return details
   const fetchReturnDetails = async (id: number) => {
     try {
-      const res = await fetch(`${API_BASE}/api/procurement/purchase-returns/${id}`, {
+      const res = await fetch(`${API_BASE}/procurement/purchase-returns/${id}`, {
         headers: getHeaders(),
       });
       if (res.ok) {
@@ -247,7 +247,7 @@ function PurchaseReturnsPage() {
         })),
       };
 
-      const res = await fetch(`${API_BASE}/api/procurement/purchase-returns`, {
+      const res = await fetch(`${API_BASE}/procurement/purchase-returns`, {
         method: 'POST',
         headers: getHeaders(),
         body: JSON.stringify(body),
@@ -274,7 +274,7 @@ function PurchaseReturnsPage() {
 
     setPosting(true);
     try {
-      const res = await fetch(`${API_BASE}/api/procurement/purchase-returns/${returnToPost.id}/post`, {
+      const res = await fetch(`${API_BASE}/procurement/purchase-returns/${returnToPost.id}/post`, {
         method: 'PUT',
         headers: getHeaders(),
       });
@@ -306,7 +306,7 @@ function PurchaseReturnsPage() {
 
     setDeleting(true);
     try {
-      const res = await fetch(`${API_BASE}/api/procurement/purchase-returns/${returnToDelete.id}`, {
+      const res = await fetch(`${API_BASE}/procurement/purchase-returns/${returnToDelete.id}`, {
         method: 'DELETE',
         headers: getHeaders(),
       });

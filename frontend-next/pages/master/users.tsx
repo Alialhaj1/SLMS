@@ -21,8 +21,10 @@ import { usePermissions } from '@/hooks/usePermissions';
 import { useToast } from '@/contexts/ToastContext';
 import { useTranslation } from '@/hooks/useTranslation';
 import { companyStore } from '@/lib/companyStore';
+import { useTenantInfo } from '@/hooks/useTenantInfo';
 import {
   UserIcon,
+  UsersIcon,
   EnvelopeIcon,
   PhoneIcon,
   ShieldCheckIcon,
@@ -40,12 +42,31 @@ import {
   UserPlusIcon,
   EyeIcon,
   EyeSlashIcon,
+  BuildingOfficeIcon,
+  BuildingOffice2Icon,
 } from '@heroicons/react/24/outline';
 
 interface Role {
   id: number;
   name: string;
   description?: string;
+  company_id?: number;
+}
+
+interface Company {
+  id: number;
+  name: string;
+  name_ar?: string;
+  code?: string;
+}
+
+interface CompanyAssignment {
+  company_id: number;
+  company_name?: string;
+  role_id: number | null;
+  access_scope?: string;
+  is_default?: boolean;
+  is_active?: boolean;
 }
 
 interface User {
@@ -57,6 +78,9 @@ interface User {
   status: 'active' | 'inactive' | 'disabled' | 'locked';
   roles: string[];
   role_ids?: number[];
+  company_names?: string[];
+  company_ids?: number[];
+  company_assignments?: CompanyAssignment[];
   last_login_at?: string;
   failed_login_attempts?: number;
   created_at: string;
@@ -86,10 +110,12 @@ export default function UsersPage() {
   const { hasPermission } = usePermissions();
   const { showToast } = useToast();
   const { t } = useTranslation();
+  const { isTenantUser, tenantInfo, canCreateUser, usersRemaining, maxUsers } = useTenantInfo();
 
   // Data state
   const [users, setUsers] = useState<User[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
+  const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -118,6 +144,7 @@ export default function UsersPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [roleFilter, setRoleFilter] = useState<string>('all');
+  const [companyFilter, setCompanyFilter] = useState<string>('all');
 
   // Form state
   const [formData, setFormData] = useState({
@@ -128,6 +155,7 @@ export default function UsersPage() {
     phone: '',
     status: 'active' as 'active' | 'inactive' | 'disabled' | 'locked',
     role_ids: [] as number[],
+    company_assignments: [] as CompanyAssignment[],
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -156,11 +184,15 @@ export default function UsersPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || '';
+      const baseUrl = (process.env.NEXT_PUBLIC_API_URL || '') + '/api';
 
-      const [usersRes, rolesRes] = await Promise.all([
-        fetch(`${baseUrl}/api/users?limit=500&page=1`, { headers: authHeaders() }),
-        fetch(`${baseUrl}/api/roles?limit=500&page=1`, { headers: authHeaders() }),
+      // *** CRITICAL: Tenant users must use /api/tenant-roles to exclude platform roles ***
+      const rolesEndpoint = isTenantUser ? 'tenant-roles' : 'roles';
+
+      const [usersRes, rolesRes, companiesRes] = await Promise.all([
+        fetch(`${baseUrl}/users?limit=500&page=1`, { headers: authHeaders() }),
+        fetch(`${baseUrl}/${rolesEndpoint}?limit=500&page=1`, { headers: authHeaders() }),
+        fetch(`${baseUrl}/companies?limit=500&page=1`, { headers: authHeaders() }),
       ]);
 
       if (usersRes.ok) {
@@ -171,6 +203,11 @@ export default function UsersPage() {
       if (rolesRes.ok) {
         const rolesJson = await rolesRes.json();
         setRoles(rolesJson.data || []);
+      }
+
+      if (companiesRes.ok) {
+        const companiesJson = await companiesRes.json();
+        setCompanies(companiesJson.data || []);
       }
     } catch (error) {
       showToast(t('messages.error'), 'error');
@@ -189,12 +226,15 @@ export default function UsersPage() {
         (u.username || '').toLowerCase().includes(search.toLowerCase());
       const matchesStatus = statusFilter === 'all' || u.status === statusFilter;
       const matchesRole = roleFilter === 'all' || (u.roles || []).includes(roleFilter);
-      return matchesSearch && matchesStatus && matchesRole;
+      const matchesCompany = companyFilter === 'all' || 
+        (u.company_ids || []).includes(parseInt(companyFilter));
+      return matchesSearch && matchesStatus && matchesRole && matchesCompany;
     });
-  }, [users, search, statusFilter, roleFilter]);
+  }, [users, search, statusFilter, roleFilter, companyFilter]);
 
   // Get role color
   const getRoleColor = (roleName: string): string => {
+    if (!roleName) return ROLE_COLORS.default;
     const key = roleName.toLowerCase().replace(/\s+/g, '_');
     return ROLE_COLORS[key] || ROLE_COLORS.default;
   };
@@ -223,6 +263,16 @@ export default function UsersPage() {
         newErrors.password = t('master.users.validation.required');
       } else if (formData.password.length < 8) {
         newErrors.password = t('master.users.validation.passwordLength');
+      } else {
+        if (!/[A-Z]/.test(formData.password)) {
+          newErrors.password = t('master.users.validation.passwordUppercase') || 'Password must contain at least one uppercase letter';
+        } else if (!/[a-z]/.test(formData.password)) {
+          newErrors.password = t('master.users.validation.passwordLowercase') || 'Password must contain at least one lowercase letter';
+        } else if (!/[0-9]/.test(formData.password)) {
+          newErrors.password = t('master.users.validation.passwordNumber') || 'Password must contain at least one number';
+        } else if (!/[^A-Za-z0-9]/.test(formData.password)) {
+          newErrors.password = t('master.users.validation.passwordSpecial') || 'Password must contain at least one special character';
+        }
       }
 
       if (formData.password !== formData.confirmPassword) {
@@ -251,6 +301,7 @@ export default function UsersPage() {
       phone: '',
       status: 'active',
       role_ids: [],
+      company_assignments: [],
     });
     setErrors({});
     setIsModalOpen(true);
@@ -259,9 +310,9 @@ export default function UsersPage() {
   // Open edit modal
   const openEditModal = async (user: User) => {
     try {
-      // Fetch full user details including role_ids
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || '';
-      const res = await fetch(`${baseUrl}/api/users/${user.id}`, { headers: authHeaders() });
+      // Fetch full user details including role_ids and company assignments
+      const baseUrl = (process.env.NEXT_PUBLIC_API_URL || '') + '/api';
+      const res = await fetch(`${baseUrl}/users/${user.id}`, { headers: authHeaders() });
       if (res.ok) {
         const json = await res.json();
         const userData = json.user || json;
@@ -274,6 +325,14 @@ export default function UsersPage() {
           phone: userData.phone || '',
           status: userData.status || 'active',
           role_ids: userData.role_ids || [],
+          company_assignments: (userData.company_assignments || []).map((ca: any) => ({
+            company_id: ca.company_id,
+            company_name: ca.company_name,
+            role_id: ca.role_id || null,
+            access_scope: ca.access_scope || 'company_only',
+            is_default: ca.is_default || false,
+            is_active: ca.is_active !== false,
+          })),
         });
       } else {
         setEditingUser(user);
@@ -285,6 +344,7 @@ export default function UsersPage() {
           phone: user.phone || '',
           status: user.status || 'active',
           role_ids: [],
+          company_assignments: [],
         });
       }
     } catch {
@@ -297,6 +357,7 @@ export default function UsersPage() {
         phone: user.phone || '',
         status: user.status || 'active',
         role_ids: [],
+        company_assignments: [],
       });
     }
     setErrors({});
@@ -309,10 +370,10 @@ export default function UsersPage() {
     setSaving(true);
 
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || '';
+      const baseUrl = (process.env.NEXT_PUBLIC_API_URL || '') + '/api';
       const url = editingUser
-        ? `${baseUrl}/api/users/${editingUser.id}`
-        : `${baseUrl}/api/users`;
+        ? `${baseUrl}/users/${editingUser.id}`
+        : `${baseUrl}/users`;
 
       const payload: any = {
         email: formData.email,
@@ -330,6 +391,30 @@ export default function UsersPage() {
       });
 
       if (res.ok) {
+        const resJson = await res.json();
+        const savedUserId = editingUser?.id || resJson?.user?.id || resJson?.id;
+
+        // Sync company assignments if we have any and a valid user ID
+        if (savedUserId && formData.company_assignments.length > 0) {
+          try {
+            for (const assignment of formData.company_assignments) {
+              await fetch(`${baseUrl}/user-assignments`, {
+                method: 'POST',
+                headers: authHeaders(),
+                body: JSON.stringify({
+                  user_id: savedUserId,
+                  company_id: assignment.company_id,
+                  role_id: assignment.role_id,
+                  access_scope: assignment.access_scope || 'company_only',
+                  is_default: assignment.is_default || false,
+                }),
+              });
+            }
+          } catch (err) {
+            console.warn('Failed to sync some company assignments:', err);
+          }
+        }
+
         showToast(
           editingUser ? t('master.users.messages.updated') : t('master.users.messages.created'),
           'success'
@@ -338,7 +423,11 @@ export default function UsersPage() {
         await loadData();
       } else {
         const json = await res.json();
-        showToast(json.error || t('messages.error'), 'error');
+        if (json.error === 'USER_LIMIT_REACHED') {
+          showToast(json.message || 'تم الوصول للحد الأقصى من المستخدمين', 'error');
+        } else {
+          showToast(json.error || t('messages.error'), 'error');
+        }
       }
     } catch (error) {
       showToast(t('messages.error'), 'error');
@@ -353,8 +442,8 @@ export default function UsersPage() {
     setSaving(true);
 
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || '';
-      const res = await fetch(`${baseUrl}/api/users/${deleteUserId}`, {
+      const baseUrl = (process.env.NEXT_PUBLIC_API_URL || '') + '/api';
+      const res = await fetch(`${baseUrl}/users/${deleteUserId}`, {
         method: 'DELETE',
         headers: authHeaders(),
       });
@@ -380,8 +469,8 @@ export default function UsersPage() {
     setSaving(true);
 
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || '';
-      const res = await fetch(`${baseUrl}/api/users/${disableUserId}/disable`, {
+      const baseUrl = (process.env.NEXT_PUBLIC_API_URL || '') + '/api';
+      const res = await fetch(`${baseUrl}/users/${disableUserId}/disable`, {
         method: 'PATCH',
         headers: authHeaders(),
         body: JSON.stringify({ reason: disableReason }),
@@ -407,8 +496,8 @@ export default function UsersPage() {
   const handleEnable = async (userId: number) => {
     setSaving(true);
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || '';
-      const res = await fetch(`${baseUrl}/api/users/${userId}/enable`, {
+      const baseUrl = (process.env.NEXT_PUBLIC_API_URL || '') + '/api';
+      const res = await fetch(`${baseUrl}/users/${userId}/enable`, {
         method: 'PATCH',
         headers: authHeaders(),
       });
@@ -431,8 +520,8 @@ export default function UsersPage() {
   const handleUnlock = async (userId: number) => {
     setSaving(true);
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || '';
-      const res = await fetch(`${baseUrl}/api/users/${userId}/unlock`, {
+      const baseUrl = (process.env.NEXT_PUBLIC_API_URL || '') + '/api';
+      const res = await fetch(`${baseUrl}/users/${userId}/unlock`, {
         method: 'PATCH',
         headers: authHeaders(),
       });
@@ -471,8 +560,8 @@ export default function UsersPage() {
     setSaving(true);
 
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || '';
-      const res = await fetch(`${baseUrl}/api/users/${resetPasswordUserId}/reset-password`, {
+      const baseUrl = (process.env.NEXT_PUBLIC_API_URL || '') + '/api';
+      const res = await fetch(`${baseUrl}/users/${resetPasswordUserId}/reset-password`, {
         method: 'PATCH',
         headers: authHeaders(),
         body: JSON.stringify({ password: resetPasswordData.newPassword, must_change_password: true }),
@@ -503,6 +592,60 @@ export default function UsersPage() {
         : [...prev.role_ids, roleId],
     }));
   };
+
+  // Company assignment helpers
+  const addCompanyAssignment = (companyId: number) => {
+    const company = companies.find((c) => c.id === companyId);
+    if (!company) return;
+    if (formData.company_assignments.some((ca) => ca.company_id === companyId)) return;
+    setFormData((prev) => ({
+      ...prev,
+      company_assignments: [
+        ...prev.company_assignments,
+        {
+          company_id: companyId,
+          company_name: company.name,
+          role_id: null,
+          access_scope: 'company_only',
+          is_default: prev.company_assignments.length === 0,
+          is_active: true,
+        },
+      ],
+    }));
+  };
+
+  const removeCompanyAssignment = (companyId: number) => {
+    setFormData((prev) => {
+      const updated = prev.company_assignments.filter((ca) => ca.company_id !== companyId);
+      // If removed the default, make first remaining the default
+      if (updated.length > 0 && !updated.some((ca) => ca.is_default)) {
+        updated[0].is_default = true;
+      }
+      return { ...prev, company_assignments: updated };
+    });
+  };
+
+  const updateCompanyAssignment = (companyId: number, field: string, value: any) => {
+    setFormData((prev) => ({
+      ...prev,
+      company_assignments: prev.company_assignments.map((ca) => {
+        if (ca.company_id !== companyId) {
+          // If setting this as default, clear others
+          if (field === 'is_default' && value === true) {
+            return { ...ca, is_default: false };
+          }
+          return ca;
+        }
+        return { ...ca, [field]: value };
+      }),
+    }));
+  };
+
+  // Get available companies (not yet assigned)
+  const availableCompanies = useMemo(() => {
+    const assignedIds = new Set(formData.company_assignments.map((ca) => ca.company_id));
+    return companies.filter((c) => !assignedIds.has(c.id));
+  }, [companies, formData.company_assignments]);
 
   // Get user initials for avatar
   const getInitials = (name: string): string => {
@@ -546,17 +689,51 @@ export default function UsersPage() {
               {t('master.users.subtitle')}
             </p>
           </div>
-          {canCreate && (
-            <Button onClick={openCreateModal}>
-              <UserPlusIcon className="w-5 h-5 ltr:mr-2 rtl:ml-2" />
-              {t('master.users.buttons.create')}
-            </Button>
-          )}
+          <div className="flex items-center gap-3">
+            {/* User count badge for tenant users */}
+            {isTenantUser && maxUsers && (
+              <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium ${
+                usersRemaining !== null && usersRemaining <= 2 
+                  ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300' 
+                  : 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
+              }`}>
+                <UsersIcon className="w-4 h-4" />
+                {users.length} / {maxUsers}
+              </span>
+            )}
+            {canCreate && (
+              <Button 
+                onClick={openCreateModal}
+                disabled={isTenantUser && !canCreateUser}
+              >
+                <UserPlusIcon className="w-5 h-5 ltr:mr-2 rtl:ml-2" />
+                {t('master.users.buttons.create')}
+              </Button>
+            )}
+          </div>
         </div>
+
+        {/* Tenant user limit warning */}
+        {isTenantUser && !canCreateUser && (
+          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4 flex items-start gap-3">
+            <ExclamationTriangleIcon className="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
+                {t('common.userLimitReached') || `تم الوصول للحد الأقصى من المستخدمين (${maxUsers})`}
+              </p>
+              <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                {t('common.contactAccountManager') || 'يرجى التواصل مع مشرف الحساب لزيادة الحد المسموح'}
+                {tenantInfo?.account_manager && (
+                  <span className="font-medium"> — {tenantInfo.account_manager.name} ({tenantInfo.account_manager.email})</span>
+                )}
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Filters */}
         <Card className="!p-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Search */}
             <div className="relative">
               <MagnifyingGlassIcon className="absolute left-3 rtl:right-3 rtl:left-auto top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -595,6 +772,22 @@ export default function UsersPage() {
                 </option>
               ))}
             </select>
+
+            {/* Company Filter */}
+            {companies.length > 0 && (
+              <select
+                className="input w-full"
+                value={companyFilter}
+                onChange={(e) => setCompanyFilter(e.target.value)}
+              >
+                <option value="all">{t('master.users.filters.allCompanies') || 'All Companies'}</option>
+                {companies.map((company) => (
+                  <option key={company.id} value={String(company.id)}>
+                    {company.name}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
         </Card>
 
@@ -675,7 +868,7 @@ export default function UsersPage() {
 
                       {/* Roles */}
                       <div className="flex flex-wrap gap-1 mt-2">
-                        {(user.roles || []).map((role) => (
+                        {(user.roles || []).filter(Boolean).map((role) => (
                           <span
                             key={role}
                             className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs ${getRoleColor(role)}`}
@@ -690,6 +883,21 @@ export default function UsersPage() {
                           </span>
                         )}
                       </div>
+
+                      {/* Companies */}
+                      {(user.company_names || []).filter(Boolean).length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1.5">
+                          {(user.company_names || []).filter(Boolean).map((companyName) => (
+                            <span
+                              key={companyName}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-indigo-50 text-indigo-700 dark:bg-indigo-900/20 dark:text-indigo-300"
+                            >
+                              <BuildingOfficeIcon className="w-3 h-3" />
+                              {companyName}
+                            </span>
+                          ))}
+                        </div>
+                      )}
 
                       {/* Last Login */}
                       {user.last_login_at && (
@@ -910,6 +1118,116 @@ export default function UsersPage() {
               <p className="text-sm text-red-500 mt-1">{errors.role_ids}</p>
             )}
           </div>
+
+          {/* Company Assignments */}
+          {companies.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <BuildingOffice2Icon className="w-4 h-4 inline-block ltr:mr-1 rtl:ml-1" />
+                {t('master.users.fields.companyAssignments') || 'Company Assignments'}
+              </label>
+
+              {/* Assigned Companies List */}
+              {formData.company_assignments.length > 0 && (
+                <div className="space-y-2 mb-3">
+                  {formData.company_assignments.map((ca) => {
+                    const company = companies.find((c) => c.id === ca.company_id);
+                    return (
+                      <div
+                        key={ca.company_id}
+                        className={`flex items-center gap-3 p-3 rounded-lg border ${
+                          ca.is_default 
+                            ? 'border-blue-300 bg-blue-50 dark:border-blue-600 dark:bg-blue-900/20'
+                            : 'border-gray-200 bg-gray-50 dark:border-gray-600 dark:bg-gray-800'
+                        }`}
+                      >
+                        <BuildingOfficeIcon className="w-5 h-5 text-indigo-500 flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                              {company?.name || ca.company_name || `Company #${ca.company_id}`}
+                            </span>
+                            {ca.is_default && (
+                              <span className="px-1.5 py-0.5 text-xs bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 rounded">
+                                {t('common.default') || 'Default'}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 mt-1">
+                            {/* Per-company role */}
+                            <select
+                              className="input !py-1 !px-2 text-xs w-40"
+                              value={ca.role_id || ''}
+                              onChange={(e) =>
+                                updateCompanyAssignment(
+                                  ca.company_id,
+                                  'role_id',
+                                  e.target.value ? parseInt(e.target.value) : null
+                                )
+                              }
+                            >
+                              <option value="">{t('master.users.selectRole') || '-- Role --'}</option>
+                              {roles.map((role) => (
+                                <option key={role.id} value={role.id}>
+                                  {role.name}
+                                </option>
+                              ))}
+                            </select>
+                            {/* Default toggle */}
+                            {!ca.is_default && (
+                              <button
+                                type="button"
+                                onClick={() => updateCompanyAssignment(ca.company_id, 'is_default', true)}
+                                className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+                                title={t('master.users.setDefault') || 'Set as default'}
+                              >
+                                {t('master.users.setDefault') || 'Set Default'}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeCompanyAssignment(ca.company_id)}
+                          className="text-red-400 hover:text-red-600 dark:hover:text-red-300 flex-shrink-0"
+                          title={t('common.remove') || 'Remove'}
+                        >
+                          <XCircleIcon className="w-5 h-5" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Add Company Dropdown */}
+              {availableCompanies.length > 0 && (
+                <select
+                  className="input w-full text-sm"
+                  value=""
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      addCompanyAssignment(parseInt(e.target.value));
+                      e.target.value = '';
+                    }
+                  }}
+                >
+                  <option value="">{t('master.users.addCompany') || '+ Add Company...'}</option>
+                  {availableCompanies.map((company) => (
+                    <option key={company.id} value={company.id}>
+                      {company.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+
+              {formData.company_assignments.length === 0 && (
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  {t('master.users.hints.noCompanyAssignment') || 'No company assignments. User will not appear in any company context.'}
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Actions */}
           <div className="flex justify-end gap-2 pt-4 border-t border-gray-200 dark:border-gray-700">

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Vendor Reference Data Routes
  * Handles vendor classifications, types, statuses, payment terms, etc.
  */
@@ -7,16 +7,20 @@ import { Router, Request, Response } from 'express';
 import pool from '../../db';
 import { authenticate } from '../../middleware/auth';
 import { requirePermission } from '../../middleware/rbac';
+import { loadCompanyContext } from '../../middleware/companyContext';
 
 const router = Router();
 
-// ═══════════════════════════════════════════════════════════════════════════
+// Apply company context globally
+router.use(authenticate, loadCompanyContext);
+
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // VENDOR CATEGORIES (Classifications)
-// ═══════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 router.get('/vendor-categories', authenticate, requirePermission('procurement:vendors:view'), async (req: Request, res: Response) => {
   try {
-    const companyId = (req as any).user?.companyId || 1;
+    const companyId = (req as any).companyId;
     const result = await pool.query(
       `SELECT * FROM vendor_categories WHERE company_id = $1 AND deleted_at IS NULL ORDER BY sort_order, name`,
       [companyId]
@@ -30,7 +34,7 @@ router.get('/vendor-categories', authenticate, requirePermission('procurement:ve
 
 router.post('/vendor-categories', authenticate, requirePermission('procurement:vendors:create'), async (req: Request, res: Response) => {
   try {
-    const companyId = (req as any).user?.companyId || 1;
+    const companyId = (req as any).companyId;
     const { code, name, name_ar, description, is_active, sort_order } = req.body;
     
     const result = await pool.query(
@@ -92,13 +96,13 @@ router.delete('/vendor-categories/:id', authenticate, requirePermission('procure
   }
 });
 
-// ═══════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // VENDOR TYPES
-// ═══════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 router.get('/vendor-types', authenticate, requirePermission('procurement:vendors:view'), async (req: Request, res: Response) => {
   try {
-    const companyId = (req as any).user?.companyId || 1;
+    const companyId = (req as any).companyId;
     const result = await pool.query(
       `SELECT * FROM vendor_types WHERE company_id = $1 AND deleted_at IS NULL ORDER BY sort_order, name`,
       [companyId]
@@ -112,7 +116,7 @@ router.get('/vendor-types', authenticate, requirePermission('procurement:vendors
 
 router.post('/vendor-types', authenticate, requirePermission('procurement:vendors:create'), async (req: Request, res: Response) => {
   try {
-    const companyId = (req as any).user?.companyId || 1;
+    const companyId = (req as any).companyId;
     const { code, name, name_ar, description, is_active, sort_order } = req.body;
     
     const result = await pool.query(
@@ -174,13 +178,13 @@ router.delete('/vendor-types/:id', authenticate, requirePermission('procurement:
   }
 });
 
-// ═══════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // VENDOR STATUSES
-// ═══════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 router.get('/vendor-statuses', authenticate, requirePermission('procurement:vendors:view'), async (req: Request, res: Response) => {
   try {
-    const companyId = (req as any).user?.companyId || 1;
+    const companyId = (req as any).companyId;
     const result = await pool.query(
       `SELECT * FROM vendor_statuses WHERE company_id = $1 AND deleted_at IS NULL ORDER BY sort_order, name`,
       [companyId]
@@ -194,7 +198,7 @@ router.get('/vendor-statuses', authenticate, requirePermission('procurement:vend
 
 router.post('/vendor-statuses', authenticate, requirePermission('procurement:vendors:create'), async (req: Request, res: Response) => {
   try {
-    const companyId = (req as any).user?.companyId || 1;
+    const companyId = (req as any).companyId;
     const { code, name, name_ar, description, color, is_active, sort_order } = req.body;
     
     const result = await pool.query(
@@ -256,13 +260,13 @@ router.delete('/vendor-statuses/:id', authenticate, requirePermission('procureme
   }
 });
 
-// ═══════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // VENDOR PAYMENT TERMS
-// ═══════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 router.get('/payment-terms', authenticate, requirePermission('procurement:vendors:view'), async (req: Request, res: Response) => {
   try {
-    const companyId = (req as any).user?.companyId || 1;
+    const companyId = (req as any).companyId;
     const result = await pool.query(
       `SELECT * FROM vendor_payment_terms WHERE company_id = $1 AND deleted_at IS NULL ORDER BY sort_order, name`,
       [companyId]
@@ -276,7 +280,7 @@ router.get('/payment-terms', authenticate, requirePermission('procurement:vendor
 
 router.post('/payment-terms', authenticate, requirePermission('procurement:vendors:create'), async (req: Request, res: Response) => {
   try {
-    const companyId = (req as any).user?.companyId || 1;
+    const companyId = (req as any).companyId;
     const { code, name, name_ar, description, due_days, discount_days, discount_percent, is_active, sort_order } = req.body;
     
     const result = await pool.query(

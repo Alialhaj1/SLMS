@@ -3,12 +3,16 @@
  * Phase 4B Feature 3: User Status Management (Disable/Enable/Unlock)
  */
 
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import pool from '../db';
 import { authenticate } from '../middleware/auth';
 import { requirePermission } from '../middleware/rbac';
+import { getIsolatedTenantId } from '../middleware/tenantIsolation';
+import { companyScopeGuard, getRequestCompanyScope } from '../middleware/companyScopeGuard';
 import { getPaginationParams, sendPaginated } from '../utils/response';
 import { UserService } from '../services/userService';
+import { auditLog } from '../middleware/auditLog';
+import { PolicyService } from '../services/policyService';
 
 const router = Router();
 
@@ -16,6 +20,32 @@ const SUPER_ADMIN_ROLE_NAMES = ['super_admin', 'Super Admin'];
 
 function isSuperAdminRequest(req: any): boolean {
   return Array.isArray(req.user?.roles) && req.user.roles.includes('super_admin');
+}
+
+/** Extract tenant_id from isolation middleware (secure). */
+function getRequestTenantId(req: any): number | null {
+  return getIsolatedTenantId(req);
+}
+
+/**
+ * Middleware: ensures tenant users can only operate on users from their own tenant.
+ * Reads :id from URL params. Platform users (tenant_id=null) skip this check.
+ */
+function requireSameTenant(req: Request, res: Response, next: NextFunction) {
+  const tenantId = getRequestTenantId(req);
+  if (!tenantId) return next(); // platform user → no restriction
+
+  const userId = parseInt(req.params.id, 10);
+  if (!Number.isFinite(userId)) return next(); // will fail validation later
+
+  pool.query('SELECT tenant_id FROM users WHERE id = $1', [userId])
+    .then(result => {
+      if (result.rows.length > 0 && result.rows[0].tenant_id !== tenantId) {
+        return res.status(403).json({ success: false, error: 'Not allowed' });
+      }
+      next();
+    })
+    .catch(() => next());
 }
 
 async function isTargetSuperAdminUser(userId: number): Promise<boolean> {
@@ -44,6 +74,8 @@ router.patch(
   '/:id/disable',
   authenticate,
   requirePermission('users:manage_status'),
+  requireSameTenant,
+  auditLog,
   async (req: Request, res: Response) => {
     const client = await pool.connect();
     
@@ -75,6 +107,19 @@ router.patch(
       }
 
       const user = userCheck.rows[0];
+
+      // Block disabling system accounts
+      const systemCheck = await client.query(
+        'SELECT is_system_account FROM users WHERE id = $1',
+        [id]
+      );
+      if (systemCheck.rows.length > 0 && systemCheck.rows[0].is_system_account) {
+        await client.query('ROLLBACK');
+        return res.status(403).json({
+          success: false,
+          error: 'System accounts cannot be disabled'
+        });
+      }
 
       // Non-super_admin cannot manage the super_admin account
       if (!isSuperAdminRequest(req) && (await isTargetSuperAdminUser(parseInt(id)))) {
@@ -174,6 +219,8 @@ router.patch(
   '/:id/enable',
   authenticate,
   requirePermission('users:manage_status'),
+  requireSameTenant,
+  auditLog,
   async (req: Request, res: Response) => {
     const client = await pool.connect();
     
@@ -197,6 +244,19 @@ router.patch(
       }
 
       const user = userCheck.rows[0];
+
+      // Block enabling system accounts (they should never be disabled)
+      const systemCheck = await client.query(
+        'SELECT is_system_account FROM users WHERE id = $1',
+        [id]
+      );
+      if (systemCheck.rows.length > 0 && systemCheck.rows[0].is_system_account) {
+        await client.query('ROLLBACK');
+        return res.status(403).json({
+          success: false,
+          error: 'System accounts cannot be modified'
+        });
+      }
 
       // Non-super_admin cannot manage the super_admin account
       if (!isSuperAdminRequest(req) && (await isTargetSuperAdminUser(parseInt(id)))) {
@@ -290,6 +350,8 @@ router.patch(
   '/:id/unlock',
   authenticate,
   requirePermission('users:manage_status'),
+  requireSameTenant,
+  auditLog,
   async (req: Request, res: Response) => {
     const client = await pool.connect();
     
@@ -405,6 +467,8 @@ router.patch(
   '/:id/reset-password',
   authenticate,
   requirePermission('users:edit'),
+  requireSameTenant,
+  auditLog,
   async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
@@ -425,10 +489,12 @@ router.patch(
         });
       }
 
-      if (password.length < 8) {
+      // Policy-driven password validation
+      const pwErrors = await PolicyService.validatePassword(password);
+      if (pwErrors.length > 0) {
         return res.status(400).json({
           success: false,
-          error: 'Password must be at least 8 characters long'
+          error: pwErrors.join('. ')
         });
       }
 
@@ -479,20 +545,26 @@ router.get(
   '/',
   authenticate,
   requirePermission('users:view'),
+  companyScopeGuard,
   async (req: Request, res: Response) => {
     try {
       const { status, search, includeDeleted } = req.query;
       const { page, limit, offset } = getPaginationParams(req.query);
 
       const excludeRoleNames = isSuperAdminRequest(req) ? undefined : SUPER_ADMIN_ROLE_NAMES;
+      const tenantId = getRequestTenantId(req);
+      const companyIds = getRequestCompanyScope(req);
 
       // Use UserService to get users with pagination
+      // Tenant users only see users from their assigned companies
       const [users, total] = await Promise.all([
         UserService.getAll({
           status: status as string,
           search: search as string,
           includeDeleted: includeDeleted === 'true',
           excludeRoleNames,
+          tenantId,
+          companyIds,
           limit,
           offset
         }),
@@ -500,7 +572,9 @@ router.get(
           status: status as string,
           search: search as string,
           includeDeleted: includeDeleted === 'true',
-          excludeRoleNames
+          excludeRoleNames,
+          tenantId,
+          companyIds
         })
       ]);
 
@@ -670,6 +744,15 @@ router.get(
         });
       }
 
+      // Tenant isolation: tenant users cannot view users from other tenants
+      const tenantId = getRequestTenantId(req);
+      if (tenantId && user.tenant_id !== tenantId) {
+        return res.status(404).json({
+          success: false,
+          error: 'User not found'
+        });
+      }
+
       res.json({
         success: true,
         user: user
@@ -692,9 +775,11 @@ router.post(
   '/',
   authenticate,
   requirePermission('users:create'),
+  auditLog,
   async (req: Request, res: Response) => {
     try {
       const { email, full_name, password, role_ids } = req.body;
+      const tenantId = getRequestTenantId(req);
 
       // Non-super_admin cannot create users with super_admin role
       if (!isSuperAdminRequest(req) && (await containsSuperAdminRoleIds(role_ids))) {
@@ -702,6 +787,27 @@ router.post(
           success: false,
           error: 'Not allowed'
         });
+      }
+
+      // Tenant user limit enforcement
+      if (tenantId) {
+        const limitCheck = await pool.query(
+          `SELECT t.max_users, 
+                  (SELECT COUNT(*)::int FROM users u WHERE u.tenant_id = t.id AND u.deleted_at IS NULL) as current_count
+           FROM tenants t WHERE t.id = $1`,
+          [tenantId]
+        );
+        if (limitCheck.rows.length > 0) {
+          const { max_users, current_count } = limitCheck.rows[0];
+          if (max_users && current_count >= max_users) {
+            return res.status(403).json({
+              success: false,
+              error: 'USER_LIMIT_REACHED',
+              message: `تم الوصول للحد الأقصى من المستخدمين (${max_users}). يرجى التواصل مع مشرف الحساب لزيادة الحد.`,
+              details: { max_users, current_count }
+            });
+          }
+        }
       }
 
       // Validation
@@ -721,24 +827,75 @@ router.post(
         });
       }
 
-      // Password length validation
-      if (password.length < 8) {
+      // Password policy validation
+      const pwErrors = await PolicyService.validatePassword(password);
+      if (pwErrors.length > 0) {
         return res.status(400).json({
           success: false,
-          error: 'Password must be at least 8 characters long'
+          error: pwErrors.join('. ')
         });
       }
 
-      // Use UserService to create user
+      // Use UserService to create user (with tenant_id for tenant users)
       const newUser = await UserService.create(
         {
           email,
           full_name,
           password,
-          role_ids: role_ids || []
+          role_ids: role_ids || [],
+          tenant_id: tenantId
         },
         req.user!.id
       );
+
+      // ✅ CRITICAL: Link user to company (user_companies)
+      // Always validate company_id belongs to user's tenant before linking
+      const { company_id: bodyCompanyId, company_role_id, access_scope } = req.body;
+      
+      // Determine safe company_id: validate body value against tenant, or use middleware context
+      let safeCompanyId: number | null = null;
+      
+      if (bodyCompanyId) {
+        // Validate the requested company_id belongs to the same tenant
+        if (tenantId) {
+          const companyCheck = await pool.query(
+            'SELECT id FROM companies WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL',
+            [bodyCompanyId, tenantId]
+          );
+          if (companyCheck.rows.length === 0) {
+            return res.status(403).json({
+              success: false,
+              error: 'Invalid company_id: company not found or belongs to another tenant'
+            });
+          }
+        }
+        safeCompanyId = bodyCompanyId;
+      } else if ((req as any).companyId) {
+        safeCompanyId = (req as any).companyId;
+      }
+
+      if (safeCompanyId) {
+        // Get default company_user role if not specified
+        let roleId = company_role_id;
+        if (!roleId) {
+          const defaultRole = await pool.query(
+            "SELECT id FROM roles WHERE name = 'company_user' LIMIT 1"
+          );
+          roleId = defaultRole.rows[0]?.id;
+        }
+
+        await pool.query(
+          `INSERT INTO user_companies (
+            user_id, company_id, is_default, role_id, access_scope, assigned_by, assigned_at
+          ) VALUES ($1, $2, true, $3, $4, $5, CURRENT_TIMESTAMP)
+          ON CONFLICT (user_id, company_id) DO UPDATE SET
+            role_id = EXCLUDED.role_id,
+            access_scope = EXCLUDED.access_scope`,
+          [newUser.id, safeCompanyId, roleId, access_scope || 'company_only', req.user!.id]
+        );
+
+        console.log(`User ${newUser.id} linked to company ${safeCompanyId} (tenant-verified)`);
+      }
 
       res.status(201).json({
         success: true,
@@ -772,6 +929,7 @@ router.put(
   '/:id',
   authenticate,
   requirePermission('users:edit'),
+  auditLog,
   async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
@@ -791,6 +949,30 @@ router.put(
           success: false,
           error: 'Not allowed'
         });
+      }
+
+      // Block editing system accounts entirely
+      const systemCheck = await pool.query(
+        'SELECT is_system_account FROM users WHERE id = $1',
+        [targetUserId]
+      );
+      if (systemCheck.rows.length > 0 && systemCheck.rows[0].is_system_account) {
+        return res.status(403).json({
+          success: false,
+          error: 'System accounts cannot be modified'
+        });
+      }
+
+      // Tenant isolation: tenant users can only edit their own tenant's users
+      const tenantId = getRequestTenantId(req);
+      if (tenantId) {
+        const targetUser = await pool.query('SELECT tenant_id FROM users WHERE id = $1', [targetUserId]);
+        if (targetUser.rows.length > 0 && targetUser.rows[0].tenant_id !== tenantId) {
+          return res.status(403).json({
+            success: false,
+            error: 'Not allowed'
+          });
+        }
       }
 
       // Non-super_admin cannot assign super_admin role
@@ -819,11 +1001,14 @@ router.put(
       }
 
       // Password validation if provided
-      if (password && password.length < 8) {
-        return res.status(400).json({
-          success: false,
-          error: 'Password must be at least 8 characters long'
-        });
+      if (password) {
+        const pwErrors = await PolicyService.validatePassword(password);
+        if (pwErrors.length > 0) {
+          return res.status(400).json({
+            success: false,
+            error: pwErrors.join('. ')
+          });
+        }
       }
 
       // Check if email is already used by another user
@@ -889,6 +1074,7 @@ router.delete(
   '/:id',
   authenticate,
   requirePermission('users:delete'),
+  auditLog,
   async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
@@ -917,12 +1103,36 @@ router.delete(
 
       const user = userCheck.rows[0];
 
+      // Block deleting system accounts entirely
+      const systemCheck = await pool.query(
+        'SELECT is_system_account FROM users WHERE id = $1',
+        [id]
+      );
+      if (systemCheck.rows.length > 0 && systemCheck.rows[0].is_system_account) {
+        return res.status(403).json({
+          success: false,
+          error: 'System accounts cannot be deleted'
+        });
+      }
+
       // Non-super_admin cannot delete super_admin user
       if (!isSuperAdminRequest(req) && (await isTargetSuperAdminUser(parseInt(id)))) {
         return res.status(403).json({
           success: false,
           error: 'Not allowed'
         });
+      }
+
+      // Tenant isolation: tenant users can only delete their own tenant's users
+      const tenantId = getRequestTenantId(req);
+      if (tenantId) {
+        const targetTenant = await pool.query('SELECT tenant_id FROM users WHERE id = $1', [id]);
+        if (targetTenant.rows.length > 0 && targetTenant.rows[0].tenant_id !== tenantId) {
+          return res.status(403).json({
+            success: false,
+            error: 'Not allowed'
+          });
+        }
       }
 
       if (user.deleted_at) {
@@ -971,7 +1181,7 @@ router.post(
 
       // Check if user exists and is deleted
       const userCheck = await pool.query(
-        'SELECT id, email, full_name, deleted_at FROM users WHERE id = $1',
+        'SELECT id, email, full_name, deleted_at, tenant_id FROM users WHERE id = $1',
         [id]
       );
 
@@ -983,6 +1193,15 @@ router.post(
       }
 
       const user = userCheck.rows[0];
+
+      // Tenant isolation: tenant users can only restore their own tenant's users
+      const tenantId = getRequestTenantId(req);
+      if (tenantId && user.tenant_id !== tenantId) {
+        return res.status(403).json({
+          success: false,
+          error: 'Not allowed'
+        });
+      }
 
       if (!user.deleted_at) {
         return res.status(400).json({
@@ -1066,6 +1285,19 @@ router.delete(
         });
       }
 
+      // Tenant isolation: tenant users can only permanently delete their own tenant's users
+      const tenantId = getRequestTenantId(req);
+      if (tenantId) {
+        const targetTenant = await client.query('SELECT tenant_id FROM users WHERE id = $1', [id]);
+        if (targetTenant.rows.length > 0 && targetTenant.rows[0].tenant_id !== tenantId) {
+          await client.query('ROLLBACK');
+          return res.status(403).json({
+            success: false,
+            error: 'Not allowed'
+          });
+        }
+      }
+
       // Delete user roles first
       await client.query('DELETE FROM user_roles WHERE user_id = $1', [id]);
 
@@ -1131,6 +1363,7 @@ router.get(
       const { page, limit, offset } = getPaginationParams(req.query);
 
       const hideSuperAdmin = !isSuperAdminRequest(req);
+      const tenantId = getRequestTenantId(req);
 
       let query = `
         SELECT 
@@ -1151,6 +1384,13 @@ router.get(
       const params: any[] = [];
       
       const whereParts: string[] = [];
+
+      // Tenant isolation: only show login history for tenant's own users
+      if (tenantId) {
+        whereParts.push(`u.tenant_id = $${params.length + 1}`);
+        params.push(tenantId);
+      }
+
       if (activity_type && typeof activity_type === 'string') {
         whereParts.push(`lh.activity_type = $${params.length + 1}`);
         params.push(activity_type);
@@ -1176,10 +1416,17 @@ router.get(
       query += ` ORDER BY lh.created_at DESC`;
 
       // Get total count
-      let countQuery = 'SELECT COUNT(*) as total FROM login_history lh';
+      let countQuery = 'SELECT COUNT(*) as total FROM login_history lh LEFT JOIN users u ON lh.user_id = u.id';
       const countParams: any[] = [];
 
       const countWhere: string[] = [];
+
+      // Tenant isolation for count
+      if (tenantId) {
+        countWhere.push(`u.tenant_id = $${countParams.length + 1}`);
+        countParams.push(tenantId);
+      }
+
       if (activity_type && typeof activity_type === 'string') {
         countWhere.push(`lh.activity_type = $${countParams.length + 1}`);
         countParams.push(activity_type);
@@ -1251,6 +1498,18 @@ router.get(
         });
       }
 
+      // Tenant isolation: tenant users can only view login history of their own tenant's users
+      const tenantId = getRequestTenantId(req);
+      if (tenantId) {
+        const targetUser = await pool.query('SELECT tenant_id FROM users WHERE id = $1', [requestedId]);
+        if (targetUser.rows.length === 0 || targetUser.rows[0].tenant_id !== tenantId) {
+          return res.status(404).json({
+            success: false,
+            error: 'User not found'
+          });
+        }
+      }
+
       // Build query with optional activity_type filter
       let query = `
         SELECT 
@@ -1313,6 +1572,18 @@ router.get(
       const { id } = req.params;
       const { days = '30' } = req.query;
 
+      // Tenant isolation: tenant users can only view stats of their own tenant's users
+      const tenantId = getRequestTenantId(req);
+      if (tenantId) {
+        const targetUser = await pool.query('SELECT tenant_id FROM users WHERE id = $1', [id]);
+        if (targetUser.rows.length === 0 || targetUser.rows[0].tenant_id !== tenantId) {
+          return res.status(404).json({
+            success: false,
+            error: 'User not found'
+          });
+        }
+      }
+
       const result = await pool.query(
         'SELECT * FROM get_user_login_stats($1, $2)',
         [id, parseInt(days as string)]
@@ -1356,7 +1627,9 @@ router.get(
   requirePermission('users:view_deleted'),
   async (req: Request, res: Response) => {
     try {
-      const result = await pool.query(`
+      const tenantId = getRequestTenantId(req);
+
+      let query = `
         SELECT 
           u.id,
           u.email,
@@ -1371,8 +1644,18 @@ router.get(
         INNER JOIN deleted_records dr ON dr.record_id = u.id AND dr.table_name = 'users'
         LEFT JOIN users deleter ON dr.deleted_by = deleter.id
         WHERE u.deleted_at IS NOT NULL AND dr.restored_at IS NULL
-        ORDER BY u.deleted_at DESC
-      `);
+      `;
+      const params: any[] = [];
+
+      // Tenant isolation: only show tenant's own deleted users
+      if (tenantId) {
+        query += ` AND u.tenant_id = $1`;
+        params.push(tenantId);
+      }
+
+      query += ` ORDER BY u.deleted_at DESC`;
+
+      const result = await pool.query(query, params);
 
       res.json({
         success: true,

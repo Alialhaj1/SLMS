@@ -5,6 +5,25 @@
  */
 
 import pool from '../db';
+import { PolicyService } from './policyService';
+
+// =============================================
+// Notification Type → Policy Key mapping
+// =============================================
+const NOTIFICATION_POLICY_MAP: Record<string, string> = {
+  login_success:      'notify_on_login',
+  login_failed:       'notify_on_login',
+  password_changed:   'notify_on_login',
+  shipment_created:   'notify_on_shipment_update',
+  shipment_updated:   'notify_on_shipment_update',
+  shipment_delivered: 'notify_on_shipment_update',
+  expense_submitted:  'notify_on_expense_approval',
+  expense_approved:   'notify_on_expense_approval',
+  expense_rejected:   'notify_on_expense_approval',
+  approval_pending:   'notify_on_approval_pending',
+  payment_due:        'notify_on_payment_due',
+  low_stock:          'notify_on_low_stock',
+};
 
 // =============================================
 // Types & Interfaces
@@ -42,6 +61,8 @@ export interface CreateNotificationOptions {
   relatedEntityId?: number;
   actionUrl?: string;
   expiresAt?: Date;
+  tenantId?: number;   // Tenant isolation (required for tenant-scoped notifications)
+  companyId?: number;  // Company isolation (optional, for company-scoped notifications)
 }
 
 export interface GetNotificationsOptions {
@@ -51,6 +72,8 @@ export interface GetNotificationsOptions {
   category?: string;
   limit?: number;
   offset?: number;
+  tenantId?: number;   // Filter by tenant for isolation
+  companyId?: number;  // Filter by specific company
 }
 
 // =============================================
@@ -65,6 +88,20 @@ export class NotificationService {
    * Always uses i18n keys, never hardcoded text
    */
   static async create(options: CreateNotificationOptions): Promise<number> {
+    // Check if this notification type is enabled via policy
+    const policyKey = NOTIFICATION_POLICY_MAP[options.type];
+    if (policyKey) {
+      const isEnabled = await PolicyService.getBool(policyKey, true);
+      if (!isEnabled) {
+        // Notification type is disabled by policy — skip silently
+        return -1;
+      }
+    }
+
+    // Check if email/sms/whatsapp channels are globally disabled
+    const emailEnabled = await PolicyService.getBool('email_notifications_enabled', true);
+    // (In-app notifications always created; email/sms channels checked at delivery time)
+
     const {
       type,
       category,
@@ -77,7 +114,9 @@ export class NotificationService {
       relatedEntityType,
       relatedEntityId,
       actionUrl,
-      expiresAt
+      expiresAt,
+      tenantId,
+      companyId
     } = options;
     
     // Validation: Must have at least one target
@@ -89,8 +128,8 @@ export class NotificationService {
       `INSERT INTO notifications
        (type, category, priority, title_key, message_key, payload,
         target_user_id, target_role_id, related_entity_type, related_entity_id,
-        action_url, expires_at, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW())
+        action_url, expires_at, tenant_id, company_id, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW())
        RETURNING id`,
       [
         type,
@@ -104,7 +143,9 @@ export class NotificationService {
         relatedEntityType || null,
         relatedEntityId || null,
         actionUrl || null,
-        expiresAt || null
+        expiresAt || null,
+        tenantId || null,
+        companyId || null
       ]
     );
     
@@ -126,7 +167,9 @@ export class NotificationService {
       type,
       category,
       limit = 20,
-      offset = 0
+      offset = 0,
+      tenantId,
+      companyId
     } = options;
     
     let whereConditions = [
@@ -136,6 +179,20 @@ export class NotificationService {
     
     const queryParams: any[] = [userId];
     let paramIndex = 2;
+    
+    // Tenant isolation: only show notifications for this tenant (or global/null)
+    if (tenantId) {
+      whereConditions.push(`(n.tenant_id = $${paramIndex} OR n.tenant_id IS NULL)`);
+      queryParams.push(tenantId);
+      paramIndex++;
+    }
+    
+    // Company isolation: only show notifications for this company (or company-wide/null)
+    if (companyId) {
+      whereConditions.push(`(n.company_id = $${paramIndex} OR n.company_id IS NULL)`);
+      queryParams.push(companyId);
+      paramIndex++;
+    }
     
     if (unreadOnly) {
       whereConditions.push('n.read_at IS NULL');

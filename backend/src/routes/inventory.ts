@@ -13,6 +13,7 @@ import pool from '../db';
 import { authenticate } from '../middleware/auth';
 import { loadCompanyContext } from '../middleware/companyContext';
 import { requireAnyPermission, requirePermission } from '../middleware/rbac';
+import { freezeGuard } from '../middleware/freezeGuard';
 
 const router = Router();
 
@@ -387,6 +388,7 @@ async function insertMovement(
 router.post(
   '/adjustments',
   requireAnyPermission(['warehouses:edit', 'master:warehouses:edit']),
+  freezeGuard('inventory_movements'),
   async (req: Request, res: Response) => {
   const companyId = getCompanyId(req);
   if (!companyId) return companyRequired(res);

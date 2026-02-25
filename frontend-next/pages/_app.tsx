@@ -6,8 +6,11 @@ import { ThemeProvider } from '../contexts/ThemeContext';
 import { ToastProvider } from '../contexts/ToastContext';
 import { LocaleProvider } from '../contexts/LocaleContext';
 import { AuthProvider } from '../contexts/AuthContext';
+import { AuthorizationProvider } from '../contexts/AuthorizationContext';
 import { NotificationsProvider } from '../contexts/NotificationsContext';
+import { PolicyProvider } from '../hooks/usePolicies';
 import { ErrorBoundary } from '../components/ErrorBoundary';
+import { LayoutWrapper } from '../components/layout/LayoutWrapper';
 
 export default function MyApp({ Component, pageProps }: AppProps) {
   return (
@@ -16,9 +19,15 @@ export default function MyApp({ Component, pageProps }: AppProps) {
         <ThemeProvider>
           <ToastProvider>
             <AuthProvider>
-              <NotificationsProvider>
-                <Component {...pageProps} />
-              </NotificationsProvider>
+              <AuthorizationProvider>
+                <NotificationsProvider>
+                  <PolicyProvider>
+                    <LayoutWrapper>
+                      <Component {...pageProps} />
+                    </LayoutWrapper>
+                  </PolicyProvider>
+                </NotificationsProvider>
+              </AuthorizationProvider>
             </AuthProvider>
           </ToastProvider>
         </ThemeProvider>

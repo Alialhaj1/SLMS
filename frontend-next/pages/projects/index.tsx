@@ -236,7 +236,7 @@ const getProjectLevelConfig = (level: ProjectLevel) => {
 // API FUNCTIONS
 // =============================================
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL || '') + '/api';
 
 async function fetchWithAuth(url: string, token: string, options: RequestInit = {}) {
   const res = await fetch(url, {
@@ -407,7 +407,7 @@ export default function ProjectsPage() {
       if (filters.project_type_id !== 'all') params.append('project_type_id', filters.project_type_id);
       if (filters.is_root_only) params.append('parent_project_id', 'root');
 
-      const data = await fetchWithAuth(`${API_BASE}/api/projects?${params}`, token);
+      const data = await fetchWithAuth(`${API_BASE}/projects?${params}`, token);
       setProjects(data.data || []);
       setMeta(data.meta || { total: 0, page: 1, limit: 20, totalPages: 0 });
     } catch (err: any) {
@@ -423,7 +423,7 @@ export default function ProjectsPage() {
     try {
       const token = localStorage.getItem('accessToken');
       if (!token) return;
-      const data = await fetchWithAuth(`${API_BASE}/api/projects/stats`, token);
+      const data = await fetchWithAuth(`${API_BASE}/projects/stats`, token);
       setStats(data.data);
     } catch (err) {
       console.error('Failed to fetch stats:', err);
@@ -435,7 +435,7 @@ export default function ProjectsPage() {
     try {
       const token = localStorage.getItem('accessToken');
       if (!token) return;
-      const data = await fetchWithAuth(`${API_BASE}/api/projects/types`, token);
+      const data = await fetchWithAuth(`${API_BASE}/projects/types`, token);
       setProjectTypes(data.data || []);
     } catch (err) {
       console.error('Failed to fetch project types:', err);
@@ -467,7 +467,7 @@ export default function ProjectsPage() {
       if (!token) return;
       
       // Build URL with unlink params if forceUnlink is true
-      let url = `${API_BASE}/api/projects/${deleteProject.id}`;
+      let url = `${API_BASE}/projects/${deleteProject.id}`;
       if (forceUnlink && deleteConflict) {
         const params = new URLSearchParams();
         if (deleteConflict.childrenCount) params.append('unlinkChildren', 'true');

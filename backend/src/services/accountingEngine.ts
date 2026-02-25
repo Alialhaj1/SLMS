@@ -333,6 +333,69 @@ async function loadEntityData(
       `;
       break;
 
+    case 'sales_invoice':
+      query = `
+        SELECT si.*,
+               c.name as customer_name, c.receivable_account_id,
+               p.name as project_name,
+               cur.code as currency_code
+        FROM sales_invoices si
+        LEFT JOIN customers c ON si.customer_id = c.id
+        LEFT JOIN projects p ON si.project_id = p.id
+        LEFT JOIN currencies cur ON si.currency_id = cur.id
+        WHERE si.id = $1 AND si.company_id = $2 AND si.deleted_at IS NULL
+      `;
+      break;
+
+    case 'receipt':
+      query = `
+        SELECT r.*,
+               c.name as customer_name, c.receivable_account_id,
+               ba.name as bank_account_name, ba.gl_account_id as bank_gl_account_id,
+               cur.code as currency_code
+        FROM receipts r
+        LEFT JOIN customers c ON r.customer_id = c.id
+        LEFT JOIN bank_accounts ba ON r.bank_account_id = ba.id
+        LEFT JOIN currencies cur ON r.currency_id = cur.id
+        WHERE r.id = $1 AND r.company_id = $2 AND r.deleted_at IS NULL
+      `;
+      break;
+
+    case 'payment_voucher':
+      query = `
+        SELECT pv.*,
+               v.name as vendor_name, v.payable_account_id as vendor_payable_account_id,
+               ba.name as bank_account_name, ba.gl_account_id as bank_gl_account_id,
+               cur.code as currency_code,
+               p.name as project_name
+        FROM payment_vouchers pv
+        LEFT JOIN vendors v ON pv.vendor_id = v.id
+        LEFT JOIN bank_accounts ba ON pv.bank_account_id = ba.id
+        LEFT JOIN currencies cur ON pv.currency_id = cur.id
+        LEFT JOIN projects p ON pv.project_id = p.id
+        WHERE pv.id = $1 AND pv.company_id = $2 AND pv.deleted_at IS NULL
+      `;
+      break;
+
+    case 'shipment_expense':
+      query = `
+        SELECT se.*,
+               et.code as expense_type_code, et.name as expense_type_name,
+               et.expense_account_id, et.payable_account_id,
+               v.name as vendor_name, v.payable_account_id as vendor_payable_account_id,
+               s.tracking_number as shipment_number,
+               cur.code as currency_code,
+               p.name as project_name
+        FROM shipment_expenses se
+        LEFT JOIN expense_types et ON se.expense_type_id = et.id
+        LEFT JOIN vendors v ON se.vendor_id = v.id
+        LEFT JOIN shipments s ON se.shipment_id = s.id
+        LEFT JOIN currencies cur ON se.currency_id = cur.id
+        LEFT JOIN projects p ON se.project_id = p.id
+        WHERE se.id = $1 AND se.company_id = $2 AND se.deleted_at IS NULL
+      `;
+      break;
+
     default:
       return null;
   }
@@ -813,6 +876,21 @@ async function updateEntityAccountingStatus(
       break;
     case 'shipment':
       table = 'shipments';
+      break;
+    case 'purchase_invoice':
+      table = 'purchase_invoices';
+      break;
+    case 'sales_invoice':
+      table = 'sales_invoices';
+      break;
+    case 'receipt':
+      table = 'receipts';
+      break;
+    case 'payment_voucher':
+      table = 'payment_vouchers';
+      break;
+    case 'shipment_expense':
+      table = 'shipment_expenses';
       break;
     default:
       return;

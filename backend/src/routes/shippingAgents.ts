@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Shipping Agents API
  * Manages shipping agents and freight forwarders for shipping expenses
  */
@@ -7,12 +7,16 @@ import { Router, Request, Response } from 'express';
 import pool from '../db';
 import { authenticate } from '../middleware/auth';
 import { requirePermission } from '../middleware/rbac';
+import { loadCompanyContext } from '../middleware/companyContext';
 
 const router = Router();
 
+// Apply company context globally to all shipping agent routes
+router.use(authenticate, loadCompanyContext);
+
 router.get('/', authenticate, requirePermission('shipping_agents:view'), async (req: Request, res: Response) => {
   try {
-    const companyId = (req as any).user?.companyId || 1;
+    const companyId = (req as any).companyId;
     const result = await pool.query(`
       SELECT id, code, name, name_ar, agent_type, license_number, services,
              contact_person, phone, email, address, is_active, created_at
@@ -28,7 +32,7 @@ router.get('/', authenticate, requirePermission('shipping_agents:view'), async (
 
 router.post('/', authenticate, requirePermission('shipping_agents:create'), async (req: Request, res: Response) => {
   try {
-    const companyId = (req as any).user?.companyId || 1;
+    const companyId = (req as any).companyId;
     const userId = (req as any).user?.id;
     const { code, name, name_ar, agent_type, license_number, services, contact_person, phone, email, address } = req.body;
     
@@ -49,7 +53,7 @@ router.post('/', authenticate, requirePermission('shipping_agents:create'), asyn
 router.put('/:id', authenticate, requirePermission('shipping_agents:update'), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const companyId = (req as any).user?.companyId || 1;
+    const companyId = (req as any).companyId;
     const userId = (req as any).user?.id;
     const { code, name, name_ar, agent_type, license_number, services, contact_person, phone, email, address, is_active } = req.body;
     
@@ -75,7 +79,7 @@ router.put('/:id', authenticate, requirePermission('shipping_agents:update'), as
 router.delete('/:id', authenticate, requirePermission('shipping_agents:delete'), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const companyId = (req as any).user?.companyId || 1;
+    const companyId = (req as any).companyId;
     const userId = (req as any).user?.id;
     
     await pool.query(`

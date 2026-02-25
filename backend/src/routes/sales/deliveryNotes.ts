@@ -9,8 +9,10 @@ import { Router, Request, Response } from 'express';
 import { authenticate } from '../../middleware/auth';
 import { requirePermission } from '../../middleware/rbac';
 import deliveryNoteService from '../../services/deliveryNoteService';
+import { loadCompanyContext } from '../../middleware/companyContext';
 
 const router = Router();
+router.use(authenticate, loadCompanyContext);
 
 // ═══════════════════════════════════════════════════════════════════════════
 // LIST DELIVERY NOTES

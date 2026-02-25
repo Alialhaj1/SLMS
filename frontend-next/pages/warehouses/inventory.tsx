@@ -17,6 +17,7 @@ import { useToast } from '../../contexts/ToastContext';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import { companyStore } from '../../lib/companyStore';
+import { exportToCSV } from '../../utils/exportData';
 
 interface InventoryItem {
   id: number;
@@ -60,7 +61,7 @@ const WarehouseInventory: React.FC = () => {
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
+      const apiUrl = (process.env.NEXT_PUBLIC_API_URL || '') + '/api';
       const companyId = companyStore.getActiveCompanyId();
       if (!companyId) {
         setInventory([]);
@@ -69,7 +70,7 @@ const WarehouseInventory: React.FC = () => {
       }
       
       // Try to fetch real data
-      const response = await fetch(`${apiUrl}/api/inventory`, {
+      const response = await fetch(`${apiUrl}/inventory`, {
         headers: {
           Authorization: `Bearer ${token}`,
           'X-Company-Id': String(companyId),
@@ -154,7 +155,22 @@ const WarehouseInventory: React.FC = () => {
               {tr('inventory.subtitle', 'Track and manage stock levels across all warehouses')}
             </p>
           </div>
-          <Button variant="secondary" className="flex items-center gap-2">
+          <Button variant="secondary" className="flex items-center gap-2" onClick={() => {
+            exportToCSV(filteredInventory, 'inventory-export', [
+              { key: 'item_code', label: 'Item Code' },
+              { key: 'item_name', label: 'Item Name' },
+              { key: 'item_name_ar', label: 'Item Name (AR)' },
+              { key: 'warehouse_name', label: 'Warehouse' },
+              { key: 'quantity', label: 'Quantity' },
+              { key: 'unit', label: 'Unit' },
+              { key: 'average_cost', label: 'Avg Cost' },
+              { key: 'selling_price', label: 'Selling Price' },
+              { key: 'min_stock', label: 'Min Stock' },
+              { key: 'max_stock', label: 'Max Stock' },
+              { key: 'status', label: 'Status' },
+            ]);
+            showToast('success', tr('common.exported', 'Data exported successfully'));
+          }}>
             <ArrowDownTrayIcon className="w-5 h-5" />
             {tr('common.export', 'Export')}
           </Button>

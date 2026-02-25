@@ -26,7 +26,7 @@ import {
 import clsx from 'clsx';
 
 // Normalize API_URL: strip trailing slashes and /api suffix to avoid /api/api/... duplication
-const rawApiUrl = process.env.NEXT_PUBLIC_API_URL || '';
+const rawApiUrl = (process.env.NEXT_PUBLIC_API_URL || '') + '/api';
 const API_URL = rawApiUrl.replace(/\/$/, '').replace(/\/api$/, '');
 
 // ==================================================
@@ -491,17 +491,18 @@ export default function ExchangeRatesPage() {
     </span>
   );
 
-  const getSourceBadge = (source: RateSource) => {
-    const colors: Record<RateSource, string> = {
+  const getSourceBadge = (source: RateSource | string) => {
+    const colors: Record<string, string> = {
       manual: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
       central_bank: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300',
       api: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300',
       ecb: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
       openexchangerates: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300',
     };
+    const label = sourceLabels[source as RateSource];
     return (
-      <span className={clsx('px-2 py-0.5 text-xs font-medium rounded-full', colors[source])}>
-        {locale === 'ar' ? sourceLabels[source].ar : sourceLabels[source].en}
+      <span className={clsx('px-2 py-0.5 text-xs font-medium rounded-full', colors[source] || 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300')}>
+        {label ? (locale === 'ar' ? label.ar : label.en) : source}
       </span>
     );
   };
@@ -770,7 +771,7 @@ export default function ExchangeRatesPage() {
                         {formatDate(rate.rate_date)}
                       </td>
                       <td className="px-4 py-3 text-gray-500 dark:text-gray-400">
-                        {locale === 'ar' ? rateTypeLabels[rate.rate_type].ar : rateTypeLabels[rate.rate_type].en}
+                        {rateTypeLabels[rate.rate_type] ? (locale === 'ar' ? rateTypeLabels[rate.rate_type].ar : rateTypeLabels[rate.rate_type].en) : rate.rate_type}
                       </td>
                       <td className="px-4 py-3">
                         {getSourceBadge(rate.source)}

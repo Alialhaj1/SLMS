@@ -5,6 +5,7 @@ import { loadCompanyContext } from '../../middleware/companyContext';
 import { requirePermission } from '../../middleware/rbac';
 import { UploadService } from '../../services/uploadService';
 import logger from '../../utils/logger';
+import { createVendorLedgerAccount } from '../../services/companySetup.service';
 
 const router = Router();
 
@@ -156,6 +157,32 @@ router.post('/', requirePermission('vendors:create'), async (req: Request, res: 
     ]);
 
     logger.info('Vendor created', { vendorId: result.rows[0].id, code, userId });
+
+    // Auto-create AP sub-ledger account for this vendor
+    const vendor = result.rows[0];
+    const tenantId = (req as any).tenantId || (req as any).user?.tenantId || null;
+    createVendorLedgerAccount(
+      companyId,
+      tenantId,
+      vendor.id,
+      vendor.code,
+      vendor.name,
+      vendor.name_ar,
+      vendor.is_external === true,
+      userId
+    ).then(ledgerResult => {
+      if (ledgerResult.accountId) {
+        // Update vendor with the linked payable account
+        pool.query(
+          'UPDATE vendors SET payable_account_id = $1 WHERE id = $2',
+          [ledgerResult.accountId, vendor.id]
+        ).catch(err => logger.warn('Failed to link payable account to vendor:', err));
+        logger.info('Auto-created vendor ledger account', { vendorId: vendor.id, accountId: ledgerResult.accountId });
+      }
+    }).catch(err => {
+      logger.warn('Auto vendor ledger creation failed (non-blocking):', err);
+    });
+
     res.status(201).json({ success: true, data: result.rows[0] });
   } catch (error) {
     logger.error('Error creating vendor:', error);

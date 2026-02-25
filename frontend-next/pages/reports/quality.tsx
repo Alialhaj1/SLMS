@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import Head from 'next/head';
 import MainLayout from '../../components/layout/MainLayout';
+import { exportToCSV } from '../../utils/exportData';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import Modal from '../../components/ui/Modal';
@@ -131,7 +132,18 @@ export default function QualityReportsPage() {
             </div>
           </div>
           {canExport && (
-            <Button variant="secondary" onClick={() => showToast(locale === 'ar' ? 'تصدير (تجريبي)' : 'Export (demo)', 'info')}>
+            <Button variant="secondary" onClick={() => {
+              exportToCSV(filtered, 'quality-report', [
+                { key: 'ref', label: 'Reference' },
+                { key: 'area', label: 'Area' },
+                { key: 'severity', label: 'Severity' },
+                { key: 'status', label: 'Status' },
+                { key: 'date', label: 'Date' },
+                { key: 'inspector', label: 'Inspector' },
+                { key: 'notes', label: 'Notes' },
+              ]);
+              showToast(locale === 'ar' ? 'تم التصدير بنجاح' : 'Exported successfully', 'success');
+            }}>
               <ArrowDownTrayIcon className="h-4 w-4" />
               {locale === 'ar' ? 'تصدير' : 'Export'}
             </Button>

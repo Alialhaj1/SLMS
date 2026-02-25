@@ -1,430 +1,348 @@
+/**
+ * 📐 UNIT TYPES API (Enterprise Edition)
+ * ==============================================
+ * Unit Types management (D-05):
+ *   - Enterprise CRUD (create, read, update, soft-delete)
+ *   - Stats endpoint for dashboard cards
+ *   - Filter by status, allows_decimals, is_countable, is_system
+ *   - Sort, paginate, search across code/name_en/name_ar
+ *   - Toggle status & system-record protection
+ *
+ * Middlewares: ✅ Auth, ✅ Company Context, ✅ RBAC, ✅ Audit
+ * Soft Delete: ✅ deleted_at
+ */
+
 import { Router, Request, Response } from 'express';
 import pool from '../../db';
 import { authenticate } from '../../middleware/auth';
 import { loadCompanyContext } from '../../middleware/companyContext';
-import { requirePermission } from '../../middleware/rbac';
+import { requireAnyPermission } from '../../middleware/rbac';
+import { applyEnhancedAudit } from '../../middleware/enhancedAuditLog';
 
 const router = Router();
 
-let hasMeasurementTypeColumn: boolean | null = null;
-
-async function measurementTypeColumnExists(): Promise<boolean> {
-  if (hasMeasurementTypeColumn !== null) return hasMeasurementTypeColumn;
-  try {
-    const result = await pool.query(
-      `SELECT 1
-       FROM information_schema.columns
-       WHERE table_schema = 'public'
-         AND table_name = 'units_of_measure'
-         AND column_name = 'measurement_type'
-       LIMIT 1`
-    );
-    hasMeasurementTypeColumn = (result.rowCount || 0) > 0;
-  } catch {
-    // Be conservative: if we cannot detect schema, assume column is missing.
-    hasMeasurementTypeColumn = false;
-  }
-  return hasMeasurementTypeColumn;
-}
-
 router.use(authenticate);
 router.use(loadCompanyContext);
+applyEnhancedAudit(router, 'unit_types');
 
-// GET /api/unit-types (alias) - List unit types (units of measure)
-router.get('/', requirePermission('master:items:view'), async (req: Request, res: Response) => {
-  try {
-    const companyId =
-      (req as any).companyContext?.companyId ??
-      (req as any).companyContext?.id ??
-      (req as any).companyId;
-    if (!companyId) {
-      return res
-        .status(400)
-        .json({ success: false, error: { code: 'COMPANY_REQUIRED', message: 'Company context required' } });
+// ─── GET /stats — Stats for dashboard cards ─────────────────────────────
+router.get(
+  '/stats',
+  requireAnyPermission(['unit_types:view', 'unit_types:manage']),
+  async (_req: Request, res: Response) => {
+    try {
+      const result = await pool.query(`
+        SELECT
+          COUNT(*)::int                                                    AS total,
+          COUNT(*) FILTER (WHERE status = 'active')::int                   AS active,
+          COUNT(*) FILTER (WHERE allows_decimals = true)::int              AS allows_decimals,
+          COUNT(*) FILTER (WHERE allows_decimals = false)::int             AS no_decimals,
+          COUNT(*) FILTER (WHERE is_countable = true)::int                 AS countable,
+          COUNT(*) FILTER (WHERE is_countable = false)::int                AS non_countable,
+          COUNT(*) FILTER (WHERE is_system = true)::int                    AS system_count
+        FROM unit_types
+        WHERE deleted_at IS NULL
+      `);
+      res.json({ success: true, data: result.rows[0] });
+    } catch (err: any) {
+      console.error('unit_types stats error:', err);
+      res.status(500).json({ error: 'Failed to fetch unit type stats' });
     }
-
-    const { search, unit_category, is_active } = req.query;
-    const params: any[] = [companyId];
-    let paramIndex = 2;
-
-    const hasMeasurementType = await measurementTypeColumnExists();
-
-    let query = `
-      SELECT
-        u.id,
-        u.code,
-        COALESCE(u.name_en, u.name) AS name,
-        u.name_ar,
-        LOWER(COALESCE(u.unit_type, 'basic')) AS unit_category,
-        ${hasMeasurementType ? 'UPPER(COALESCE(u.measurement_type, bu.measurement_type))' : 'NULL'} AS measurement_type,
-        ${hasMeasurementType ? 'UPPER(COALESCE(u.measurement_type, bu.measurement_type))' : 'NULL'} AS unit_type_code,
-        u.base_unit_id,
-        bu.name_en AS base_unit_name,
-        u.conversion_factor,
-        COALESCE(u.symbol_en, u.symbol_ar) AS symbol,
-        u.decimal_places,
-        u.is_active,
-        u.created_at
-      FROM units_of_measure u
-      LEFT JOIN units_of_measure bu ON u.base_unit_id = bu.id AND bu.deleted_at IS NULL
-      WHERE u.deleted_at IS NULL
-        AND (u.company_id = $1 OR u.company_id IS NULL)
-    `;
-
-    if (search) {
-      query += ` AND (u.code ILIKE $${paramIndex} OR u.name ILIKE $${paramIndex} OR u.name_en ILIKE $${paramIndex} OR u.name_ar ILIKE $${paramIndex})`;
-      params.push(`%${search}%`);
-      paramIndex++;
-    }
-
-    if (unit_category) {
-      query += ` AND COALESCE(u.unit_type, 'basic') = $${paramIndex}`;
-      params.push(unit_category);
-      paramIndex++;
-    }
-
-    if (is_active !== undefined) {
-      query += ` AND u.is_active = $${paramIndex}`;
-      params.push(is_active === 'true');
-      paramIndex++;
-    }
-
-    query += ` ORDER BY u.sort_order ASC, u.code ASC`;
-
-    const result = await pool.query(query, params);
-    res.json({ success: true, data: result.rows, total: result.rowCount || 0 });
-  } catch (error) {
-    console.error('Error fetching unit types:', error);
-    res.status(500).json({ success: false, error: { code: 'FETCH_ERROR', message: 'Failed to fetch unit types' } });
   }
-});
+);
 
-// POST /api/unit-types - Create unit
-router.post('/', requirePermission('master:items:create'), async (req: Request, res: Response) => {
-  try {
-    const companyId =
-      (req as any).companyContext?.companyId ??
-      (req as any).companyContext?.id ??
-      (req as any).companyId;
-    const userId = (req as any).user?.id;
+// ─── GET / — List with search, filter, sort, paginate ───────────────────
+router.get(
+  '/',
+  requireAnyPermission(['unit_types:view', 'unit_types:manage']),
+  async (req: Request, res: Response) => {
+    try {
+      const {
+        search, status, allows_decimals, is_countable, is_system,
+        sort = 'sort_order', order = 'asc',
+        page = '1', limit = '25',
+      } = req.query as Record<string, string>;
 
-    if (!companyId) {
-      return res
-        .status(400)
-        .json({ success: false, error: { code: 'COMPANY_REQUIRED', message: 'Company context required' } });
-    }
+      const effectivePage  = Math.max(1, parseInt(page, 10) || 1);
+      const effectiveLimit = Math.min(100, Math.max(1, parseInt(limit, 10) || 25));
+      const offset = (effectivePage - 1) * effectiveLimit;
+      const effectiveOrder = order?.toLowerCase() === 'desc' ? 'DESC' : 'ASC';
 
-    const {
-      code,
-      name,
-      name_ar,
-      unit_category,
-      measurement_type,
-      base_unit_id,
-      conversion_factor,
-      symbol,
-      decimal_places,
-      is_active = true,
-    } = req.body;
+      const conditions: string[] = ['deleted_at IS NULL'];
+      const params: any[] = [];
+      let idx = 1;
 
-    if (!code || !name) {
-      return res
-        .status(400)
-        .json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Code and name are required' } });
-    }
-
-    // Enforce base/conversion requirements
-    const unitCategory = unit_category || 'basic';
-    if (unitCategory !== 'basic') {
-      if (!base_unit_id) {
-        return res
-          .status(400)
-          .json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Base unit is required for derived/packaging units' } });
+      if (search) {
+        conditions.push(`(code ILIKE $${idx} OR name_en ILIKE $${idx} OR name_ar ILIKE $${idx})`);
+        params.push(`%${search}%`);
+        idx++;
       }
-      if (!conversion_factor || Number(conversion_factor) <= 0) {
-        return res
-          .status(400)
-          .json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Conversion factor must be > 0 for derived/packaging units' } });
+      if (status) {
+        conditions.push(`status = $${idx}`);
+        params.push(status);
+        idx++;
       }
+      if (allows_decimals !== undefined && allows_decimals !== '') {
+        conditions.push(`allows_decimals = $${idx}`);
+        params.push(allows_decimals === 'true');
+        idx++;
+      }
+      if (is_countable !== undefined && is_countable !== '') {
+        conditions.push(`is_countable = $${idx}`);
+        params.push(is_countable === 'true');
+        idx++;
+      }
+      if (is_system !== undefined && is_system !== '') {
+        conditions.push(`is_system = $${idx}`);
+        params.push(is_system === 'true');
+        idx++;
+      }
+
+      const allowedSort = [
+        'id', 'code', 'name_en', 'name_ar', 'base_unit_code',
+        'allows_decimals', 'is_countable',
+        'is_system', 'sort_order', 'status', 'created_at',
+      ];
+      const sortCol = allowedSort.includes(sort) ? sort : 'sort_order';
+      const where = conditions.join(' AND ');
+
+      const [dataRes, countRes] = await Promise.all([
+        pool.query(
+          `SELECT * FROM unit_types WHERE ${where} ORDER BY ${sortCol} ${effectiveOrder} LIMIT $${idx} OFFSET $${idx + 1}`,
+          [...params, effectiveLimit, offset]
+        ),
+        pool.query(
+          `SELECT COUNT(*)::int AS total FROM unit_types WHERE ${where}`,
+          params
+        ),
+      ]);
+
+      res.json({
+        success: true,
+        data: dataRes.rows,
+        total: countRes.rows[0].total,
+        meta: { page: effectivePage, limit: effectiveLimit, total: countRes.rows[0].total },
+      });
+    } catch (err: any) {
+      console.error('unit_types list error:', err);
+      res.status(500).json({ error: 'Failed to fetch unit types' });
     }
+  }
+);
 
-    const duplicate = await pool.query(
-      'SELECT id FROM units_of_measure WHERE code = $1 AND deleted_at IS NULL',
-      [code]
-    );
-    if (duplicate.rows.length > 0) {
-      return res
-        .status(400)
-        .json({ success: false, error: { code: 'DUPLICATE_CODE', message: 'Unit code already exists' } });
-    }
-
-    const hasMeasurementType = await measurementTypeColumnExists();
-
-    if (hasMeasurementType) {
+// ─── GET /:id — Single record ────────────────────────────────────────────
+router.get(
+  '/:id',
+  requireAnyPermission(['unit_types:view', 'unit_types:manage']),
+  async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
       const result = await pool.query(
-        `INSERT INTO units_of_measure (
-          company_id,
-          code,
-          name,
-          name_en,
-          name_ar,
-          unit_type,
-          measurement_type,
-          base_unit_id,
-          conversion_factor,
-          symbol_en,
-          decimal_places,
-          is_active,
-          created_by,
-          updated_by
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
-        RETURNING id, code, COALESCE(name_en, name) AS name, name_ar, unit_type AS unit_category, measurement_type, base_unit_id, conversion_factor, symbol_en AS symbol, decimal_places, is_active, created_at`,
+        'SELECT * FROM unit_types WHERE id = $1 AND deleted_at IS NULL',
+        [id]
+      );
+      if (!result.rows.length) {
+        return res.status(404).json({ error: 'Unit type not found' });
+      }
+      res.json({ success: true, data: result.rows[0] });
+    } catch (err: any) {
+      console.error('unit_types get error:', err);
+      res.status(500).json({ error: 'Failed to fetch unit type' });
+    }
+  }
+);
+
+// ─── POST / — Create ────────────────────────────────────────────────────
+router.post(
+  '/',
+  requireAnyPermission(['unit_types:create', 'unit_types:manage']),
+  async (req: Request, res: Response) => {
+    try {
+      const {
+        code, name_en, name_ar, description_en, description_ar,
+        icon, base_unit_code,
+        allows_decimals, is_countable,
+        is_system, sort_order, status,
+      } = req.body;
+
+      if (!code || !name_en || !name_ar) {
+        return res.status(400).json({ error: 'code, name_en, and name_ar are required' });
+      }
+      if (!base_unit_code) {
+        return res.status(400).json({ error: 'base_unit_code is required' });
+      }
+
+      // Check duplicate code
+      const dup = await pool.query(
+        'SELECT id FROM unit_types WHERE LOWER(code) = LOWER($1) AND deleted_at IS NULL',
+        [code.trim()]
+      );
+      if (dup.rows.length) {
+        return res.status(409).json({ error: `Code "${code}" already exists` });
+      }
+
+      const result = await pool.query(
+        `INSERT INTO unit_types
+          (code, name_en, name_ar, description_en, description_ar,
+           icon, base_unit_code,
+           allows_decimals, is_countable,
+           is_system, sort_order, status,
+           created_by, company_id, is_global)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+         RETURNING *`,
         [
-          companyId,
-          code,
-          name,
-          name,
-          name_ar || null,
-          unitCategory,
-          unitCategory === 'basic' ? (measurement_type || null) : null,
-          base_unit_id || null,
-          unitCategory === 'basic' ? null : conversion_factor,
-          symbol || null,
-          decimal_places ?? 2,
-          is_active,
-          userId,
-          userId,
+          code.toLowerCase().trim(), name_en.trim(), name_ar.trim(),
+          description_en || null, description_ar || null,
+          icon || null, base_unit_code.trim(),
+          allows_decimals ?? true, is_countable ?? true,
+          is_system ?? false,
+          sort_order ?? 0, status || 'active',
+          (req as any).user?.id || null,
+          (req as any).companyId || null,
+          true,
         ]
       );
 
-      return res.status(201).json({ success: true, data: result.rows[0] });
+      res.status(201).json({ success: true, data: result.rows[0] });
+    } catch (err: any) {
+      console.error('unit_types create error:', err);
+      res.status(500).json({ error: 'Failed to create unit type' });
     }
-
-    const result = await pool.query(
-      `INSERT INTO units_of_measure (
-        company_id,
-        code,
-        name,
-        name_en,
-        name_ar,
-        unit_type,
-        base_unit_id,
-        conversion_factor,
-        symbol_en,
-        decimal_places,
-        is_active,
-        created_by,
-        updated_by
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
-      RETURNING id, code, COALESCE(name_en, name) AS name, name_ar, unit_type AS unit_category, NULL AS measurement_type, base_unit_id, conversion_factor, symbol_en AS symbol, decimal_places, is_active, created_at`,
-      [
-        companyId,
-        code,
-        name,
-        name,
-        name_ar || null,
-        unitCategory,
-        base_unit_id || null,
-        unitCategory === 'basic' ? null : conversion_factor,
-        symbol || null,
-        decimal_places ?? 2,
-        is_active,
-        userId,
-        userId,
-      ]
-    );
-
-    res.status(201).json({ success: true, data: result.rows[0] });
-  } catch (error) {
-    console.error('Error creating unit type:', error);
-    res.status(500).json({ success: false, error: { code: 'CREATE_ERROR', message: 'Failed to create unit type' } });
   }
-});
+);
 
-// PUT /api/unit-types/:id - Update unit
-router.put('/:id', requirePermission('master:items:edit'), async (req: Request, res: Response) => {
-  try {
-    const companyId =
-      (req as any).companyContext?.companyId ??
-      (req as any).companyContext?.id ??
-      (req as any).companyId;
-    const userId = (req as any).user?.id;
-    const { id } = req.params;
+// ─── PUT /:id — Update ──────────────────────────────────────────────────
+router.put(
+  '/:id',
+  requireAnyPermission(['unit_types:edit', 'unit_types:manage']),
+  async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const existing = await pool.query(
+        'SELECT * FROM unit_types WHERE id = $1 AND deleted_at IS NULL',
+        [id]
+      );
+      if (!existing.rows.length) {
+        return res.status(404).json({ error: 'Unit type not found' });
+      }
 
-    if (!companyId) {
-      return res
-        .status(400)
-        .json({ success: false, error: { code: 'COMPANY_REQUIRED', message: 'Company context required' } });
-    }
+      const old = existing.rows[0];
+      const {
+        code, name_en, name_ar, description_en, description_ar,
+        icon, base_unit_code,
+        allows_decimals, is_countable,
+        sort_order, status,
+      } = req.body;
 
-    const {
-      code,
-      name,
-      name_ar,
-      unit_category,
-      measurement_type,
-      base_unit_id,
-      conversion_factor,
-      symbol,
-      decimal_places,
-      is_active,
-    } = req.body;
+      // System records: cannot change code
+      const newCode = old.is_system ? old.code : (code?.toLowerCase().trim() || old.code);
 
-    if (!code || !name) {
-      return res
-        .status(400)
-        .json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Code and name are required' } });
-    }
+      // Check duplicate code if changed
+      if (newCode !== old.code) {
+        const dup = await pool.query(
+          'SELECT id FROM unit_types WHERE LOWER(code) = LOWER($1) AND id != $2 AND deleted_at IS NULL',
+          [newCode, id]
+        );
+        if (dup.rows.length) {
+          return res.status(409).json({ error: `Code "${newCode}" already exists` });
+        }
+      }
 
-    const existing = await pool.query(
-      'SELECT id FROM units_of_measure WHERE id = $1 AND deleted_at IS NULL AND (company_id = $2 OR company_id IS NULL)',
-      [id, companyId]
-    );
-    if (existing.rows.length === 0) {
-      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Unit not found' } });
-    }
-
-    const duplicate = await pool.query(
-      'SELECT id FROM units_of_measure WHERE code = $1 AND id <> $2 AND deleted_at IS NULL',
-      [code, id]
-    );
-    if (duplicate.rows.length > 0) {
-      return res
-        .status(400)
-        .json({ success: false, error: { code: 'DUPLICATE_CODE', message: 'Unit code already exists' } });
-    }
-
-    const unitCategory = unit_category || 'basic';
-
-    const hasMeasurementType = await measurementTypeColumnExists();
-
-    if (hasMeasurementType) {
       const result = await pool.query(
-        `UPDATE units_of_measure
-         SET code = $1,
-             name = $2,
-             name_en = $2,
-             name_ar = $3,
-             unit_type = $4,
-             measurement_type = $5,
-             base_unit_id = $6,
-             conversion_factor = $7,
-             symbol_en = $8,
-             decimal_places = $9,
-             is_active = $10,
-             updated_by = $11,
-             updated_at = NOW()
-         WHERE id = $12
-         RETURNING id, code, COALESCE(name_en, name) AS name, name_ar, unit_type AS unit_category, measurement_type, base_unit_id, conversion_factor, symbol_en AS symbol, decimal_places, is_active, created_at`,
+        `UPDATE unit_types SET
+          code            = COALESCE($1, code),
+          name_en         = COALESCE($2, name_en),
+          name_ar         = COALESCE($3, name_ar),
+          description_en  = COALESCE($4, description_en),
+          description_ar  = COALESCE($5, description_ar),
+          icon            = COALESCE($6, icon),
+          base_unit_code  = COALESCE($7, base_unit_code),
+          allows_decimals = COALESCE($8, allows_decimals),
+          is_countable    = COALESCE($9, is_countable),
+          sort_order      = COALESCE($10, sort_order),
+          status          = COALESCE($11, status),
+          updated_by      = $12,
+          updated_at      = NOW()
+        WHERE id = $13 AND deleted_at IS NULL
+        RETURNING *`,
         [
-          code,
-          name,
-          name_ar || null,
-          unitCategory,
-          unitCategory === 'basic' ? (measurement_type || null) : null,
-          unitCategory === 'basic' ? null : base_unit_id || null,
-          unitCategory === 'basic' ? null : conversion_factor,
-          symbol || null,
-          decimal_places ?? 2,
-          is_active ?? true,
-          userId,
+          newCode, name_en?.trim(), name_ar?.trim(),
+          description_en, description_ar,
+          icon, base_unit_code?.trim(),
+          allows_decimals, is_countable,
+          sort_order, status,
+          (req as any).user?.id || null,
           id,
         ]
       );
 
-      return res.json({ success: true, data: result.rows[0] });
+      res.json({ success: true, data: result.rows[0] });
+    } catch (err: any) {
+      console.error('unit_types update error:', err);
+      res.status(500).json({ error: 'Failed to update unit type' });
     }
-
-    const result = await pool.query(
-      `UPDATE units_of_measure
-       SET code = $1,
-           name = $2,
-           name_en = $2,
-           name_ar = $3,
-           unit_type = $4,
-           base_unit_id = $5,
-           conversion_factor = $6,
-           symbol_en = $7,
-           decimal_places = $8,
-           is_active = $9,
-           updated_by = $10,
-           updated_at = NOW()
-       WHERE id = $11
-       RETURNING id, code, COALESCE(name_en, name) AS name, name_ar, unit_type AS unit_category, NULL AS measurement_type, base_unit_id, conversion_factor, symbol_en AS symbol, decimal_places, is_active, created_at`,
-      [
-        code,
-        name,
-        name_ar || null,
-        unitCategory,
-        unitCategory === 'basic' ? null : base_unit_id || null,
-        unitCategory === 'basic' ? null : conversion_factor,
-        symbol || null,
-        decimal_places ?? 2,
-        is_active ?? true,
-        userId,
-        id,
-      ]
-    );
-
-    res.json({ success: true, data: result.rows[0] });
-  } catch (error) {
-    console.error('Error updating unit type:', error);
-    res.status(500).json({ success: false, error: { code: 'UPDATE_ERROR', message: 'Failed to update unit type' } });
   }
-});
+);
 
-// DELETE /api/unit-types/:id - Soft delete unit
-router.delete('/:id', requirePermission('master:items:delete'), async (req: Request, res: Response) => {
-  try {
-    const companyId =
-      (req as any).companyContext?.companyId ??
-      (req as any).companyContext?.id ??
-      (req as any).companyId;
-    const userId = (req as any).user?.id;
-    const { id } = req.params;
+// ─── DELETE /:id — Soft delete ───────────────────────────────────────────
+router.delete(
+  '/:id',
+  requireAnyPermission(['unit_types:delete', 'unit_types:manage']),
+  async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const existing = await pool.query(
+        'SELECT * FROM unit_types WHERE id = $1 AND deleted_at IS NULL',
+        [id]
+      );
+      if (!existing.rows.length) {
+        return res.status(404).json({ error: 'Unit type not found' });
+      }
+      if (existing.rows[0].is_system) {
+        return res.status(403).json({ error: 'Cannot delete a system unit type' });
+      }
 
-    if (!companyId) {
-      return res
-        .status(400)
-        .json({ success: false, error: { code: 'COMPANY_REQUIRED', message: 'Company context required' } });
+      await pool.query(
+        'UPDATE unit_types SET deleted_at = NOW(), updated_by = $1 WHERE id = $2',
+        [(req as any).user?.id || null, id]
+      );
+
+      res.json({ success: true, message: 'Unit type deleted' });
+    } catch (err: any) {
+      console.error('unit_types delete error:', err);
+      res.status(500).json({ error: 'Failed to delete unit type' });
     }
-
-    const existing = await pool.query(
-      'SELECT id FROM units_of_measure WHERE id = $1 AND deleted_at IS NULL AND (company_id = $2 OR company_id IS NULL)',
-      [id, companyId]
-    );
-    if (existing.rows.length === 0) {
-      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Unit not found' } });
-    }
-
-    // Block delete if used by active items
-    const used = await pool.query(
-      `SELECT COUNT(*)::int AS cnt
-       FROM items
-       WHERE deleted_at IS NULL AND (
-         base_uom_id = $1 OR sales_uom_id = $1 OR purchase_uom_id = $1 OR
-         base_unit_id = $1 OR sales_unit_id = $1 OR purchase_unit_id = $1
-       )`,
-      [id]
-    );
-
-    if (used.rows[0]?.cnt > 0) {
-      return res.status(400).json({
-        success: false,
-        error: { code: 'IN_USE', message: 'Cannot delete unit type that is used by items' },
-      });
-    }
-
-    await pool.query(
-      'UPDATE units_of_measure SET deleted_at = NOW(), updated_by = $1, updated_at = NOW() WHERE id = $2 AND deleted_at IS NULL',
-      [userId, id]
-    );
-
-    res.json({ success: true, message: 'Unit type deleted successfully' });
-  } catch (error) {
-    console.error('Error deleting unit type:', error);
-    res.status(500).json({ success: false, error: { code: 'DELETE_ERROR', message: 'Failed to delete unit type' } });
   }
-});
+);
+
+// ─── PATCH /:id/toggle-status — Toggle active/inactive ──────────────────
+router.patch(
+  '/:id/toggle-status',
+  requireAnyPermission(['unit_types:edit', 'unit_types:manage']),
+  async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const existing = await pool.query(
+        'SELECT * FROM unit_types WHERE id = $1 AND deleted_at IS NULL',
+        [id]
+      );
+      if (!existing.rows.length) {
+        return res.status(404).json({ error: 'Unit type not found' });
+      }
+
+      const newStatus = existing.rows[0].status === 'active' ? 'inactive' : 'active';
+      const result = await pool.query(
+        `UPDATE unit_types SET status = $1, updated_by = $2, updated_at = NOW()
+         WHERE id = $3 RETURNING *`,
+        [newStatus, (req as any).user?.id || null, id]
+      );
+
+      res.json({ success: true, data: result.rows[0] });
+    } catch (err: any) {
+      console.error('unit_types toggle error:', err);
+      res.status(500).json({ error: 'Failed to toggle status' });
+    }
+  }
+);
 
 export default router;

@@ -76,7 +76,7 @@ interface GoodsReceiptItem {
 type Vendor = SharedVendor;
 type Warehouse = SharedWarehouse;
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL || '') + '/api';
 
 function GoodsReceiptsPage() {
   const { hasPermission } = usePermissions();
@@ -139,8 +139,8 @@ function GoodsReceiptsPage() {
     try {
       const headers = getHeaders();
       const [vendorsRes, warehousesRes] = await Promise.all([
-        fetch(`${API_BASE}/api/procurement/vendors`, { headers }),
-        fetch(`${API_BASE}/api/master/warehouses`, { headers }),
+        fetch(`${API_BASE}/procurement/vendors`, { headers }),
+        fetch(`${API_BASE}/master/warehouses`, { headers }),
       ]);
 
       if (vendorsRes.ok) {
@@ -167,7 +167,7 @@ function GoodsReceiptsPage() {
       if (searchTerm) params.append('search', searchTerm);
       if (statusFilter) params.append('status', statusFilter);
 
-      const res = await fetch(`${API_BASE}/api/procurement/goods-receipts?${params}`, {
+      const res = await fetch(`${API_BASE}/procurement/goods-receipts?${params}`, {
         headers: getHeaders(),
       });
 
@@ -191,7 +191,7 @@ function GoodsReceiptsPage() {
   // Fetch receipt details
   const fetchReceiptDetails = async (id: number) => {
     try {
-      const res = await fetch(`${API_BASE}/api/procurement/goods-receipts/${id}`, {
+      const res = await fetch(`${API_BASE}/procurement/goods-receipts/${id}`, {
         headers: getHeaders(),
       });
       if (res.ok) {
@@ -243,7 +243,7 @@ function GoodsReceiptsPage() {
         })),
       };
 
-      const res = await fetch(`${API_BASE}/api/procurement/goods-receipts`, {
+      const res = await fetch(`${API_BASE}/procurement/goods-receipts`, {
         method: 'POST',
         headers: getHeaders(),
         body: JSON.stringify(body),
@@ -270,7 +270,7 @@ function GoodsReceiptsPage() {
 
     setPosting(true);
     try {
-      const res = await fetch(`${API_BASE}/api/procurement/goods-receipts/${receiptToPost.id}/post`, {
+      const res = await fetch(`${API_BASE}/procurement/goods-receipts/${receiptToPost.id}/post`, {
         method: 'PUT',
         headers: getHeaders(),
       });
@@ -302,7 +302,7 @@ function GoodsReceiptsPage() {
 
     setDeleting(true);
     try {
-      const res = await fetch(`${API_BASE}/api/procurement/goods-receipts/${receiptToDelete.id}`, {
+      const res = await fetch(`${API_BASE}/procurement/goods-receipts/${receiptToDelete.id}`, {
         method: 'DELETE',
         headers: getHeaders(),
       });

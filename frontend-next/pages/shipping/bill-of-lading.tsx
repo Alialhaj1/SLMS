@@ -6,6 +6,7 @@ import Input from '../../components/ui/Input';
 import Modal from '../../components/ui/Modal';
 import { useTranslation } from '../../hooks/useTranslation';
 import { useToast } from '../../contexts/ToastContext';
+import { exportToCSV } from '../../utils/exportData';
 import {
   DocumentTextIcon,
   PlusIcon,
@@ -92,7 +93,7 @@ export default function BillOfLadingPage() {
   const carriers = new Set(bols.map(b => b.carrier)).size;
 
   const handleCreate = () => {
-    showToast(locale === 'ar' ? 'تم الإنشاء (تجريبي)' : 'Created (demo)', 'success');
+    showToast(locale === 'ar' ? 'تم الإنشاء (تجريبي) - قيد التطوير' : 'Created (demo) - Feature under development', 'warning');
     setCreateOpen(false);
     setFormData({ bolNo: '', shipmentRef: '', carrier: '', origin: '', destination: '', issueDate: '', eta: '', status: 'draft' });
   };
@@ -169,7 +170,7 @@ export default function BillOfLadingPage() {
               <option value="delivered">{locale === 'ar' ? 'تم التسليم' : 'Delivered'}</option>
               <option value="cancelled">{locale === 'ar' ? 'ملغي' : 'Cancelled'}</option>
             </select>
-            <Button variant="secondary" onClick={() => showToast(locale === 'ar' ? 'تصدير (تجريبي)' : 'Export (demo)', 'info')}>
+            <Button variant="secondary" onClick={() => exportToCSV(filtered, 'bill-of-lading')}>
               <ArrowDownTrayIcon className="h-4 w-4" />
               {locale === 'ar' ? 'تصدير' : 'Export'}
             </Button>
@@ -238,15 +239,15 @@ export default function BillOfLadingPage() {
               </div>
             </div>
             <div className="flex flex-wrap gap-2 pt-4 border-t dark:border-gray-700">
-              <Button onClick={() => showToast(locale === 'ar' ? 'تم التحديث (تجريبي)' : 'Updated (demo)', 'success')}>
+              <Button onClick={() => showToast(locale === 'ar' ? 'تم التحديث (تجريبي) - قيد التطوير' : 'Updated (demo) - Feature under development', 'warning')}>
                 <CheckCircleIcon className="h-4 w-4" />
                 {locale === 'ar' ? 'تحديث' : 'Update'}
               </Button>
-              <Button variant="danger" onClick={() => showToast(locale === 'ar' ? 'تم الإلغاء (تجريبي)' : 'Cancelled (demo)', 'error')}>
+              <Button variant="danger" onClick={() => showToast(locale === 'ar' ? 'تم الإلغاء (تجريبي) - قيد التطوير' : 'Cancelled (demo) - Feature under development', 'warning')}>
                 <XCircleIcon className="h-4 w-4" />
                 {locale === 'ar' ? 'إلغاء' : 'Cancel'}
               </Button>
-              <Button variant="secondary" onClick={() => showToast(locale === 'ar' ? 'تصدير (تجريبي)' : 'Export (demo)', 'info')}>
+              <Button variant="secondary" onClick={() => showToast(locale === 'ar' ? 'تصدير PDF (قريباً)' : 'PDF Export (Coming soon)', 'info')}>
                 <ArrowDownTrayIcon className="h-4 w-4" />
                 PDF
               </Button>

@@ -97,7 +97,7 @@ interface QuotationItem {
 // Using shared Vendor type
 type Vendor = SharedVendor;
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL || '') + '/api';
 
 function VendorQuotationsPage() {
   const { hasPermission } = usePermissions();
@@ -159,7 +159,7 @@ function VendorQuotationsPage() {
   const fetchReferenceData = useCallback(async () => {
     try {
       const headers = getHeaders();
-      const vendorsRes = await fetch(`${API_BASE}/api/procurement/vendors`, { headers });
+      const vendorsRes = await fetch(`${API_BASE}/procurement/vendors`, { headers });
 
       if (vendorsRes.ok) {
         const result = await vendorsRes.json();
@@ -181,7 +181,7 @@ function VendorQuotationsPage() {
       if (searchTerm) params.append('search', searchTerm);
       if (statusFilter) params.append('status', statusFilter);
 
-      const res = await fetch(`${API_BASE}/api/procurement/quotations?${params}`, {
+      const res = await fetch(`${API_BASE}/procurement/quotations?${params}`, {
         headers: getHeaders(),
       });
 
@@ -205,7 +205,7 @@ function VendorQuotationsPage() {
   // Fetch quotation details
   const fetchQuotationDetails = async (id: number) => {
     try {
-      const res = await fetch(`${API_BASE}/api/procurement/quotations/${id}`, {
+      const res = await fetch(`${API_BASE}/procurement/quotations/${id}`, {
         headers: getHeaders(),
       });
       if (res.ok) {
@@ -256,7 +256,7 @@ function VendorQuotationsPage() {
         })),
       };
 
-      const res = await fetch(`${API_BASE}/api/procurement/quotations`, {
+      const res = await fetch(`${API_BASE}/procurement/quotations`, {
         method: 'POST',
         headers: getHeaders(),
         body: JSON.stringify(body),
@@ -283,7 +283,7 @@ function VendorQuotationsPage() {
 
     setActionProcessing(true);
     try {
-      const res = await fetch(`${API_BASE}/api/procurement/quotations/${quotationToAction.id}/accept`, {
+      const res = await fetch(`${API_BASE}/procurement/quotations/${quotationToAction.id}/accept`, {
         method: 'PUT',
         headers: getHeaders(),
       });
@@ -310,7 +310,7 @@ function VendorQuotationsPage() {
 
     setActionProcessing(true);
     try {
-      const res = await fetch(`${API_BASE}/api/procurement/quotations/${quotationToAction.id}/reject`, {
+      const res = await fetch(`${API_BASE}/procurement/quotations/${quotationToAction.id}/reject`, {
         method: 'PUT',
         headers: getHeaders(),
       });
@@ -337,7 +337,7 @@ function VendorQuotationsPage() {
 
     setDeleting(true);
     try {
-      const res = await fetch(`${API_BASE}/api/procurement/quotations/${quotationToDelete.id}`, {
+      const res = await fetch(`${API_BASE}/procurement/quotations/${quotationToDelete.id}`, {
         method: 'DELETE',
         headers: getHeaders(),
       });

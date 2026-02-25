@@ -56,7 +56,7 @@ function StockTransfersPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
+      const apiUrl = (process.env.NEXT_PUBLIC_API_URL || '') + '/api';
       const companyId = companyStore.getActiveCompanyId();
 
       if (!companyId) {
@@ -65,7 +65,7 @@ function StockTransfersPage() {
         return;
       }
 
-      const resp = await fetch(`${apiUrl}/api/inventory/transfers`, {
+      const resp = await fetch(`${apiUrl}/inventory/transfers`, {
         headers: {
           Authorization: `Bearer ${token}`,
           'X-Company-Id': String(companyId),
@@ -115,7 +115,7 @@ function StockTransfersPage() {
     setSubmitting(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
+      const apiUrl = (process.env.NEXT_PUBLIC_API_URL || '') + '/api';
       const companyId = companyStore.getActiveCompanyId();
 
       if (!companyId) {
@@ -133,7 +133,7 @@ function StockTransfersPage() {
       if (unitCost) body.unit_cost = Number(unitCost);
       if (sellingPrice) body.selling_price = Number(sellingPrice);
 
-      const resp = await fetch(`${apiUrl}/api/inventory/transfers`, {
+      const resp = await fetch(`${apiUrl}/inventory/transfers`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,

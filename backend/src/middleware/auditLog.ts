@@ -12,6 +12,9 @@ interface AuthRequest extends Request {
     company_id?: number;
     companyId?: number;
     branch_id?: number;
+    type?: string;           // 'impersonation' when impersonated
+    impersonated_by?: number; // admin user ID during impersonation
+    tenant_id?: number;
   };
   auditContext?: {
     action: string;
@@ -41,6 +44,9 @@ export const auditLog = async (
   const originalJson = res.json.bind(res);
 
   res.json = function (body: any) {
+    // Mark as captured by per-route audit (prevents global audit from double-logging)
+    (res as any)._auditCaptured = true;
+
     // Log the action after response is sent
     setImmediate(async () => {
       try {
@@ -48,9 +54,25 @@ export const auditLog = async (
         const resource = extractResourceFromPath(req.baseUrl || req.originalUrl || req.path);
         const resourceId = req.params.id ? parseInt(req.params.id) : null;
 
+        // Get company_id from user or request context (multi-tenant isolation)
+        const companyId = user.company_id || user.companyId || (req as any).companyId || null;
+        const tenantId = user.tenant_id || (req as any).tenantId || null;
+        const sessionId = (req as any).sessionId || req.headers['x-session-id'] || null;
+        const requestId = (req as any).requestId || req.headers['x-request-id'] || null;
+
+        // Impersonation tagging: if this action is during impersonation, record who is impersonating
+        const impersonatedBy = user.type === 'impersonation' ? (user.impersonated_by || null) : null;
+
+        // Auto-detect audit scope based on context
+        const auditScope = companyId ? 'company' : (tenantId ? 'tenant' : 'platform');
+
         await pool.query(
           `INSERT INTO audit_logs (
             user_id, 
+            company_id,
+            tenant_id,
+            session_id,
+            request_id,
             action, 
             resource, 
             resource_id, 
@@ -58,10 +80,16 @@ export const auditLog = async (
             after_data, 
             ip_address,
             user_agent,
+            impersonated_by,
+            audit_scope,
             created_at
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())`,
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW())`,
           [
             user.id,
+            companyId,
+            tenantId,
+            sessionId,
+            requestId,
             action,
             resource,
             resourceId,
@@ -69,6 +97,8 @@ export const auditLog = async (
             req.auditContext?.after || body || null,
             req.ip,
             req.headers['user-agent'] || null,
+            impersonatedBy,
+            auditScope,
           ]
         );
       } catch (error) {

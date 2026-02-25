@@ -16,6 +16,7 @@ import Card from '../../../components/ui/Card';
 import { usePermissions } from '../../../hooks/usePermissions';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { useToast } from '../../../contexts/ToastContext';
+import { useContainerTypes } from '../../../hooks/useReferenceData';
 import {
   ArrowLeftIcon,
   DocumentTextIcon,
@@ -99,7 +100,7 @@ interface FormData {
   internal_notes: string;
 }
 
-const containerTypes = ['20GP', '40GP', '40HC', '20RF', '40RF', '20OT', '40OT', 'FLAT', 'TANK', 'LCL'];
+// Container types loaded from API via useContainerTypes hook
 
 const freightTermsOptions = [
   { value: 'Prepaid', label: { en: 'Prepaid', ar: 'مسبق الدفع' } },
@@ -114,6 +115,10 @@ function EditShippingBillPage() {
   const router = useRouter();
   const { id } = router.query;
   const isArabic = locale === 'ar';
+  const { containerTypes: containerTypeOptions } = useContainerTypes();
+  const containerTypes = containerTypeOptions.length > 0
+    ? containerTypeOptions.map(ct => ct.code)
+    : ['20GP', '40GP', '40HC', '20RF', '40RF', '20OT', '40OT', 'FLAT', 'TANK', 'LCL'];
 
   const [formData, setFormData] = useState<FormData | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});

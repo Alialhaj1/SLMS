@@ -273,7 +273,7 @@ export default function ContactsPage() {
         <div className="space-y-4">
           <p className="text-gray-500 dark:text-gray-400">{locale === 'ar' ? 'نموذج إنشاء جهة اتصال جديدة' : 'Create new contact form'}</p>
           <div className="flex gap-2 pt-4">
-            <Button onClick={() => { setShowCreateModal(false); showToast(locale === 'ar' ? 'تم الحفظ' : 'Saved', 'success'); }}>{locale === 'ar' ? 'حفظ' : 'Save'}</Button>
+            <Button onClick={() => { setShowCreateModal(false); showToast(locale === 'ar' ? 'سيتم تفعيل الحفظ قريباً' : 'Save feature coming soon', 'warning'); }}>{locale === 'ar' ? 'حفظ' : 'Save'}</Button>
             <Button variant="secondary" onClick={() => setShowCreateModal(false)}>{locale === 'ar' ? 'إلغاء' : 'Cancel'}</Button>
           </div>
         </div>

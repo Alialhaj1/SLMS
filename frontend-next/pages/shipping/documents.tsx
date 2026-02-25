@@ -214,8 +214,8 @@ export default function ShippingDocumentsPage() {
                     <td className="px-4 py-3">
                       <div className="flex gap-1">
                         <Button size="sm" variant="secondary" onClick={() => setSelectedDocument(doc)}><EyeIcon className="h-4 w-4" /></Button>
-                        <Button size="sm" variant="secondary" onClick={() => showToast(locale === 'ar' ? 'جاري التحميل...' : 'Downloading...', 'info')}><ArrowDownTrayIcon className="h-4 w-4" /></Button>
-                        <Button size="sm" variant="secondary" onClick={() => showToast(locale === 'ar' ? 'جاري الطباعة...' : 'Printing...', 'info')}><PrinterIcon className="h-4 w-4" /></Button>
+                        <Button size="sm" variant="secondary" onClick={() => showToast(locale === 'ar' ? 'جاري التحميل... (قريباً)' : 'Downloading... (Coming soon)', 'info')}><ArrowDownTrayIcon className="h-4 w-4" /></Button>
+                        <Button size="sm" variant="secondary" onClick={() => showToast(locale === 'ar' ? 'جاري الطباعة... (قريباً)' : 'Printing... (Coming soon)', 'info')}><PrinterIcon className="h-4 w-4" /></Button>
                       </div>
                     </td>
                   </tr>
@@ -253,8 +253,8 @@ export default function ShippingDocumentsPage() {
               </div>
             </div>
             <div className="flex gap-2 pt-4 border-t dark:border-gray-700">
-              <Button onClick={() => showToast(locale === 'ar' ? 'جاري التحميل...' : 'Downloading...', 'info')}><ArrowDownTrayIcon className="h-4 w-4 mr-1" />PDF</Button>
-              <Button variant="secondary" onClick={() => showToast(locale === 'ar' ? 'جاري الطباعة...' : 'Printing...', 'info')}><PrinterIcon className="h-4 w-4 mr-1" />{locale === 'ar' ? 'طباعة' : 'Print'}</Button>
+              <Button onClick={() => showToast(locale === 'ar' ? 'جاري التحميل... (قريباً)' : 'Downloading... (Coming soon)', 'info')}><ArrowDownTrayIcon className="h-4 w-4 mr-1" />PDF</Button>
+              <Button variant="secondary" onClick={() => showToast(locale === 'ar' ? 'جاري الطباعة... (قريباً)' : 'Printing... (Coming soon)', 'info')}><PrinterIcon className="h-4 w-4 mr-1" />{locale === 'ar' ? 'طباعة' : 'Print'}</Button>
             </div>
           </div>
         )}
@@ -265,7 +265,7 @@ export default function ShippingDocumentsPage() {
         <div className="space-y-4">
           <p className="text-gray-500 dark:text-gray-400">{locale === 'ar' ? 'نموذج إنشاء مستند جديد' : 'Create new document form'}</p>
           <div className="flex gap-2 pt-4">
-            <Button onClick={() => { setShowCreateModal(false); showToast(locale === 'ar' ? 'تم الحفظ' : 'Saved', 'success'); }}>{locale === 'ar' ? 'حفظ' : 'Save'}</Button>
+            <Button onClick={() => { setShowCreateModal(false); showToast(locale === 'ar' ? 'سيتم تفعيل الحفظ قريباً' : 'Save feature coming soon', 'warning'); }}>{locale === 'ar' ? 'حفظ' : 'Save'}</Button>
             <Button variant="secondary" onClick={() => setShowCreateModal(false)}>{locale === 'ar' ? 'إلغاء' : 'Cancel'}</Button>
           </div>
         </div>

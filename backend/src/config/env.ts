@@ -100,7 +100,7 @@ if (config.NODE_ENV !== 'test') {
   console.log('✅ Environment configuration loaded:');
   console.log(`   - NODE_ENV: ${config.NODE_ENV}`);
   console.log(`   - PORT: ${config.PORT}`);
-  console.log(`   - JWT_SECRET: ${config.JWT_SECRET.substring(0, 8)}... (${config.JWT_SECRET.length} chars)`);
+  console.log(`   - JWT_SECRET: ******* (${config.JWT_SECRET.length} chars)`);
   console.log(`   - DATABASE_URL: ${config.DATABASE_URL.split('@')[1] || 'configured'}`);
   console.log(`   - CORS_ORIGINS: ${config.CORS_ORIGINS.join(', ')}`);
 }

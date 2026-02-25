@@ -170,7 +170,7 @@ interface DeliveryTerm {
   name_ar?: string;
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL || '') + '/api';
 
 // ===========================
 // MAIN COMPONENT
@@ -251,7 +251,7 @@ function ProfessionalPurchaseInvoicesPage() {
 
   const fetchVendors = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/procurement/vendors`, { headers: getHeaders() });
+      const res = await fetch(`${API_BASE}/procurement/vendors`, { headers: getHeaders() });
       if (res.ok) {
         const result = await res.json();
         setVendors(result.data || []);
@@ -269,7 +269,7 @@ function ProfessionalPurchaseInvoicesPage() {
 
   const fetchPaymentTerms = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/procurement/vendors/payment-terms`, { headers: getHeaders() });
+      const res = await fetch(`${API_BASE}/procurement/vendors/payment-terms`, { headers: getHeaders() });
       if (res.ok) {
         const result = await res.json();
         setPaymentTerms(result.data || []);
@@ -281,7 +281,7 @@ function ProfessionalPurchaseInvoicesPage() {
 
   const fetchDeliveryTerms = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/procurement/reference/delivery-terms`, { headers: getHeaders() });
+      const res = await fetch(`${API_BASE}/procurement/reference/delivery-terms`, { headers: getHeaders() });
       if (res.ok) {
         const result = await res.json();
         setDeliveryTerms(result.data || []);
@@ -301,7 +301,7 @@ function ProfessionalPurchaseInvoicesPage() {
       if (searchTerm) params.append('search', searchTerm);
       if (statusFilter) params.append('status', statusFilter);
 
-      const res = await fetch(`${API_BASE}/api/procurement/purchase-invoices?${params}`, {
+      const res = await fetch(`${API_BASE}/procurement/purchase-invoices?${params}`, {
         headers: getHeaders(),
       });
 
@@ -448,8 +448,8 @@ function ProfessionalPurchaseInvoicesPage() {
     setSubmitting(true);
     try {
       const url = editingInvoice
-        ? `${API_BASE}/api/procurement/purchase-invoices/${editingInvoice.id}`
-        : `${API_BASE}/api/procurement/purchase-invoices`;
+        ? `${API_BASE}/procurement/purchase-invoices/${editingInvoice.id}`
+        : `${API_BASE}/procurement/purchase-invoices`;
       const method = editingInvoice ? 'PUT' : 'POST';
 
       const body = {
@@ -510,7 +510,7 @@ function ProfessionalPurchaseInvoicesPage() {
 
     setPosting(true);
     try {
-      const res = await fetch(`${API_BASE}/api/procurement/purchase-invoices/${invoiceToPost.id}/post`, {
+      const res = await fetch(`${API_BASE}/procurement/purchase-invoices/${invoiceToPost.id}/post`, {
         method: 'PUT',
         headers: getHeaders(),
       });
@@ -536,7 +536,7 @@ function ProfessionalPurchaseInvoicesPage() {
 
     setDeleting(true);
     try {
-      const res = await fetch(`${API_BASE}/api/procurement/purchase-invoices/${invoiceToDelete.id}`, {
+      const res = await fetch(`${API_BASE}/procurement/purchase-invoices/${invoiceToDelete.id}`, {
         method: 'DELETE',
         headers: getHeaders(),
       });
@@ -568,7 +568,7 @@ function ProfessionalPurchaseInvoicesPage() {
 
   const fetchInvoiceDetails = async (id: number) => {
     try {
-      const res = await fetch(`${API_BASE}/api/procurement/purchase-invoices/${id}`, {
+      const res = await fetch(`${API_BASE}/procurement/purchase-invoices/${id}`, {
         headers: getHeaders(),
       });
       if (res.ok) {

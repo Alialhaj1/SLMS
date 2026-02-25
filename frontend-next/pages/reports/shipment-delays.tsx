@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import Head from 'next/head';
 import MainLayout from '../../components/layout/MainLayout';
+import { exportToCSV } from '../../utils/exportData';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import Modal from '../../components/ui/Modal';
@@ -84,7 +85,16 @@ export default function ShipmentDelaysReportPage() {
           </div>
 
           {canExport && (
-            <Button variant="secondary" onClick={() => showToast(locale === 'ar' ? 'تصدير (تجريبي)' : 'Export (demo)', 'info')}>
+            <Button variant="secondary" onClick={() => {
+              exportToCSV(filtered, 'shipment-delays', [
+                { key: 'shipmentRef', label: 'Shipment Ref' },
+                { key: 'etaOriginal', label: 'Original ETA' },
+                { key: 'etaCurrent', label: 'Current ETA' },
+                { key: 'delayDays', label: 'Delay (days)' },
+                { key: 'reason', label: 'Reason' },
+              ]);
+              showToast(locale === 'ar' ? 'تم التصدير بنجاح' : 'Exported successfully', 'success');
+            }}>
               <ArrowDownTrayIcon className="h-4 w-4" />
               {locale === 'ar' ? 'تصدير' : 'Export'}
             </Button>

@@ -10,6 +10,7 @@ import { Router } from 'express';
 // Phase 1: Customer Master
 import customersRouter from './customers';
 import priceListsRouter from './priceLists';
+import discountAgreementsRouter from './discountAgreements';
 
 // Phase 2: Sales Documents
 import quotationsRouter from './quotations';
@@ -29,6 +30,9 @@ router.use('/customers', customersRouter);
 
 // Price lists
 router.use('/price-lists', priceListsRouter);
+
+// Discount agreements
+router.use('/discount-agreements', discountAgreementsRouter);
 
 // ═══════════════════════════════════════════════════════════════════════════
 // PHASE 2: SALES DOCUMENTS

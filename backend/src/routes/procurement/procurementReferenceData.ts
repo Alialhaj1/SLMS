@@ -1,16 +1,20 @@
-import { Router } from 'express';
+﻿import { Router } from 'express';
 import pool from '../../db';
 import { authenticate } from '../../middleware/auth';
 import { requirePermission } from '../../middleware/rbac';
+import { loadCompanyContext } from '../../middleware/companyContext';
 
 const router = Router();
+
+// Apply company context globally
+router.use(authenticate, loadCompanyContext);
 
 // ================== PURCHASE ORDER TYPES ==================
 
 // GET /purchase-order-types - List all purchase order types
 router.get('/purchase-order-types', authenticate, requirePermission('procurement:purchase_orders:view'), async (req, res) => {
   try {
-    const companyId = req.user.companyId || 1;
+    const companyId = (req as any).companyId;
 
     const result = await pool.query(
       `SELECT * FROM purchase_order_types 
@@ -29,7 +33,7 @@ router.get('/purchase-order-types', authenticate, requirePermission('procurement
 // POST /purchase-order-types - Create new purchase order type
 router.post('/purchase-order-types', authenticate, requirePermission('procurement:purchase_orders:create'), async (req, res) => {
   try {
-    const companyId = req.user.companyId || 1;
+    const companyId = (req as any).companyId;
     const { code, name, name_ar, description, color, is_active = true, sort_order = 0 } = req.body;
 
     if (!code || !name) {
@@ -58,7 +62,7 @@ router.post('/purchase-order-types', authenticate, requirePermission('procuremen
 router.put('/purchase-order-types/:id', authenticate, requirePermission('procurement:purchase_orders:edit'), async (req, res) => {
   try {
     const { id } = req.params;
-    const companyId = req.user.companyId || 1;
+    const companyId = (req as any).companyId;
     const { code, name, name_ar, description, color, is_active, sort_order } = req.body;
 
     const result = await pool.query(
@@ -85,7 +89,7 @@ router.put('/purchase-order-types/:id', authenticate, requirePermission('procure
 router.delete('/purchase-order-types/:id', authenticate, requirePermission('procurement:purchase_orders:delete'), async (req, res) => {
   try {
     const { id } = req.params;
-    const companyId = req.user.companyId || 1;
+    const companyId = (req as any).companyId;
 
     const result = await pool.query(
       `UPDATE purchase_order_types 
@@ -111,7 +115,7 @@ router.delete('/purchase-order-types/:id', authenticate, requirePermission('proc
 // GET /purchase-order-statuses - List all purchase order statuses
 router.get('/purchase-order-statuses', authenticate, requirePermission('procurement:purchase_orders:view'), async (req, res) => {
   try {
-    const companyId = req.user.companyId || 1;
+    const companyId = (req as any).companyId;
 
     const result = await pool.query(
       `SELECT * FROM purchase_order_statuses 
@@ -130,7 +134,7 @@ router.get('/purchase-order-statuses', authenticate, requirePermission('procurem
 // POST /purchase-order-statuses - Create new purchase order status
 router.post('/purchase-order-statuses', authenticate, requirePermission('procurement:purchase_orders:create'), async (req, res) => {
   try {
-    const companyId = req.user.companyId || 1;
+    const companyId = (req as any).companyId;
     const { code, name, name_ar, description, color, is_active = true, sort_order = 0 } = req.body;
 
     if (!code || !name) {
@@ -159,7 +163,7 @@ router.post('/purchase-order-statuses', authenticate, requirePermission('procure
 router.put('/purchase-order-statuses/:id', authenticate, requirePermission('procurement:purchase_orders:edit'), async (req, res) => {
   try {
     const { id } = req.params;
-    const companyId = req.user.companyId || 1;
+    const companyId = (req as any).companyId;
     const { code, name, name_ar, description, color, is_active, sort_order } = req.body;
 
     const result = await pool.query(
@@ -186,7 +190,7 @@ router.put('/purchase-order-statuses/:id', authenticate, requirePermission('proc
 router.delete('/purchase-order-statuses/:id', authenticate, requirePermission('procurement:purchase_orders:delete'), async (req, res) => {
   try {
     const { id } = req.params;
-    const companyId = req.user.companyId || 1;
+    const companyId = (req as any).companyId;
 
     const result = await pool.query(
       `UPDATE purchase_order_statuses 
@@ -212,7 +216,7 @@ router.delete('/purchase-order-statuses/:id', authenticate, requirePermission('p
 // GET /supply-terms - List all supply terms
 router.get('/supply-terms', authenticate, requirePermission('procurement:purchase_orders:view'), async (req, res) => {
   try {
-    const companyId = req.user.companyId || 1;
+    const companyId = (req as any).companyId;
 
     const result = await pool.query(
       `SELECT * FROM supply_terms 
@@ -231,7 +235,7 @@ router.get('/supply-terms', authenticate, requirePermission('procurement:purchas
 // POST /supply-terms - Create new supply term
 router.post('/supply-terms', authenticate, requirePermission('procurement:purchase_orders:create'), async (req, res) => {
   try {
-    const companyId = req.user.companyId || 1;
+    const companyId = (req as any).companyId;
     const { code, name, name_ar, description, is_active = true, sort_order = 0 } = req.body;
 
     if (!code || !name) {
@@ -260,7 +264,7 @@ router.post('/supply-terms', authenticate, requirePermission('procurement:purcha
 router.put('/supply-terms/:id', authenticate, requirePermission('procurement:purchase_orders:edit'), async (req, res) => {
   try {
     const { id } = req.params;
-    const companyId = req.user.companyId || 1;
+    const companyId = (req as any).companyId;
     const { code, name, name_ar, description, is_active, sort_order } = req.body;
 
     const result = await pool.query(
@@ -287,7 +291,7 @@ router.put('/supply-terms/:id', authenticate, requirePermission('procurement:pur
 router.delete('/supply-terms/:id', authenticate, requirePermission('procurement:purchase_orders:delete'), async (req, res) => {
   try {
     const { id } = req.params;
-    const companyId = req.user.companyId || 1;
+    const companyId = (req as any).companyId;
 
     const result = await pool.query(
       `UPDATE supply_terms 
@@ -313,7 +317,7 @@ router.delete('/supply-terms/:id', authenticate, requirePermission('procurement:
 // GET /vendor-price-lists - List all vendor price lists
 router.get('/vendor-price-lists', authenticate, requirePermission('procurement:vendors:view'), async (req, res) => {
   try {
-    const companyId = req.user.companyId || 1;
+    const companyId = (req as any).companyId;
 
     const result = await pool.query(
       `SELECT vpl.*, v.name as vendor_name 
@@ -334,7 +338,7 @@ router.get('/vendor-price-lists', authenticate, requirePermission('procurement:v
 // POST /vendor-price-lists - Create new vendor price list
 router.post('/vendor-price-lists', authenticate, requirePermission('procurement:vendors:create'), async (req, res) => {
   try {
-    const companyId = req.user.companyId || 1;
+    const companyId = (req as any).companyId;
     const { vendor_id, name, name_ar, effective_date, expiry_date, currency = 'SAR', is_active = true } = req.body;
 
     if (!vendor_id || !name || !effective_date) {
@@ -360,7 +364,7 @@ router.post('/vendor-price-lists', authenticate, requirePermission('procurement:
 router.put('/vendor-price-lists/:id', authenticate, requirePermission('procurement:vendors:edit'), async (req, res) => {
   try {
     const { id } = req.params;
-    const companyId = req.user.companyId || 1;
+    const companyId = (req as any).companyId;
     const { vendor_id, name, name_ar, effective_date, expiry_date, currency, is_active } = req.body;
 
     const result = await pool.query(
@@ -387,7 +391,7 @@ router.put('/vendor-price-lists/:id', authenticate, requirePermission('procureme
 router.delete('/vendor-price-lists/:id', authenticate, requirePermission('procurement:vendors:delete'), async (req, res) => {
   try {
     const { id } = req.params;
-    const companyId = req.user.companyId || 1;
+    const companyId = (req as any).companyId;
 
     const result = await pool.query(
       `UPDATE vendor_price_lists 
@@ -413,7 +417,7 @@ router.delete('/vendor-price-lists/:id', authenticate, requirePermission('procur
 // GET /delivery-terms - List all delivery terms
 router.get('/delivery-terms', authenticate, requirePermission('procurement:purchase_orders:view'), async (req, res) => {
   try {
-    const companyId = req.user.companyId || 1;
+    const companyId = (req as any).companyId;
 
     const result = await pool.query(
       `SELECT * FROM delivery_terms 
@@ -432,7 +436,7 @@ router.get('/delivery-terms', authenticate, requirePermission('procurement:purch
 // POST /delivery-terms - Create new delivery term
 router.post('/delivery-terms', authenticate, requirePermission('procurement:purchase_orders:create'), async (req, res) => {
   try {
-    const companyId = req.user.companyId || 1;
+    const companyId = (req as any).companyId;
     const { code, name, name_ar, description, is_active = true, sort_order = 0 } = req.body;
 
     if (!code || !name) {
@@ -461,7 +465,7 @@ router.post('/delivery-terms', authenticate, requirePermission('procurement:purc
 router.put('/delivery-terms/:id', authenticate, requirePermission('procurement:purchase_orders:edit'), async (req, res) => {
   try {
     const { id } = req.params;
-    const companyId = req.user.companyId || 1;
+    const companyId = (req as any).companyId;
     const { code, name, name_ar, description, is_active, sort_order } = req.body;
 
     const result = await pool.query(
@@ -488,7 +492,7 @@ router.put('/delivery-terms/:id', authenticate, requirePermission('procurement:p
 router.delete('/delivery-terms/:id', authenticate, requirePermission('procurement:purchase_orders:delete'), async (req, res) => {
   try {
     const { id } = req.params;
-    const companyId = req.user.companyId || 1;
+    const companyId = (req as any).companyId;
 
     const result = await pool.query(
       `UPDATE delivery_terms 

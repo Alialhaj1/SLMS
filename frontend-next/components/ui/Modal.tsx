@@ -1,4 +1,5 @@
-import { useEffect, useRef, ReactNode } from 'react';
+import { useEffect, useRef, useState, ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { XMarkIcon } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
 
@@ -22,6 +23,9 @@ export default function Modal({
   footer,
 }: ModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => { setMounted(true); }, []);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -49,7 +53,7 @@ export default function Modal({
     };
   }, [isOpen, closable, onClose]);
 
-  if (!isOpen) return null;
+  if (!isOpen || !mounted) return null;
 
   const sizeClasses = {
     sm: 'max-w-md',
@@ -58,10 +62,10 @@ export default function Modal({
     xl: 'max-w-4xl',
   };
 
-  return (
+  const modalContent = (
     <div
       ref={modalRef}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
       aria-labelledby={title ? 'modal-title' : undefined}
@@ -107,6 +111,9 @@ export default function Modal({
       </div>
     </div>
   );
+
+  // Portal to document.body to avoid stacking context / transform issues
+  return createPortal(modalContent, document.body);
 }
 
 export { Modal };

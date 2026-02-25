@@ -3,6 +3,7 @@ import { z } from 'zod';
 import pool from '../db';
 import { authenticate } from '../middleware/auth';
 import { requirePermission } from '../middleware/rbac';
+import { loadCompanyContext } from '../middleware/companyContext';
 import { auditLog } from '../middleware/auditLog';
 import { settingsRateLimiter } from '../middleware/rateLimiter';
 
@@ -24,18 +25,27 @@ interface AuthRequest extends Request {
 
 /**
  * GET /api/settings
- * Get all system settings (public + private based on auth)
+ * Get system settings filtered by company context.
+ * - Platform users (no companyId): see global settings (company_id IS NULL)
+ * - Tenant users (with companyId): see global + company-specific overrides
  */
 router.get(
   '/',
   authenticate,
   requirePermission('system_settings:view'),
+  loadCompanyContext,
   async (req: Request, res: Response) => {
     try {
+      const companyId = req.companyId;
+
+      // Get global settings + company-specific overrides
+      // Company overrides take precedence via DISTINCT ON
       const result = await pool.query(
-        `SELECT id, key, value, data_type, category, description, is_public, updated_at
+        `SELECT DISTINCT ON (key) id, key, value, data_type, category, description, is_public, updated_at, company_id
          FROM system_settings
-         ORDER BY category, key`
+         WHERE company_id IS NULL OR company_id = $1
+         ORDER BY key, company_id DESC NULLS LAST`,
+        [companyId || 0]
       );
 
       // Parse values based on data_type
@@ -94,11 +104,13 @@ router.put(
   '/',
   authenticate,
   requirePermission('system_settings:edit'),
+  loadCompanyContext,
   settingsRateLimiter,
   auditLog,
   async (req: AuthRequest, res: Response) => {
     try {
       const updates = req.body; // { key1: value1, key2: value2, ... }
+      const companyId = req.companyId;
 
       if (!updates || typeof updates !== 'object') {
         return res.status(400).json({ error: 'Invalid request body' });
@@ -110,10 +122,10 @@ router.put(
         await client.query('BEGIN');
 
         for (const [key, value] of Object.entries(updates)) {
-          // Get setting data type
+          // Get setting data type (from global or company-specific settings)
           const settingResult = await client.query(
-            'SELECT data_type FROM system_settings WHERE key = $1',
-            [key]
+            'SELECT data_type FROM system_settings WHERE key = $1 AND (company_id IS NULL OR company_id = $2) ORDER BY company_id DESC NULLS LAST LIMIT 1',
+            [key, companyId || 0]
           );
 
           if (settingResult.rows.length === 0) {
@@ -125,13 +137,24 @@ router.put(
           // Validate value based on data type
           const validatedValue = validateSettingValue(value, dataType);
 
-          // Update setting
-          await client.query(
-            `UPDATE system_settings 
-             SET value = $1, updated_by = $2, updated_at = NOW()
-             WHERE key = $3`,
-            [String(validatedValue), req.user!.id, key]
-          );
+          if (companyId) {
+            // Tenant user: upsert a company-specific override
+            await client.query(
+              `INSERT INTO system_settings (key, value, data_type, category, description, is_public, company_id, updated_by, updated_at)
+               SELECT $3, $1, data_type, category, description, is_public, $4, $2, NOW()
+               FROM system_settings WHERE key = $3 AND company_id IS NULL
+               ON CONFLICT (key, company_id) DO UPDATE SET value = $1, updated_by = $2, updated_at = NOW()`,
+              [String(validatedValue), req.user!.id, key, companyId]
+            );
+          } else {
+            // Platform user: update global setting
+            await client.query(
+              `UPDATE system_settings 
+               SET value = $1, updated_by = $2, updated_at = NOW()
+               WHERE key = $3 AND company_id IS NULL`,
+              [String(validatedValue), req.user!.id, key]
+            );
+          }
         }
 
         await client.query('COMMIT');
@@ -161,17 +184,19 @@ router.put(
   '/:key',
   authenticate,
   requirePermission('system_settings:edit'),
+  loadCompanyContext,
   settingsRateLimiter,
   auditLog,
   async (req: AuthRequest, res: Response) => {
     try {
       const { key } = req.params;
       const { value } = req.body;
+      const companyId = req.companyId;
 
-      // Get setting
+      // Get setting (global or company-specific)
       const settingResult = await pool.query(
-        'SELECT * FROM system_settings WHERE key = $1',
-        [key]
+        'SELECT * FROM system_settings WHERE key = $1 AND (company_id IS NULL OR company_id = $2) ORDER BY company_id DESC NULLS LAST LIMIT 1',
+        [key, companyId || 0]
       );
 
       if (settingResult.rows.length === 0) {
@@ -183,14 +208,27 @@ router.put(
       // Validate value
       const validatedValue = validateSettingValue(value, setting.data_type);
 
-      // Update setting
-      const result = await pool.query(
-        `UPDATE system_settings 
-         SET value = $1, updated_by = $2, updated_at = NOW()
-         WHERE key = $3
-         RETURNING *`,
-        [String(validatedValue), req.user!.id, key]
-      );
+      let result;
+      if (companyId) {
+        // Tenant user: create/update company-specific override
+        result = await pool.query(
+          `INSERT INTO system_settings (key, value, data_type, category, description, is_public, company_id, updated_by, updated_at)
+           VALUES ($3, $1, $5, $6, $7, $8, $4, $2, NOW())
+           ON CONFLICT (key, company_id) DO UPDATE SET value = $1, updated_by = $2, updated_at = NOW()
+           RETURNING *`,
+          [String(validatedValue), req.user!.id, key, companyId,
+           setting.data_type, setting.category, setting.description, setting.is_public]
+        );
+      } else {
+        // Platform user: update global setting
+        result = await pool.query(
+          `UPDATE system_settings 
+           SET value = $1, updated_by = $2, updated_at = NOW()
+           WHERE key = $3 AND company_id IS NULL
+           RETURNING *`,
+          [String(validatedValue), req.user!.id, key]
+        );
+      }
 
       const updated = result.rows[0];
       updated.value = parseSettingValue(updated.value, updated.data_type);

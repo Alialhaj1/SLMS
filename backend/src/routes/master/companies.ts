@@ -2,12 +2,18 @@ import { Router, Request, Response } from 'express';
 import pool from '../../db';
 import { authenticate } from '../../middleware/auth';
 import { requirePermission } from '../../middleware/rbac';
+import { buildTenantFilter, getInsertTenantId } from '../../middleware/tenantIsolation';
+import { applyEnhancedAudit } from '../../middleware/enhancedAuditLog';
+import { dynamicDeletionProtection } from '../../services/referenceIntegrityEngine';
 import { z } from 'zod';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 
 const router = Router();
+
+// Apply enhanced audit for before/after tracking
+applyEnhancedAudit(router, 'companies');
 
 // Configure multer for logo uploads
 const logoStorage = multer.diskStorage({
@@ -94,6 +100,12 @@ router.get(
         WHERE 1=1
       `;
 
+      // TENANT ISOLATION: Filter by tenant_id
+      const tenantFilter = buildTenantFilter(req as any, 'c');
+      if (tenantFilter) {
+        query += tenantFilter;
+      }
+
       // Exclude soft-deleted by default
       if (include_deleted !== 'true') {
         query += ` AND c.deleted_at IS NULL`;
@@ -152,7 +164,7 @@ router.get(
         LEFT JOIN cities ci ON c.city_id = ci.id
         LEFT JOIN users u1 ON c.created_by = u1.id
         LEFT JOIN users u2 ON c.updated_by = u2.id
-        WHERE c.id = $1 AND c.deleted_at IS NULL`,
+        WHERE c.id = $1 AND c.deleted_at IS NULL${buildTenantFilter(req as any, 'c')}`,
         [id]
       );
 
@@ -343,6 +355,7 @@ router.put(
 router.delete(
   '/:id',
   requirePermission('companies:delete'),
+  dynamicDeletionProtection('companies'),
   async (req: Request, res: Response) => {
     try {
       const { id } = req.params;

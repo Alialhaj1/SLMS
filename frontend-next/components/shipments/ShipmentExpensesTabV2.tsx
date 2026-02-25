@@ -553,14 +553,14 @@ export default function ShipmentExpensesTabV2({
   const fetchBaseCurrency = async () => {
     try {
       const data = await apiClient.get('/api/finance/currencies?is_base_currency=true');
-      console.log('Base currency response:', data);
+      // debug log removed
       
       if (data.success && data.data && data.data.length > 0) {
         const baseCurrency = data.data[0];
         const currencyId = baseCurrency.id.toString();
         const currencyCode = baseCurrency.code;
         
-        console.log('Setting base currency:', { currencyId, currencyCode });
+        // debug log removed
         
         setBaseCurrencyId(currencyId);
         setBaseCurrencyCode(currencyCode);
@@ -600,7 +600,7 @@ export default function ShipmentExpensesTabV2({
         // Use the passed exchange rate (which may be manually set)
         // Only use backend rate if not manually set and not base currency
         const actualExchangeRate = isBaseCurrency ? 1 : exchangeRate;
-        console.log('Duty Breakdown - Currency:', breakdown.summary.currency_code, '| Exchange Rate:', actualExchangeRate, '| Manual:', isExchangeRateManuallySet);
+        // debug log removed
         
         // Only update formData exchange rate if NOT manually set by user
         if (!isExchangeRateManuallySet) {
@@ -1147,7 +1147,7 @@ export default function ShipmentExpensesTabV2({
         }
       }
       
-      console.log('Submitting expense with payload:', payload);
+      // debug log removed
       
       const endpoint = editMode 
         ? `/api/shipment-expenses/${editingExpenseId}`
@@ -1157,7 +1157,7 @@ export default function ShipmentExpensesTabV2({
         ? await apiClient.put(endpoint, payload)
         : await apiClient.post(endpoint, payload);
       
-      console.log('Submit expense response:', data);
+      // debug log removed
       
       if (data.success) {
         const message = editMode 

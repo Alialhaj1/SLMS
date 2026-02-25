@@ -2,12 +2,14 @@ import Head from 'next/head';
 import MainLayout from '../../components/layout/MainLayout';
 import PolicyCrudTable from '../../components/settings/PolicyCrudTable';
 import { withPermission } from '../../utils/withPermission';
+import { useTranslation } from '../../hooks/useTranslation';
 
 function SessionsPage() {
+  const { t } = useTranslation();
   return (
     <MainLayout>
       <Head>
-        <title>Session Settings - SLMS</title>
+        <title>{t('settingsAdmin.pages.sessions.title')} - SLMS</title>
       </Head>
 
       <PolicyCrudTable

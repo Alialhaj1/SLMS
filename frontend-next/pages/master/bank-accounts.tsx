@@ -11,6 +11,7 @@ import Card from '../../components/ui/Card';
 import { usePermissions } from '../../hooks/usePermissions';
 import { useTranslation } from '../../hooks/useTranslation';
 import { useToast } from '../../contexts/ToastContext';
+import { useCurrencies, getCurrencySymbol } from '../../hooks/useReferenceData';
 import apiClient from '../../lib/apiClient';
 import {
   PlusIcon,
@@ -84,18 +85,13 @@ const ACCOUNT_TYPES = [
   { value: 'loan', label: 'Loan Account', labelAr: 'حساب قرض', icon: '🏦' },
 ];
 
-const CURRENCIES = [
-  { code: 'SAR', symbol: 'ر.س', name: 'Saudi Riyal' },
-  { code: 'USD', symbol: '$', name: 'US Dollar' },
-  { code: 'EUR', symbol: '€', name: 'Euro' },
-  { code: 'GBP', symbol: '£', name: 'British Pound' },
-  { code: 'AED', symbol: 'د.إ', name: 'UAE Dirham' },
-];
+// Currencies loaded from API via useCurrencies hook
 
 function BankAccountsPage() {
   const { hasPermission } = usePermissions();
   const { t } = useTranslation();
   const { showToast } = useToast();
+  const { currencies: CURRENCIES } = useCurrencies();
   const hasFetched = useRef(false);
 
   const [items, setItems] = useState<BankAccount[]>([]);
@@ -290,9 +286,9 @@ function BankAccountsPage() {
   };
 
   const formatCurrency = (amount: number, currencyCode: string) => {
-    const currency = CURRENCIES.find(c => c.code === currencyCode);
+    const symbol = getCurrencySymbol(CURRENCIES, currencyCode);
     const formatted = new Intl.NumberFormat('en-SA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Math.abs(amount));
-    return `${amount < 0 ? '-' : ''}${currency?.symbol || currencyCode} ${formatted}`;
+    return `${amount < 0 ? '-' : ''}${symbol} ${formatted}`;
   };
 
   return (

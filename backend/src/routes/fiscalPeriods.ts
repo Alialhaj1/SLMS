@@ -366,4 +366,124 @@ router.delete(
   }
 );
 
+// =============================================
+// POST /api/fiscal-periods/:id/lock - Lock a period (DB enforced)
+// =============================================
+router.post(
+  '/:id/lock',
+  requireAnyPermission(['finance:periods:manage', 'accounting:periods:manage']),
+  requireCompany,
+  async (req: Request, res: Response) => {
+    try {
+      const companyId = req.companyId as number;
+      const userId = (req as any).user?.id;
+      const id = Number(req.params.id);
+
+      if (!Number.isInteger(id)) {
+        return res.status(400).json({ success: false, error: 'Invalid id' });
+      }
+
+      const period = await pool.query(
+        `SELECT status FROM accounting_periods WHERE id = $1 AND company_id = $2`,
+        [id, companyId]
+      );
+
+      if (period.rows.length === 0) {
+        return res.status(404).json({ success: false, error: 'Period not found' });
+      }
+
+      if (period.rows[0].status === 'locked') {
+        return res.status(400).json({ success: false, error: 'Period is already locked' });
+      }
+
+      await pool.query(
+        `UPDATE accounting_periods
+         SET status = 'locked', locked_at = NOW(), locked_by = $3, updated_at = NOW()
+         WHERE id = $1 AND company_id = $2`,
+        [id, companyId, userId]
+      );
+
+      return res.json({ success: true, message: 'Period locked — journal entries in this period are now immutable' });
+    } catch (error: any) {
+      console.error('Error locking period:', error);
+      return res.status(500).json({ success: false, error: 'Failed to lock period' });
+    }
+  }
+);
+
+// =============================================
+// POST /api/fiscal-periods/:id/reopen - Reopen a locked period (requires reason)
+// =============================================
+router.post(
+  '/:id/reopen',
+  requireAnyPermission(['finance:periods:manage', 'accounting:periods:manage']),
+  requireCompany,
+  async (req: Request, res: Response) => {
+    try {
+      const companyId = req.companyId as number;
+      const userId = (req as any).user?.id;
+      const id = Number(req.params.id);
+      const { reason } = req.body || {};
+
+      if (!reason || reason.trim().length < 10) {
+        return res.status(400).json({
+          success: false,
+          error: 'Reopen reason is required (minimum 10 characters)'
+        });
+      }
+
+      const result = await pool.query(
+        `SELECT reopen_period($1, $2, $3, $4) AS reopened`,
+        [id, companyId, userId, reason]
+      );
+
+      if (!result.rows[0]?.reopened) {
+        return res.status(404).json({ success: false, error: 'Period not found or not locked/closed' });
+      }
+
+      return res.json({ success: true, message: 'Period reopened' });
+    } catch (error: any) {
+      console.error('Error reopening period:', error);
+      const msg = error.message?.includes('10 characters')
+        ? error.message
+        : 'Failed to reopen period';
+      return res.status(500).json({ success: false, error: msg });
+    }
+  }
+);
+
+// =============================================
+// POST /api/fiscal-periods/lock-through - Batch lock all periods through a date
+// =============================================
+router.post(
+  '/lock-through',
+  requireAnyPermission(['finance:periods:manage', 'accounting:periods:manage']),
+  requireCompany,
+  async (req: Request, res: Response) => {
+    try {
+      const companyId = req.companyId as number;
+      const userId = (req as any).user?.id;
+      const { through_date } = req.body || {};
+
+      if (!through_date) {
+        return res.status(400).json({ success: false, error: 'through_date is required' });
+      }
+
+      const result = await pool.query(
+        `SELECT lock_periods_through($1, $2::date, $3) AS locked_count`,
+        [companyId, through_date, userId]
+      );
+
+      return res.json({
+        success: true,
+        locked_count: result.rows[0]?.locked_count || 0,
+        message: `${result.rows[0]?.locked_count || 0} periods locked through ${through_date}`,
+      });
+    } catch (error: any) {
+      console.error('Error batch locking periods:', error);
+      return res.status(500).json({ success: false, error: 'Failed to batch lock periods' });
+    }
+  }
+);
+
 export default router;

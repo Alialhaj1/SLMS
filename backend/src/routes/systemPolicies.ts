@@ -6,6 +6,7 @@ import { auditLog, captureBeforeState } from '../middleware/auditLog';
 import { loadCompanyContext } from '../middleware/companyContext';
 import { getPaginationParams, sendPaginated } from '../utils/response';
 import { z } from 'zod';
+import { PolicyService } from '../services/policyService';
 
 const router = Router();
 
@@ -29,6 +30,56 @@ function isSuperAdmin(roles: string[] | undefined) {
   const SUPER_ADMIN_ROLES = ['super_admin', 'Super Admin', 'Admin', 'system_admin', 'System Admin'];
   return (roles || []).some((r) => SUPER_ADMIN_ROLES.includes(r));
 }
+
+/**
+ * GET /api/system-policies/active
+ * Returns active policy values for specified categories.
+ * Accessible to ANY authenticated user (no admin permission needed).
+ * Used by frontend for visibility, freeze, and notification enforcement.
+ */
+router.get('/active', authenticate, async (req: Request, res: Response) => {
+  try {
+    const allowedCategories = ['visibility', 'freeze', 'notifications_settings', 'security'];
+    const requestedCategory = req.query.category as string;
+
+    const where = ['deleted_at IS NULL', 'is_active = TRUE'];
+    const params: any[] = [];
+    let paramIndex = 1;
+
+    if (requestedCategory && allowedCategories.includes(requestedCategory)) {
+      where.push(`category = $${paramIndex}`);
+      params.push(requestedCategory);
+      paramIndex++;
+    } else {
+      where.push(`category = ANY($${paramIndex})`);
+      params.push(allowedCategories);
+      paramIndex++;
+    }
+
+    const result = await pool.query(
+      `SELECT policy_key, policy_value, data_type, category
+       FROM system_policies
+       WHERE ${where.join(' AND ')}
+       ORDER BY category, policy_key`,
+      params
+    );
+
+    // Return as key-value map grouped by category
+    const policies: Record<string, Record<string, any>> = {};
+    for (const row of result.rows) {
+      if (!policies[row.category]) policies[row.category] = {};
+      let value: any = row.policy_value;
+      if (row.data_type === 'boolean') value = row.policy_value === 'true';
+      else if (row.data_type === 'number') value = Number(row.policy_value);
+      policies[row.category][row.policy_key] = value;
+    }
+
+    res.json({ success: true, data: policies });
+  } catch (error: any) {
+    console.error('Error fetching active policies:', error);
+    res.status(500).json({ success: false, error: { message: 'Failed to fetch active policies' } });
+  }
+});
 
 // GET /api/system-policies - List system policies with filters and pagination
 router.get('/', authenticate, loadCompanyContext, requirePermission('system_policies:view'), auditLog, async (req: Request, res: Response) => {
@@ -187,6 +238,9 @@ router.post('/', authenticate, loadCompanyContext, requirePermission('system_pol
       after: result.rows[0],
     };
 
+    // Invalidate PolicyService cache so new policy takes effect
+    await PolicyService.invalidateCache();
+
     res.status(201).json({
       success: true,
       data: result.rows[0],
@@ -281,6 +335,9 @@ router.put('/:id', authenticate, loadCompanyContext, requirePermission('system_p
       after: result.rows[0],
     };
 
+    // Invalidate PolicyService cache so new values take effect immediately
+    await PolicyService.invalidateCache();
+
     res.json({
       success: true,
       data: result.rows[0],
@@ -349,6 +406,9 @@ router.delete('/:id', authenticate, loadCompanyContext, requirePermission('syste
       ...(req as any).auditContext,
       after: { deleted: true },
     };
+
+    // Invalidate PolicyService cache since a policy was deleted
+    await PolicyService.invalidateCache();
 
     res.json({
       success: true,

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Insurance Companies API
  * Manages insurance companies for shipment insurance expenses
  */
@@ -7,13 +7,17 @@ import { Router, Request, Response } from 'express';
 import pool from '../db';
 import { authenticate } from '../middleware/auth';
 import { requirePermission } from '../middleware/rbac';
+import { loadCompanyContext } from '../middleware/companyContext';
 
 const router = Router();
+
+// Apply company context globally to all insurance company routes
+router.use(authenticate, loadCompanyContext);
 
 // GET all insurance companies
 router.get('/', authenticate, requirePermission('insurance_companies:view'), async (req: Request, res: Response) => {
   try {
-    const companyId = (req as any).user?.companyId || 1;
+    const companyId = (req as any).companyId;
     
     const result = await pool.query(`
       SELECT id, code, name, name_ar, contact_person, phone, email, 
@@ -34,7 +38,7 @@ router.get('/', authenticate, requirePermission('insurance_companies:view'), asy
 router.get('/:id', authenticate, requirePermission('insurance_companies:view'), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const companyId = (req as any).user?.companyId || 1;
+    const companyId = (req as any).companyId;
     
     const result = await pool.query(`
       SELECT * FROM insurance_companies
@@ -55,7 +59,7 @@ router.get('/:id', authenticate, requirePermission('insurance_companies:view'), 
 // CREATE insurance company
 router.post('/', authenticate, requirePermission('insurance_companies:create'), async (req: Request, res: Response) => {
   try {
-    const companyId = (req as any).user?.companyId || 1;
+    const companyId = (req as any).companyId;
     const userId = (req as any).user?.id;
     const { code, name, name_ar, contact_person, phone, email, address, is_active = true } = req.body;
     
@@ -78,7 +82,7 @@ router.post('/', authenticate, requirePermission('insurance_companies:create'), 
 router.put('/:id', authenticate, requirePermission('insurance_companies:update'), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const companyId = (req as any).user?.companyId || 1;
+    const companyId = (req as any).companyId;
     const userId = (req as any).user?.id;
     const { code, name, name_ar, contact_person, phone, email, address, is_active } = req.body;
     
@@ -113,7 +117,7 @@ router.put('/:id', authenticate, requirePermission('insurance_companies:update')
 router.delete('/:id', authenticate, requirePermission('insurance_companies:delete'), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const companyId = (req as any).user?.companyId || 1;
+    const companyId = (req as any).companyId;
     const userId = (req as any).user?.id;
     
     await pool.query(`

@@ -54,7 +54,7 @@ function StockReceiptsPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
+      const apiUrl = (process.env.NEXT_PUBLIC_API_URL || '') + '/api';
       const companyId = companyStore.getActiveCompanyId();
 
       if (!companyId) {
@@ -63,7 +63,7 @@ function StockReceiptsPage() {
         return;
       }
 
-      const resp = await fetch(`${apiUrl}/api/inventory/receipts`, {
+      const resp = await fetch(`${apiUrl}/inventory/receipts`, {
         headers: {
           Authorization: `Bearer ${token}`,
           'X-Company-Id': String(companyId),
@@ -109,7 +109,7 @@ function StockReceiptsPage() {
     setSubmitting(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
+      const apiUrl = (process.env.NEXT_PUBLIC_API_URL || '') + '/api';
       const companyId = companyStore.getActiveCompanyId();
 
       if (!companyId) {
@@ -126,7 +126,7 @@ function StockReceiptsPage() {
       if (unitCost) body.unit_cost = Number(unitCost);
       if (sellingPrice) body.selling_price = Number(sellingPrice);
 
-      const resp = await fetch(`${apiUrl}/api/inventory/receipts`, {
+      const resp = await fetch(`${apiUrl}/inventory/receipts`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,

@@ -71,6 +71,13 @@ interface AllocationInput {
   allocated_amount: string;
 }
 
+interface Project {
+  id: number;
+  code: string;
+  name: string;
+  name_ar?: string;
+}
+
 export default function PaymentDetailPage() {
   const router = useRouter();
   const { id } = router.query;
@@ -87,6 +94,13 @@ export default function PaymentDetailPage() {
   const [outstandingInvoices, setOutstandingInvoices] = useState<OutstandingInvoice[]>([]);
   const [allocationInputs, setAllocationInputs] = useState<AllocationInput[]>([]);
   const [allocating, setAllocating] = useState(false);
+
+  // Project selection modal for transfer request
+  const [projectModalOpen, setProjectModalOpen] = useState(false);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
+  const [loadingProjects, setLoadingProjects] = useState(false);
+  const [creatingTransfer, setCreatingTransfer] = useState(false);
 
   // Delete state
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -309,10 +323,42 @@ export default function PaymentDetailPage() {
   const canPost = !payment.is_posted && hasPermission('procurement:payments:post');
   const canCreateTransfer = hasPermission('transfer_requests:create') && !payment.transfer_request_id;
 
-  const handleCreateTransferRequest = async () => {
+  // Fetch projects for selection modal
+  const fetchProjects = async () => {
+    setLoadingProjects(true);
     try {
       const token = localStorage.getItem('accessToken');
       const companyId = companyStore.getActiveCompanyId() || 1;
+      
+      const response = await fetch('/api/projects?status=active&limit=100', {
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          'X-Company-Id': String(companyId)
+        }
+      });
+
+      if (!response.ok) throw new Error('Failed to fetch projects');
+      const result = await response.json();
+      setProjects(result.data || []);
+    } catch (error) {
+      console.error('Error fetching projects:', error);
+      showToast('Failed to load projects', 'error');
+    } finally {
+      setLoadingProjects(false);
+    }
+  };
+
+  // Create transfer request (optionally with selected project)
+  const createTransferRequest = async (projectId?: number) => {
+    setCreatingTransfer(true);
+    try {
+      const token = localStorage.getItem('accessToken');
+      const companyId = companyStore.getActiveCompanyId() || 1;
+      
+      const body: any = { vendor_payment_id: payment.id };
+      if (projectId) {
+        body.project_id = projectId;
+      }
       
       const response = await fetch('/api/transfer-requests/from-vendor-payment', {
         method: 'POST',
@@ -321,9 +367,66 @@ export default function PaymentDetailPage() {
           'Content-Type': 'application/json',
           'X-Company-Id': String(companyId)
         },
-        body: JSON.stringify({
-          vendor_payment_id: payment.id
-        })
+        body: JSON.stringify(body)
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        // If project required, open modal to let user select a project
+        if (error.code === 'PROJECT_REQUIRED') {
+          setCreatingTransfer(false);
+          await fetchProjects();
+          setProjectModalOpen(true);
+          return; // Don't close modal or show error
+        }
+        throw new Error(error.error || 'Failed to create transfer request');
+      }
+
+      const result = await response.json();
+      showToast(`Transfer request ${result.request_number} created`, 'success');
+      setCreatingTransfer(false);
+      router.push(`/requests/transfer/${result.id}`);
+    } catch (error: any) {
+      console.error('Error creating transfer request:', error);
+      showToast(error.message || 'Failed to create transfer request', 'error');
+      setCreatingTransfer(false);
+      setProjectModalOpen(false);
+    }
+  };
+
+  const handleCreateTransferRequest = async () => {
+    // If payment already has a project, create directly
+    if (payment.project_id) {
+      await createTransferRequest();
+    } else {
+      // Try to create - backend will return PROJECT_REQUIRED if no project
+      await createTransferRequest();
+    }
+  };
+
+  const handleProjectSelect = async () => {
+    if (!selectedProjectId) {
+      showToast('Please select a project', 'error');
+      return;
+    }
+    setCreatingTransfer(true);
+    try {
+      const token = localStorage.getItem('accessToken');
+      const companyId = companyStore.getActiveCompanyId() || 1;
+      
+      const body = { 
+        vendor_payment_id: payment.id,
+        project_id: selectedProjectId
+      };
+      
+      const response = await fetch('/api/transfer-requests/from-vendor-payment', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'X-Company-Id': String(companyId)
+        },
+        body: JSON.stringify(body)
       });
 
       if (!response.ok) {
@@ -333,10 +436,13 @@ export default function PaymentDetailPage() {
 
       const result = await response.json();
       showToast(`Transfer request ${result.request_number} created`, 'success');
+      setProjectModalOpen(false);
       router.push(`/requests/transfer/${result.id}`);
     } catch (error: any) {
       console.error('Error creating transfer request:', error);
       showToast(error.message || 'Failed to create transfer request', 'error');
+    } finally {
+      setCreatingTransfer(false);
     }
   };
 
@@ -390,6 +496,7 @@ export default function PaymentDetailPage() {
               <Button
                 variant="secondary"
                 onClick={handleCreateTransferRequest}
+                loading={creatingTransfer}
                 className="!bg-purple-100 hover:!bg-purple-200 dark:!bg-purple-900 dark:hover:!bg-purple-800 !text-purple-700 dark:!text-purple-300"
               >
                 طلب تحويل
@@ -668,6 +775,71 @@ export default function PaymentDetailPage() {
         variant="danger"
         loading={deleting}
       />
+
+      {/* Project Selection Modal */}
+      <Modal
+        isOpen={projectModalOpen}
+        onClose={() => !creatingTransfer && setProjectModalOpen(false)}
+        title="Select Project for Transfer Request"
+        size="md"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            This payment is not linked to a project. Please select a project to associate with the transfer request.
+          </p>
+          
+          {loadingProjects ? (
+            <div className="py-8 text-center">
+              <p className="text-gray-500">Loading projects...</p>
+            </div>
+          ) : projects.length === 0 ? (
+            <p className="text-gray-500 dark:text-gray-400 py-4">No active projects found</p>
+          ) : (
+            <div className="max-h-80 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-md">
+              {projects.map((project) => (
+                <label
+                  key={project.id}
+                  className={`flex items-center p-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 border-b border-gray-200 dark:border-gray-700 last:border-b-0 ${
+                    selectedProjectId === project.id ? 'bg-blue-50 dark:bg-blue-900/30' : ''
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="project"
+                    value={project.id}
+                    checked={selectedProjectId === project.id}
+                    onChange={() => setSelectedProjectId(project.id)}
+                    className="mr-3 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                  />
+                  <div>
+                    <p className="font-medium text-gray-900 dark:text-white">{project.code}</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      {project.name_ar || project.name}
+                    </p>
+                  </div>
+                </label>
+              ))}
+            </div>
+          )}
+
+          <div className="flex gap-2 pt-4">
+            <Button 
+              onClick={handleProjectSelect} 
+              loading={creatingTransfer}
+              disabled={!selectedProjectId || loadingProjects}
+            >
+              Create Transfer Request
+            </Button>
+            <Button 
+              variant="secondary" 
+              onClick={() => setProjectModalOpen(false)} 
+              disabled={creatingTransfer}
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </MainLayout>
   );
 }

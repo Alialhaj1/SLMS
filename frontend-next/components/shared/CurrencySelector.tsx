@@ -55,7 +55,9 @@ export default function CurrencySelector({
       setLoading(true);
       try {
         const token = localStorage.getItem('accessToken');
-        const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
+        // Normalize: strip trailing slash and /api suffix to avoid double /api/api
+        const rawApiUrl = process.env.NEXT_PUBLIC_API_URL || '';
+        const API_BASE_URL = rawApiUrl.replace(/\/$/, '').replace(/\/api$/, '');
         const url = companyId 
           ? `${API_BASE_URL}/api/finance/currencies?company_id=${companyId}&is_active=true`
           : `${API_BASE_URL}/api/finance/currencies?is_active=true`;

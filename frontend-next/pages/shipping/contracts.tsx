@@ -50,8 +50,8 @@ export default function ShippingContractsPage() {
 
   const filteredContracts = contracts.filter(c => selectedStatus === 'all' || c.status === selectedStatus);
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat(locale === 'ar' ? 'ar-SA' : 'en-SA', { style: 'currency', currency: 'SAR' }).format(amount);
+  const formatCurrency = (amount: number, currencyCode: string = 'SAR') => {
+    return new Intl.NumberFormat(locale === 'ar' ? 'ar-SA' : 'en-SA', { style: 'currency', currency: currencyCode }).format(amount);
   };
 
   const getTypeBadge = (type: string) => {
@@ -207,7 +207,7 @@ export default function ShippingContractsPage() {
                     <td className="px-4 py-3">
                       <div className="flex gap-1">
                         <Button size="sm" variant="secondary" onClick={() => setSelectedContract(contract)}><EyeIcon className="h-4 w-4" /></Button>
-                        <Button size="sm" variant="secondary" onClick={() => showToast(locale === 'ar' ? 'تعديل...' : 'Edit...', 'info')}><PencilIcon className="h-4 w-4" /></Button>
+                        <Button size="sm" variant="secondary" onClick={() => showToast(locale === 'ar' ? 'تعديل... (قريباً)' : 'Edit... (Coming soon)', 'info')}><PencilIcon className="h-4 w-4" /></Button>
                       </div>
                     </td>
                   </tr>
@@ -253,7 +253,7 @@ export default function ShippingContractsPage() {
               </div>
             </div>
             <div className="flex gap-2 pt-4 border-t dark:border-gray-700">
-              <Button onClick={() => showToast(locale === 'ar' ? 'تم التجديد' : 'Renewed', 'success')}>{locale === 'ar' ? 'تجديد' : 'Renew'}</Button>
+              <Button onClick={() => showToast(locale === 'ar' ? 'تم التجديد - قيد التطوير' : 'Renewed - Feature under development', 'warning')}>{locale === 'ar' ? 'تجديد' : 'Renew'}</Button>
               <Button variant="secondary" onClick={() => setSelectedContract(null)}>{locale === 'ar' ? 'إغلاق' : 'Close'}</Button>
             </div>
           </div>
@@ -265,7 +265,7 @@ export default function ShippingContractsPage() {
         <div className="space-y-4">
           <p className="text-gray-500 dark:text-gray-400">{locale === 'ar' ? 'نموذج إنشاء عقد جديد' : 'Create new contract form'}</p>
           <div className="flex gap-2 pt-4">
-            <Button onClick={() => { setShowCreateModal(false); showToast(locale === 'ar' ? 'تم الحفظ' : 'Saved', 'success'); }}>{locale === 'ar' ? 'حفظ' : 'Save'}</Button>
+            <Button onClick={() => { setShowCreateModal(false); showToast(locale === 'ar' ? 'سيتم تفعيل الحفظ قريباً' : 'Save feature coming soon', 'warning'); }}>{locale === 'ar' ? 'حفظ' : 'Save'}</Button>
             <Button variant="secondary" onClick={() => setShowCreateModal(false)}>{locale === 'ar' ? 'إلغاء' : 'Cancel'}</Button>
           </div>
         </div>

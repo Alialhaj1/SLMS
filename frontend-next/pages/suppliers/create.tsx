@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import MainLayout from '../../components/layout/MainLayout';
@@ -18,10 +18,13 @@ import { useToast } from '../../contexts/ToastContext';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import Card from '../../components/ui/Card';
+import { companyStore } from '../../lib/companyStore';
+
+interface RefOption { value: string; label: string; labelAr?: string; }
 
 const CreateSupplier: React.FC = () => {
   const router = useRouter();
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   const { showToast } = useToast();
 
   const [loading, setLoading] = useState(false);
@@ -37,12 +40,97 @@ const CreateSupplier: React.FC = () => {
     postal_code: '',
     tax_number: '',
     website: '',
-    payment_terms: '30',
-    currency: 'USD',
+    payment_terms: '',
+    currency: '',
     notes: '',
     is_active: true,
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // Reference data from API
+  const [paymentTermsOptions, setPaymentTermsOptions] = useState<RefOption[]>([]);
+  const [currencyOptions, setCurrencyOptions] = useState<RefOption[]>([]);
+  const [countryOptions, setCountryOptions] = useState<RefOption[]>([]);
+  const [cityOptions, setCityOptions] = useState<RefOption[]>([]);
+  const [refLoading, setRefLoading] = useState(true);
+
+  const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+
+  const fetchRef = useCallback(async (endpoint: string) => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      const companyId = companyStore?.getActiveCompanyId?.() || '';
+      const res = await fetch(`${apiBase}${endpoint}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'X-Company-Id': String(companyId),
+        },
+      });
+      const json = await res.json();
+      return json.data || json.rows || [];
+    } catch {
+      return [];
+    }
+  }, [apiBase, companyStore]);
+
+  useEffect(() => {
+    const loadAll = async () => {
+      setRefLoading(true);
+      const [pt, cur, ctr] = await Promise.all([
+        fetchRef('/api/payment-terms?is_active=true'),
+        fetchRef('/api/currencies?is_active=true'),
+        fetchRef('/api/countries?is_active=true'),
+      ]);
+
+      setPaymentTermsOptions(pt.map((r: any) => ({
+        value: r.code || r.term_code || String(r.days ?? r.id),
+        label: locale === 'ar' ? (r.name_ar || r.name) : (r.name || r.name_en),
+        labelAr: r.name_ar,
+      })));
+
+      setCurrencyOptions(cur.map((r: any) => ({
+        value: r.code,
+        label: `${r.code} - ${locale === 'ar' ? (r.name_ar || r.name) : (r.name || r.name_en)}`,
+      })));
+
+      setCountryOptions(ctr.map((r: any) => ({
+        value: r.code || r.alpha_2 || r.name,
+        label: locale === 'ar' ? (r.name_ar || r.name_en || r.name) : (r.name_en || r.name || r.name_ar),
+      })));
+
+      // Set defaults
+      if (pt.length > 0 && !formData.payment_terms) {
+        const def = pt.find((r: any) => r.is_default) || pt[0];
+        setFormData(prev => ({
+          ...prev,
+          payment_terms: def.code || def.term_code || String(def.days ?? def.id),
+        }));
+      }
+      if (cur.length > 0 && !formData.currency) {
+        const base = cur.find((r: any) => r.is_base_currency) || cur[0];
+        setFormData(prev => ({ ...prev, currency: base.code }));
+      }
+
+      setRefLoading(false);
+    };
+    loadAll();
+  }, [fetchRef, locale]);
+
+  // Load cities when country changes
+  useEffect(() => {
+    if (!formData.country) {
+      setCityOptions([]);
+      return;
+    }
+    const loadCities = async () => {
+      const cities = await fetchRef(`/api/cities?country_code=${formData.country}&is_active=true`);
+      setCityOptions(cities.map((r: any) => ({
+        value: r.code || r.name_en || r.name,
+        label: locale === 'ar' ? (r.name_ar || r.name_en || r.name) : (r.name_en || r.name || r.name_ar),
+      })));
+    };
+    loadCities();
+  }, [formData.country, fetchRef, locale]);
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -75,9 +163,9 @@ const CreateSupplier: React.FC = () => {
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
+      const apiUrl = (process.env.NEXT_PUBLIC_API_URL || '') + '/api';
 
-      const response = await fetch(`${apiUrl}/api/suppliers`, {
+      const response = await fetch(`${apiUrl}/suppliers`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -102,21 +190,10 @@ const CreateSupplier: React.FC = () => {
     }
   };
 
-  const paymentTermsOptions = [
-    { value: '0', label: 'Immediate' },
-    { value: '15', label: 'Net 15' },
-    { value: '30', label: 'Net 30' },
-    { value: '45', label: 'Net 45' },
-    { value: '60', label: 'Net 60' },
-    { value: '90', label: 'Net 90' },
-  ];
-
-  const currencies = ['USD', 'EUR', 'GBP', 'SAR', 'AED', 'EGP'];
-
   return (
     <MainLayout>
       <Head>
-        <title>Create Supplier - SLMS</title>
+        <title>{locale === 'ar' ? 'إنشاء مورد - SLMS' : 'Create Supplier - SLMS'}</title>
       </Head>
 
       {/* Header */}
@@ -245,19 +322,45 @@ const CreateSupplier: React.FC = () => {
                   />
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <Input
-                      label={t('suppliers.city', 'City')}
-                      value={formData.city}
-                      onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                      placeholder="City"
-                    />
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        {t('suppliers.country', 'Country')}
+                      </label>
+                      <select
+                        value={formData.country}
+                        onChange={(e) => setFormData({ ...formData, country: e.target.value, city: '' })}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">{locale === 'ar' ? '-- اختر الدولة --' : '-- Select Country --'}</option>
+                        {countryOptions.map((opt) => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </select>
+                    </div>
 
-                    <Input
-                      label={t('suppliers.country', 'Country')}
-                      value={formData.country}
-                      onChange={(e) => setFormData({ ...formData, country: e.target.value })}
-                      placeholder="Country"
-                    />
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        {t('suppliers.city', 'City')}
+                      </label>
+                      {cityOptions.length > 0 ? (
+                        <select
+                          value={formData.city}
+                          onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                          <option value="">{locale === 'ar' ? '-- اختر المدينة --' : '-- Select City --'}</option>
+                          {cityOptions.map((opt) => (
+                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <Input
+                          value={formData.city}
+                          onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                          placeholder={locale === 'ar' ? 'اسم المدينة' : 'City name'}
+                        />
+                      )}
+                    </div>
 
                     <Input
                       label={t('suppliers.postalCode', 'Postal Code')}
@@ -304,8 +407,8 @@ const CreateSupplier: React.FC = () => {
                         onChange={(e) => setFormData({ ...formData, currency: e.target.value })}
                         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                       >
-                        {currencies.map((c) => (
-                          <option key={c} value={c}>{c}</option>
+                        {currencyOptions.map((opt) => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
                         ))}
                       </select>
                     </div>
@@ -350,13 +453,21 @@ const CreateSupplier: React.FC = () => {
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600 dark:text-gray-400">{t('suppliers.location', 'Location')}:</span>
                     <span className="text-gray-900 dark:text-white">
-                      {formData.city && formData.country ? `${formData.city}, ${formData.country}` : '-'}
+                      {formData.country
+                        ? `${formData.city ? formData.city + ', ' : ''}${countryOptions.find(o => o.value === formData.country)?.label || formData.country}`
+                        : '-'}
                     </span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600 dark:text-gray-400">{t('suppliers.terms', 'Terms')}:</span>
                     <span className="text-gray-900 dark:text-white">
-                      {paymentTermsOptions.find(o => o.value === formData.payment_terms)?.label || '-'}
+                      {paymentTermsOptions.find(o => o.value === formData.payment_terms)?.label || formData.payment_terms || '-'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600 dark:text-gray-400">{t('suppliers.currency', 'Currency')}:</span>
+                    <span className="text-gray-900 dark:text-white">
+                      {formData.currency || '-'}
                     </span>
                   </div>
                 </div>

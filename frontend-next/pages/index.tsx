@@ -1,6 +1,9 @@
 /**
  * Home/Landing Page
- * Redirects to login or dashboard based on auth state
+ * Redirects based on user type:
+ * - Platform users → /admin/platform
+ * - Tenant users → /tenant/dashboard
+ * - Not authenticated → /auth/login
  */
 
 import { useEffect } from 'react';
@@ -9,17 +12,23 @@ import { useAuth } from '../contexts/AuthContext';
 
 export default function HomePage() {
   const router = useRouter();
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, loading, user } = useAuth();
 
   useEffect(() => {
     if (loading) return;
 
-    if (isAuthenticated) {
-      router.replace('/dashboard');
+    if (isAuthenticated && user) {
+      // Use login_context if available, otherwise fall back to tenant_id check
+      const context = (user as any).login_context;
+      if (context === 'tenant' || user.tenant_id) {
+        router.replace('/tenant/dashboard');
+      } else {
+        router.replace('/admin/platform');
+      }
     } else {
       router.replace('/auth/login');
     }
-  }, [isAuthenticated, loading, router]);
+  }, [isAuthenticated, loading, user, router]);
 
   // Show loading while checking auth
   return (

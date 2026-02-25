@@ -1,6 +1,10 @@
 /**
  * File Upload Service
  * Handles file uploads for profile images, cover images, and other attachments
+ * 
+ * STORAGE ISOLATION: Files are scoped by tenant_id to prevent cross-tenant access.
+ * Structure: /uploads/tenant_{id}/{subdir}/{uuid}.{ext}
+ * Platform files (no tenant): /uploads/platform/{subdir}/{uuid}.{ext}
  */
 
 import fs from 'fs';
@@ -77,11 +81,13 @@ export class UploadService {
 
   /**
    * Save uploaded file from base64
+   * @param tenantId - Tenant ID for storage isolation (null = platform scope)
    */
   static async saveBase64Image(
     base64Data: string,
     subdir: string = 'profiles',
-    originalFilename?: string
+    originalFilename?: string,
+    tenantId?: number | null
   ): Promise<UploadResult> {
     try {
       // Parse base64 data
@@ -114,7 +120,10 @@ export class UploadService {
       // Generate filename
       const ext = this.getExtensionFromMime(mimeType);
       const filename = `${uuidv4()}${ext}`;
-      const uploadDir = path.join(UPLOAD_DIR, subdir);
+      
+      // Tenant-scoped storage: /uploads/tenant_{id}/{subdir}/ or /uploads/platform/{subdir}/
+      const tenantDir = tenantId ? `tenant_${tenantId}` : 'platform';
+      const uploadDir = path.join(UPLOAD_DIR, tenantDir, subdir);
       const filePath = path.join(uploadDir, filename);
 
       // Ensure directory exists
@@ -129,7 +138,7 @@ export class UploadService {
         success: true,
         filename,
         path: filePath,
-        url: `/uploads/${subdir}/${filename}`,
+        url: `/uploads/${tenantDir}/${subdir}/${filename}`,
         size: buffer.length,
         mimeType
       };
@@ -140,13 +149,30 @@ export class UploadService {
   }
 
   /**
-   * Delete file
+   * Delete file with tenant isolation check
+   * @param tenantId - If provided, validates that the file belongs to the tenant
    */
-  static async deleteFile(relativePath: string): Promise<boolean> {
+  static async deleteFile(relativePath: string, tenantId?: number | null): Promise<boolean> {
     try {
       // Remove leading slash if present
       const cleanPath = relativePath.startsWith('/') ? relativePath.substring(1) : relativePath;
-      const fullPath = path.join(UPLOAD_DIR, '..', cleanPath);
+      
+      // Tenant isolation: validate file belongs to the tenant
+      if (tenantId) {
+        const expectedPrefix = `uploads/tenant_${tenantId}/`;
+        if (!cleanPath.startsWith(expectedPrefix)) {
+          console.error(`[StorageIsolation] Tenant ${tenantId} tried to delete file outside scope: ${cleanPath}`);
+          return false;
+        }
+      }
+      
+      // Path traversal prevention
+      const fullPath = path.resolve(UPLOAD_DIR, '..', cleanPath);
+      const normalizedUploadDir = path.resolve(UPLOAD_DIR);
+      if (!fullPath.startsWith(normalizedUploadDir)) {
+        console.error(`[StorageIsolation] Path traversal attempt blocked: ${cleanPath}`);
+        return false;
+      }
       
       if (fs.existsSync(fullPath)) {
         fs.unlinkSync(fullPath);

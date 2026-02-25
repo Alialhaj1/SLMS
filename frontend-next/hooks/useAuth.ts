@@ -2,11 +2,10 @@ import { useMemo } from 'react';
 import { useAuth as useAuthContext } from '../contexts/AuthContext';
 import type { UserProfile } from '../lib/authService';
 
-// Super Admin role names
+// Super Admin role names - 'Admin' excluded because it's used for tenant admins
 const SUPER_ADMIN_ROLES = [
   'super_admin',
   'Super Admin',
-  'Admin',
   'system_admin',
   'System Admin',
 ];
@@ -14,6 +13,8 @@ const SUPER_ADMIN_ROLES = [
 type LegacyUseAuthResult = {
   user: UserProfile | null;
   loading: boolean;
+  /** True once fresh profile from API has been loaded (not just cached) */
+  profileReady: boolean;
   logout: () => void;
   isAuthenticated: boolean;
 };
@@ -25,14 +26,15 @@ type LegacyUseAuthResult = {
  * duplicated `/api/me` calls and keep RBAC state consistent across the app.
  */
 export function useAuth(): LegacyUseAuthResult {
-  const { user, loading, logout, isAuthenticated } = useAuthContext();
+  const { user, loading, logout, isAuthenticated, profileReady } = useAuthContext();
 
   const normalizedUser = useMemo(() => {
     if (!user) return null;
 
     const roles = Array.isArray(user.roles) ? user.roles : [];
     const permissions = Array.isArray(user.permissions) ? user.permissions : [];
-    const isSuperAdmin = roles.some((role) => SUPER_ADMIN_ROLES.includes(role));
+    // Super admin check: must have super_admin role AND be a platform user (no tenant_id)
+    const isSuperAdmin = !user.tenant_id && roles.some((role) => SUPER_ADMIN_ROLES.includes(role));
 
     if (!isSuperAdmin) {
       return {
@@ -59,6 +61,7 @@ export function useAuth(): LegacyUseAuthResult {
   return {
     user: normalizedUser,
     loading,
+    profileReady,
     isAuthenticated,
     logout: () => {
       void logout();

@@ -103,8 +103,8 @@ async function getRevenueAccounts(
   if (!includeZero) {
     sql += `
     HAVING COALESCE(
-      SUM(CASE WHEN jel.credit_amount > 0 THEN jel.credit_amount ELSE 0 END) -
-      SUM(CASE WHEN jel.debit_amount > 0 THEN jel.debit_amount ELSE 0 END),
+      SUM(CASE WHEN jl.credit_amount > 0 THEN jl.credit_amount ELSE 0 END) -
+      SUM(CASE WHEN jl.debit_amount > 0 THEN jl.debit_amount ELSE 0 END),
       0
     ) != 0
     `;
@@ -162,8 +162,8 @@ async function getCOGSAccounts(
   if (!includeZero) {
     sql += `
     HAVING COALESCE(
-      SUM(CASE WHEN jel.debit_amount > 0 THEN jel.debit_amount ELSE 0 END) -
-      SUM(CASE WHEN jel.credit_amount > 0 THEN jel.credit_amount ELSE 0 END),
+      SUM(CASE WHEN jl.debit_amount > 0 THEN jl.debit_amount ELSE 0 END) -
+      SUM(CASE WHEN jl.credit_amount > 0 THEN jl.credit_amount ELSE 0 END),
       0
     ) != 0
     `;
@@ -222,8 +222,8 @@ async function getExpenseAccounts(
   if (!includeZero) {
     sql += `
     HAVING COALESCE(
-      SUM(CASE WHEN jel.debit_amount > 0 THEN jel.debit_amount ELSE 0 END) -
-      SUM(CASE WHEN jel.credit_amount > 0 THEN jel.credit_amount ELSE 0 END),
+      SUM(CASE WHEN jl.debit_amount > 0 THEN jl.debit_amount ELSE 0 END) -
+      SUM(CASE WHEN jl.credit_amount > 0 THEN jl.credit_amount ELSE 0 END),
       0
     ) != 0
     `;

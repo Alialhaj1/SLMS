@@ -1,339 +1,181 @@
-import React, { useState, useEffect } from 'react';
-import Head from 'next/head';
-import MainLayout from '@/components/layout/MainLayout';
-import Button from '@/components/ui/Button';
-import Input from '@/components/ui/Input';
-import Modal from '@/components/ui/Modal';
-import ConfirmDialog from '@/components/ui/ConfirmDialog';
-import { usePermissions } from '@/hooks/usePermissions';
-import { useToast } from '@/contexts/ToastContext';
-import { useTranslation } from '@/hooks/useTranslation';
+/**
+ * � BRANCHES PAGE (Enterprise Edition)
+ * ========================================
+ * 
+ * Master data page for managing company branches, offices, and operational locations.
+ * Supports hierarchical structures (HQ → Regional → Branch → Warehouse / Sales Point).
+ * Uses EnterpriseMasterPage with branchesConfig for SAP/Oracle-level governance.
+ */
 
-interface Branch {
-  id: number;
-  name: string;
-  name_ar?: string;
-  code: string;
-  company_id: number;
-  company_name?: string;
-  address?: string;
-  city?: string;
-  country?: string;
-  phone?: string;
-  email?: string;
-  manager_name?: string;
-  is_active: boolean;
-  is_headquarters: boolean;
-  created_at: string;
-  updated_at?: string;
-}
+import React, { useEffect, useState, useCallback } from 'react';
+import { withPermission } from '../../utils/withPermission';
+import { MenuPermissions } from '@/config/menu.permissions';
+import EnterpriseMasterPage from '@/components/enterprise/EnterpriseMasterPage';
+import { branchesConfig, type Branch } from '@/config/pages/master/branches.config';
+import { companyStore } from '@/lib/companyStore';
 
-export default function BranchesPage() {
-  const { hasPermission } = usePermissions();
-  const { showToast } = useToast();
-  const { t } = useTranslation();
+type RefOption = { value: any; label: string };
 
-  const [branches, setBranches] = useState<Branch[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [deleteId, setDeleteId] = useState<number | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [formData, setFormData] = useState({
-    name: '',
-    name_ar: '',
-    code: '',
-    company_id: 0,
-    address: '',
-    city: '',
-    country: '',
-    phone: '',
-    email: '',
-    manager_name: '',
-    is_headquarters: false,
-    is_active: true,
-  });
-  const [errors, setErrors] = useState<Record<string, string>>({});
+const BRANCH_TYPE_LABELS: Record<string, string> = {
+  headquarters: '🏛️ Headquarters',
+  regional_office: '🏢 Regional Office',
+  branch: '🏗️ Branch',
+  warehouse_only: '🏭 Warehouse Only',
+  sales_point: '🏪 Sales Point',
+};
 
-  useEffect(() => {
-    fetchBranches();
+function BranchesPage() {
+  const [companiesRef, setCompaniesRef] = useState<RefOption[]>([]);
+  const [countriesRef, setCountriesRef] = useState<RefOption[]>([]);
+  const [citiesRef, setCitiesRef] = useState<RefOption[]>([]);
+  const [regionsRef, setRegionsRef] = useState<RefOption[]>([]);
+  const [currenciesRef, setCurrenciesRef] = useState<RefOption[]>([]);
+  const [timezonesRef, setTimezonesRef] = useState<RefOption[]>([]);
+  const [languagesRef, setLanguagesRef] = useState<RefOption[]>([]);
+  const [branchesRef, setBranchesRef] = useState<RefOption[]>([]);
+
+  const loadReferenceData = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      const apiUrl = (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/$/, '').replace(/\/api$/, '');
+      const companyId = companyStore.getActiveCompanyId();
+      const headers: Record<string, string> = {
+        'Authorization': `Bearer ${token || ''}`,
+        'Content-Type': 'application/json',
+        ...(companyId ? { 'X-Company-Id': String(companyId) } : {}),
+      };
+
+      const endpoints = [
+        { url: `${apiUrl}/api/master/companies?limit=500`, setter: setCompaniesRef, fmt: (c: any) => ({ value: c.id, label: `${c.name} (${c.code})` }) },
+        { url: `${apiUrl}/api/master/countries?limit=500&is_active=true`, setter: setCountriesRef, fmt: (c: any) => ({ value: c.id, label: `${c.flag || ''} ${c.name} (${c.code})`.trim() }) },
+        { url: `${apiUrl}/api/master/cities?limit=1000&is_active=true`, setter: setCitiesRef, fmt: (c: any) => ({ value: c.id, label: `${c.name}${c.code ? ' (' + c.code + ')' : ''}` }) },
+        { url: `${apiUrl}/api/master/regions?limit=500&is_active=true`, setter: setRegionsRef, fmt: (c: any) => ({ value: c.id, label: c.name }) },
+        { url: `${apiUrl}/api/master/currencies?limit=500&is_active=true`, setter: setCurrenciesRef, fmt: (c: any) => ({ value: c.id, label: `${c.code} — ${c.name}` }) },
+        { url: `${apiUrl}/api/master/timezones?limit=500&is_active=true`, setter: setTimezonesRef, fmt: (c: any) => ({ value: c.id, label: `${c.identifier || c.name}` }) },
+        { url: `${apiUrl}/api/master/languages?limit=500&is_active=true`, setter: setLanguagesRef, fmt: (c: any) => ({ value: c.id, label: `${c.name}${c.native_name ? ' / ' + c.native_name : ''}` }) },
+        { url: `${apiUrl}/api/branches?limit=500&is_active=true`, setter: setBranchesRef, fmt: (c: any) => ({ value: c.id, label: `${c.code} — ${c.name}` }) },
+      ];
+
+      const responses = await Promise.all(endpoints.map(e => fetch(e.url, { headers })));
+
+      for (let i = 0; i < responses.length; i++) {
+        if (responses[i].ok) {
+          const json = await responses[i].json();
+          const items = json.data || json || [];
+          endpoints[i].setter(items.map(endpoints[i].fmt));
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load reference data:', err);
+    }
   }, []);
 
-  const fetchBranches = async () => {
-    setLoading(true);
-    try {
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch('/api/branches', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setBranches(Array.isArray(data?.data) ? data.data : []);
-      } else {
-        const body = await response.json().catch(() => null);
-        showToast(body?.error || t('messages.error'), 'error');
-      }
-    } catch (error) {
-      showToast(t('messages.error'), 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const validateForm = (): boolean => {
-    const newErrors: Record<string, string> = {};
-    if (!formData.name?.trim()) newErrors.name = t('master.branches.validation.required');
-    if (!formData.code?.trim()) newErrors.code = t('master.branches.validation.required');
-    if (!formData.company_id || formData.company_id <= 0) newErrors.company_id = t('validation.required');
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const handleSubmit = async () => {
-    if (!validateForm()) return;
-
-    try {
-      const token = localStorage.getItem('accessToken');
-      const url = editingId
-        ? `/api/branches/${editingId}`
-        : '/api/branches';
-
-      const payload = editingId
-        ? {
-            code: formData.code,
-            name: formData.name,
-            name_ar: formData.name_ar || undefined,
-            country: formData.country || undefined,
-            city: formData.city || undefined,
-            address: formData.address || undefined,
-            phone: formData.phone || undefined,
-            email: formData.email || undefined,
-            manager_name: formData.manager_name || undefined,
-            is_active: formData.is_active,
-            is_headquarters: formData.is_headquarters,
-          }
-        : {
-            company_id: formData.company_id,
-            code: formData.code,
-            name: formData.name,
-            name_ar: formData.name_ar || undefined,
-            country: formData.country || undefined,
-            city: formData.city || undefined,
-            address: formData.address || undefined,
-            phone: formData.phone || undefined,
-            email: formData.email || undefined,
-            manager_name: formData.manager_name || undefined,
-            is_active: formData.is_active,
-            is_headquarters: formData.is_headquarters,
-          };
-
-      const response = await fetch(url, {
-        method: editingId ? 'PUT' : 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        showToast(editingId ? t('master.branches.messages.updated') : t('master.branches.messages.created'), 'success');
-        await fetchBranches();
-        setIsModalOpen(false);
-        setEditingId(null);
-        setFormData({
-          name: '',
-          name_ar: '',
-          code: '',
-          company_id: 0,
-          address: '',
-          city: '',
-          country: '',
-          phone: '',
-          email: '',
-          manager_name: '',
-          is_headquarters: false,
-          is_active: true,
-        });
-      } else {
-        const body = await response.json().catch(() => null);
-        showToast(body?.error || t('messages.error'), 'error');
-      }
-    } catch (error) {
-      showToast(t('messages.error'), 'error');
-    }
-  };
-
-  const handleDelete = async () => {
-    if (!deleteId) return;
-
-    try {
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch(`/api/branches/${deleteId}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (response.ok) {
-        await fetchBranches();
-        showToast(t('master.branches.messages.deleted'), 'success');
-        setDeleteId(null);
-      } else {
-        const body = await response.json().catch(() => null);
-        showToast(body?.error || t('messages.error'), 'error');
-      }
-    } catch (error) {
-      showToast(t('messages.error'), 'error');
-    }
-  };
-
-  if (!hasPermission('branches:view')) {
-    return <MainLayout><div className="p-6 text-red-600">{t('messages.accessDenied')}</div></MainLayout>;
-  }
-
-  const filteredBranches = branches.filter((b) =>
-    b.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    b.code.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  useEffect(() => {
+    loadReferenceData();
+  }, [loadReferenceData]);
 
   return (
-    <MainLayout>
-      <Head><title>{t('master.branches.title')} - SLMS</title></Head>
-      <div className="p-6">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold">{t('master.branches.title')}</h1>
-          {hasPermission('branches:create') && (
-            <Button
-              onClick={() => {
-                setEditingId(null);
-                setFormData({
-                  name: '',
-                  name_ar: '',
-                  code: '',
-                  company_id: 0,
-                  address: '',
-                  city: '',
-                  country: '',
-                  phone: '',
-                  email: '',
-                  manager_name: '',
-                  is_headquarters: false,
-                  is_active: true,
-                });
-                setIsModalOpen(true);
-              }}
-              className="bg-blue-600 text-white"
-            >
-              {t('master.branches.buttons.create')}
-            </Button>
-          )}
-        </div>
-
-        <div className="mb-6">
-          <Input
-            placeholder={t('common.search')}
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full md:w-64"
-          />
-        </div>
-
-        <div className="bg-white dark:bg-slate-800 rounded-lg shadow overflow-hidden">
-          {loading ? (
-            <div className="p-6 text-center">{t('common.loading')}</div>
-          ) : filteredBranches.length === 0 ? (
-            <div className="p-6 text-center text-gray-500">{t('common.noData')}</div>
-          ) : (
-            <table className="w-full">
-              <thead className="bg-gray-50 dark:bg-slate-700 border-b">
-                <tr>
-                  <th className="px-6 py-3 text-left text-sm font-semibold">{t('master.branches.columns.name')}</th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold">{t('master.branches.columns.code')}</th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold">{t('master.branches.columns.city')}</th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold">{t('master.branches.columns.status')}</th>
-                  <th className="px-6 py-3 text-right text-sm font-semibold">{t('common.actions')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredBranches.map((branch) => (
-                  <tr key={branch.id} className="border-b hover:bg-gray-50 dark:hover:bg-slate-700">
-                    <td className="px-6 py-4">{branch.name}</td>
-                    <td className="px-6 py-4">{branch.code}</td>
-                    <td className="px-6 py-4">{branch.city}</td>
-                    <td className="px-6 py-4">
-                      <span className={`px-3 py-1 rounded-full text-xs ${branch.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
-                        {branch.is_active ? t('common.active') : t('common.inactive')}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-right space-x-2 flex justify-end">
-                      {hasPermission('branches:edit') && (
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          onClick={() => {
-                            setFormData({
-                              name: branch.name,
-                              name_ar: branch.name_ar || '',
-                              code: branch.code,
-                              company_id: branch.company_id,
-                              address: branch.address || '',
-                              city: branch.city || '',
-                              country: branch.country || '',
-                              phone: branch.phone || '',
-                              email: branch.email || '',
-                              manager_name: branch.manager_name || '',
-                              is_headquarters: branch.is_headquarters,
-                              is_active: branch.is_active,
-                            });
-                            setEditingId(branch.id);
-                            setIsModalOpen(true);
-                          }}
-                        >
-                          {t('common.edit')}
-                        </Button>
-                      )}
-                      {hasPermission('branches:delete') && (
-                        <Button size="sm" variant="danger" onClick={() => setDeleteId(branch.id)}>
-                          {t('common.delete')}
-                        </Button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-      </div>
-
-      {isModalOpen && (
-        <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingId ? t('common.edit') : t('common.create')}>
-          <div className="space-y-4">
-            <Input
-              label={t('master.branches.fields.companyId') || 'Company ID'}
-              value={String(formData.company_id || '')}
-              onChange={(e) => setFormData({ ...formData, company_id: Number(e.target.value) })}
-              error={errors.company_id}
-              disabled={!!editingId}
-            />
-            <Input label={t('master.branches.fields.name')} value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} error={errors.name} />
-            <Input label={t('common.nameAr') || 'Name (Arabic)'} value={formData.name_ar} onChange={(e) => setFormData({ ...formData, name_ar: e.target.value })} />
-            <Input label={t('master.branches.fields.code')} value={formData.code} onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })} error={errors.code} />
-            <Input label={t('master.branches.fields.city')} value={formData.city} onChange={(e) => setFormData({ ...formData, city: e.target.value })} />
-            <select value={formData.is_active ? 'active' : 'inactive'} onChange={(e) => setFormData({ ...formData, is_active: e.target.value === 'active' })} className="w-full px-3 py-2 border rounded-lg dark:bg-slate-700">
-              <option value="active">{t('common.active')}</option>
-              <option value="inactive">{t('common.inactive')}</option>
-            </select>
-            <div className="flex justify-end gap-2 pt-4">
-              <Button variant="secondary" onClick={() => setIsModalOpen(false)}>{t('common.cancel')}</Button>
-              <Button onClick={handleSubmit} className="bg-blue-600 text-white">{t('common.save')}</Button>
-            </div>
-          </div>
-        </Modal>
-      )}
-
-      <ConfirmDialog isOpen={!!deleteId} title={t('common.confirmDelete')} message={t('master.branches.messages.deleteConfirm')} onConfirm={handleDelete} onClose={() => setDeleteId(null)} variant="danger" />
-    </MainLayout>
+    <EnterpriseMasterPage<Branch>
+      config={branchesConfig}
+      referenceData={{
+        company_id: companiesRef,
+        country_id: countriesRef,
+        city_id: citiesRef,
+        region_id: regionsRef,
+        currency_id: currenciesRef,
+        timezone_id: timezonesRef,
+        language_id: languagesRef,
+        parent_branch_id: branchesRef,
+      }}
+      buildDetailSections={(record) => [
+        {
+          title: 'Branch Identity',
+          fields: [
+            { label: 'Code', value: record.code },
+            { label: 'Name (English)', value: record.name_en || record.name },
+            { label: 'Name (Arabic)', value: record.name_ar || '—' },
+            { label: 'Type', value: BRANCH_TYPE_LABELS[record.type] || record.type, type: 'badge' },
+            { label: 'Headquarters', value: record.is_headquarters ? '✅ Yes' : 'No' },
+            { label: 'Default Branch', value: record.is_default ? '⭐ Yes' : 'No' },
+          ],
+        },
+        {
+          title: 'Organization',
+          fields: [
+            { label: 'Company', value: record.company_name || '—' },
+            { label: 'Parent Branch', value: record.parent_branch_name ? `${record.parent_branch_code} — ${record.parent_branch_name}` : '— (Top-level)' },
+            ...(record.child_branches_count !== undefined ? [{ label: 'Child Branches', value: String(record.child_branches_count) }] : []),
+          ],
+        },
+        {
+          title: 'Location',
+          fields: [
+            { label: 'Country', value: record.country_flag ? `${record.country_flag} ${record.country_name}` : (record.country_name || '—') },
+            { label: 'City', value: record.city_name || '—' },
+            { label: 'Region', value: record.region_name || '—' },
+            { label: 'Address', value: record.address || '—' },
+            { label: 'Postal Code', value: record.postal_code || '—' },
+            ...(record.latitude ? [{ label: 'Coordinates', value: `${record.latitude}, ${record.longitude}` }] : []),
+          ],
+        },
+        {
+          title: 'Default Settings',
+          fields: [
+            { label: 'Currency', value: record.currency_code ? `${record.currency_code} — ${record.currency_name}` : '—' },
+            { label: 'Timezone', value: record.timezone_identifier || record.timezone_name || '—' },
+            { label: 'Language', value: record.language_name ? `${record.language_name}${record.language_native_name ? ' / ' + record.language_native_name : ''}` : '—' },
+          ],
+        },
+        {
+          title: 'Contact',
+          fields: [
+            { label: 'Phone', value: record.phone || '—' },
+            { label: 'Email', value: record.email || '—' },
+            { label: 'Manager', value: record.manager_name || '—' },
+          ],
+        },
+        {
+          title: 'Registration & Tax',
+          fields: [
+            { label: 'Tax Number', value: record.tax_number || '—' },
+            { label: 'Commercial Registration (CR)', value: record.cr_number || '—' },
+            { label: 'Cost Center', value: record.cost_center_code || '—' },
+            { label: 'Profit Center', value: record.profit_center_code || '—' },
+          ],
+        },
+        {
+          title: 'Metadata',
+          fields: [
+            { label: 'Active', value: record.is_active ? '✅ Yes' : '❌ No', type: 'badge' },
+            { label: 'Created By', value: record.created_by_name || '—' },
+            { label: 'Created', value: record.created_at, type: 'date' },
+            { label: 'Updated By', value: record.updated_by_name || '—' },
+            { label: 'Updated', value: record.updated_at, type: 'date' },
+          ],
+        },
+      ]}
+      buildRelations={(record) => [
+        {
+          type: 'branches',
+          label: 'Child Branches',
+          count: record.child_branches_count || 0,
+          href: `/master/branches?parent_branch_id=${record.id}`,
+        },
+        {
+          type: 'users',
+          label: 'Users in this branch',
+          count: 0,
+          href: `/admin/users?branch_id=${record.id}`,
+        },
+        {
+          type: 'warehouses',
+          label: 'Warehouses',
+          count: 0,
+          href: `/master/warehouses?branch_id=${record.id}`,
+        },
+      ]}
+    />
   );
 }
+
+export default withPermission(MenuPermissions.System.Branches.View, BranchesPage);

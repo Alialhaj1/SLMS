@@ -78,13 +78,13 @@ export class PasswordResetService {
       
       // Check if user exists (but don't leak this info in response)
       const userResult = await client.query(
-        'SELECT id, email, full_name, status FROM users WHERE email = $1 AND deleted_at IS NULL',
+        'SELECT id, email, full_name, status, tenant_id FROM users WHERE email = $1 AND deleted_at IS NULL',
         [email]
       );
       
       // Log attempt regardless of user existence (security audit)
       await client.query(
-        `INSERT INTO audit_logs (user_id, action, table_name, record_id, ip_address, user_agent, before_data)
+        `INSERT INTO audit_logs (user_id, action, resource, resource_id, ip_address, user_agent, before_data)
          VALUES ($1, $2, $3, $4, $5, $6, $7)`,
         [
           userResult.rows[0]?.id || null,
@@ -109,7 +109,7 @@ export class PasswordResetService {
         if (user.status === 'disabled') {
           // Log but still return success (don't leak user status)
           await client.query(
-            `INSERT INTO audit_logs (user_id, action, table_name, ip_address, user_agent, before_data)
+            `INSERT INTO audit_logs (user_id, action, resource, ip_address, user_agent, before_data)
              VALUES ($1, $2, $3, $4, $5, $6)`,
             [
               user.id,
@@ -127,10 +127,10 @@ export class PasswordResetService {
         // Create password reset request
         const requestResult = await client.query(
           `INSERT INTO password_reset_requests 
-           (user_id, reason, ip_address, user_agent, status, requested_at)
-           VALUES ($1, $2, $3, $4, $5, NOW())
+           (user_id, tenant_id, reason, ip_address, user_agent, status, requested_at)
+           VALUES ($1, $2, $3, $4, $5, $6, NOW())
            RETURNING id`,
-          [user.id, meta.reason || null, meta.ipAddress, meta.userAgent, 'pending']
+          [user.id, user.tenant_id || null, meta.reason || null, meta.ipAddress, meta.userAgent, 'pending']
         );
         
         const requestId = requestResult.rows[0].id;
@@ -175,7 +175,7 @@ export class PasswordResetService {
         
         // Log successful request creation
         await client.query(
-          `INSERT INTO audit_logs (user_id, action, table_name, record_id, ip_address, user_agent, after_data)
+          `INSERT INTO audit_logs (user_id, action, resource, resource_id, ip_address, user_agent, after_data)
            VALUES ($1, $2, $3, $4, $5, $6, $7)`,
           [
             user.id,
@@ -207,10 +207,11 @@ export class PasswordResetService {
    */
   static async getRequests(options?: {
     status?: 'pending' | 'approved' | 'rejected' | 'cancelled';
+    tenantId?: number;
     limit?: number;
     offset?: number;
   }): Promise<{ requests: PasswordResetRequestWithUser[]; total: number }> {
-    const { status, limit = 20, offset = 0 } = options || {};
+    const { status, tenantId, limit = 20, offset = 0 } = options || {};
     
     let whereClause = 'WHERE 1=1';
     const queryParams: any[] = [];
@@ -219,6 +220,12 @@ export class PasswordResetService {
     if (status) {
       whereClause += ` AND prr.status = $${paramIndex}`;
       queryParams.push(status);
+      paramIndex++;
+    }
+
+    if (tenantId) {
+      whereClause += ` AND prr.tenant_id = $${paramIndex}`;
+      queryParams.push(tenantId);
       paramIndex++;
     }
     
@@ -326,12 +333,14 @@ export class PasswordResetService {
         [adminId, adminNotes || null, tempPasswordHash, expiresAt, requestId]
       );
       
-      // Update user - set must_change_password flag
+      // Update user - set must_change_password flag AND update password to temp password
       await client.query(
         `UPDATE users
-         SET must_change_password = true
+         SET must_change_password = true,
+             password = $2,
+             password_changed_at = NOW()
          WHERE id = $1`,
-        [request.user_id]
+        [request.user_id, tempPasswordHash]
       );
       
       // Create notification for user
@@ -359,7 +368,7 @@ export class PasswordResetService {
       
       // Audit log
       await client.query(
-        `INSERT INTO audit_logs (user_id, action, table_name, record_id, ip_address, user_agent, after_data)
+        `INSERT INTO audit_logs (user_id, action, resource, resource_id, ip_address, user_agent, after_data)
          VALUES ($1, $2, $3, $4, $5, $6, $7)`,
         [
           adminId,
@@ -461,7 +470,7 @@ export class PasswordResetService {
       
       // Audit log
       await client.query(
-        `INSERT INTO audit_logs (user_id, action, table_name, record_id, after_data)
+        `INSERT INTO audit_logs (user_id, action, resource, resource_id, after_data)
          VALUES ($1, $2, $3, $4, $5)`,
         [
           adminId,
@@ -586,7 +595,7 @@ export class PasswordResetService {
     
     // Audit log
     await pool.query(
-      `INSERT INTO audit_logs (user_id, action, table_name, record_id)
+      `INSERT INTO audit_logs (user_id, action, resource, resource_id)
        VALUES ($1, $2, $3, $4)`,
       [userId, 'password_reset_cancelled', 'password_reset_requests', requestId]
     );

@@ -149,8 +149,30 @@ function IncomeStatementPage() {
               </button>
 
               <button
-                onClick={() => {}}
-                disabled={exporting}
+                onClick={() => {
+                  if (!data) return;
+                  setExporting(true);
+                  try {
+                    const { exportToCSV } = require('../../../utils/exportData');
+                    const allRows = [
+                      ...data.revenue.map(r => ({ ...r, section: 'Revenue' })),
+                      ...data.cogs.map(r => ({ ...r, section: 'COGS' })),
+                      ...data.expenses.map(r => ({ ...r, section: 'Expenses' })),
+                    ];
+                    exportToCSV(allRows, `income-statement-${fromDate}-${toDate}`, [
+                      { key: 'section', label: 'Section' },
+                      { key: 'account_code', label: 'Account Code' },
+                      { key: 'account_name', label: 'Account Name' },
+                      { key: 'amount', label: 'Amount', formatter: (v: number) => v?.toFixed(2) || '0.00' },
+                    ]);
+                    showToast(t('common.exported') || 'Exported successfully', 'success');
+                  } catch (err) {
+                    showToast(t('common.error') || 'Export failed', 'error');
+                  } finally {
+                    setExporting(false);
+                  }
+                }}
+                disabled={exporting || !data}
                 className="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
               >
                 <ArrowDownTrayIcon className="w-4 h-4" />

@@ -31,8 +31,9 @@ export const PageTransition: React.FC<PageTransitionProps> = ({
   children, 
   className = '' 
 }) => {
+  const MotionDiv = motion.div as any;
   return (
-    <motion.div
+    <MotionDiv
       initial="initial"
       animate="animate"
       exit="exit"
@@ -40,7 +41,7 @@ export const PageTransition: React.FC<PageTransitionProps> = ({
       className={className}
     >
       {children}
-    </motion.div>
+    </MotionDiv>
   );
 };
 
@@ -197,8 +198,9 @@ export const HoverCard: React.FC<HoverCardProps> = ({
   className = '',
   ...props 
 }) => {
+  const MotionDiv = motion.div as any;
   return (
-    <motion.div
+    <MotionDiv
       initial="rest"
       whileHover="hover"
       variants={cardHoverVariants}
@@ -206,7 +208,7 @@ export const HoverCard: React.FC<HoverCardProps> = ({
       {...props}
     >
       {children}
-    </motion.div>
+    </MotionDiv>
   );
 };
 

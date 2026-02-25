@@ -98,7 +98,7 @@ interface FormData {
 // API
 // =============================================
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL || '') + '/api';
 
 async function fetchWithAuth(url: string, token: string, options: RequestInit = {}) {
   const res = await fetch(url, {
@@ -179,12 +179,12 @@ export default function EditProjectPage() {
       if (!token) return;
 
       const [projectRes, typesRes, projectsRes, costCentersRes, usersRes, vendorsRes] = await Promise.all([
-        fetchWithAuth(`${API_BASE}/api/projects/${id}`, token),
-        fetchWithAuth(`${API_BASE}/api/projects/types`, token),
-        fetchWithAuth(`${API_BASE}/api/projects?limit=100`, token),
-        fetchWithAuth(`${API_BASE}/api/cost-centers`, token).catch(() => ({ data: [] })),
-        fetchWithAuth(`${API_BASE}/api/users`, token).catch(() => ({ data: [] })),
-        fetchWithAuth(`${API_BASE}/api/vendors`, token).catch(() => ({ data: [] })),
+        fetchWithAuth(`${API_BASE}/projects/${id}`, token),
+        fetchWithAuth(`${API_BASE}/projects/types`, token),
+        fetchWithAuth(`${API_BASE}/projects?limit=100`, token),
+        fetchWithAuth(`${API_BASE}/cost-centers`, token).catch(() => ({ data: [] })),
+        fetchWithAuth(`${API_BASE}/users`, token).catch(() => ({ data: [] })),
+        fetchWithAuth(`${API_BASE}/vendors`, token).catch(() => ({ data: [] })),
       ]);
 
       const project = projectRes.data;
@@ -315,7 +315,7 @@ export default function EditProjectPage() {
         payload.code = formData.code.trim();
       }
 
-      await fetchWithAuth(`${API_BASE}/api/projects/${id}`, token, {
+      await fetchWithAuth(`${API_BASE}/projects/${id}`, token, {
         method: 'PUT',
         body: JSON.stringify(payload),
       });

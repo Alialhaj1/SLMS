@@ -19,7 +19,7 @@ type CarrierQuote = {
   serviceLevel: 'standard' | 'express';
   transitDays: number;
   amount: number;
-  currency: 'SAR' | 'USD' | 'EUR';
+  currency: string;
   validUntil: string; // YYYY-MM-DD
   notes?: string;
 };

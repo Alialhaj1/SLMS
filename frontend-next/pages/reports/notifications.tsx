@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import Head from 'next/head';
 import MainLayout from '../../components/layout/MainLayout';
+import { exportToCSV } from '../../utils/exportData';
 import Button from '../../components/ui/Button';
 import { useTranslation } from '../../hooks/useTranslation';
 import { usePermissions } from '../../hooks/usePermissions';
@@ -68,7 +69,17 @@ export default function NotificationsReportsPage() {
   });
 
   const handleExport = () => {
-    showToast(locale === 'ar' ? 'جاري التصدير...' : 'Exporting...', 'info');
+    exportToCSV(filteredLogs, 'notifications-report', [
+      { key: 'type', label: 'Type' },
+      { key: 'subject', label: 'Subject' },
+      { key: 'recipient', label: 'Recipient' },
+      { key: 'status', label: 'Status' },
+      { key: 'sentAt', label: 'Sent At' },
+      { key: 'deliveredAt', label: 'Delivered At' },
+      { key: 'openedAt', label: 'Opened At' },
+      { key: 'category', label: 'Category' },
+    ]);
+    showToast(locale === 'ar' ? 'تم التصدير بنجاح' : 'Exported successfully', 'success');
   };
 
   const handleResend = (log: NotificationLog) => {

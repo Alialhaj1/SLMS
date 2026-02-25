@@ -7,6 +7,7 @@ import { promisify } from 'util';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
+import { auditLog } from '../../middleware/auditLog';
 
 const execAsync = promisify(exec);
 const router = Router();
@@ -216,7 +217,7 @@ router.get('/history', requirePermission('backup:view'), async (req: Request, re
  * @desc    Create a new backup
  * @access  Private (backup:create)
  */
-router.post('/create', requirePermission('backup:create'), async (req: Request, res: Response) => {
+router.post('/create', requirePermission('backup:create'), auditLog, async (req: Request, res: Response) => {
   const client = await pool.connect();
   try {
     const userId = (req as any).user?.id;
@@ -285,8 +286,13 @@ async function executeBackup(backupId: number, type: string, tables: string[], f
     let command = `pg_dump -U ${process.env.POSTGRES_USER || 'slms'} -d ${process.env.POSTGRES_DB || 'slms_db'} -h ${process.env.POSTGRES_HOST || 'postgres'}`;
     
     if (tables.length > 0) {
-      // Add table flags
-      const tableFlags = tables.map(t => `-t ${t}`).join(' ');
+      // SECURITY: Sanitize table names to prevent command injection
+      const safeTableNameRegex = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+      const safeTables = tables.filter(t => safeTableNameRegex.test(t));
+      if (safeTables.length !== tables.length) {
+        throw new Error('Invalid table names detected — possible injection attempt');
+      }
+      const tableFlags = safeTables.map(t => `-t ${t}`).join(' ');
       command += ` ${tableFlags}`;
     }
     
@@ -366,7 +372,7 @@ router.get('/download/:id', requirePermission('backup:view'), async (req: Reques
  * @desc    Delete a backup
  * @access  Private (backup:delete)
  */
-router.delete('/:id', requirePermission('backup:delete'), async (req: Request, res: Response) => {
+router.delete('/:id', requirePermission('backup:delete'), auditLog, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 
@@ -488,7 +494,7 @@ router.get('/tables', requirePermission('backup:view'), async (req: Request, res
  * @desc    Restore from a backup (DANGEROUS - super_admin only)
  * @access  Private (backup:restore)
  */
-router.post('/restore/:id', requirePermission('backup:restore'), async (req: Request, res: Response) => {
+router.post('/restore/:id', requirePermission('backup:restore'), auditLog, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const userId = (req as any).user?.id;
@@ -548,7 +554,17 @@ async function executeRestore(restoreId: number, filePath: string, tables?: stri
   const startTime = Date.now();
   
   try {
-    let command = `psql -U ${process.env.POSTGRES_USER || 'slms'} -d ${process.env.POSTGRES_DB || 'slms_db'} -h ${process.env.POSTGRES_HOST || 'postgres'} < ${filePath}`;
+    // SECURITY: Validate file path is within backup directory
+    const resolvedPath = path.resolve(filePath);
+    const resolvedBackupDir = path.resolve(BACKUP_DIR);
+    if (!resolvedPath.startsWith(resolvedBackupDir)) {
+      throw new Error('Invalid backup file path — possible path traversal');
+    }
+    if (!fs.existsSync(resolvedPath)) {
+      throw new Error('Backup file not found');
+    }
+
+    let command = `psql -U ${process.env.POSTGRES_USER || 'slms'} -d ${process.env.POSTGRES_DB || 'slms_db'} -h ${process.env.POSTGRES_HOST || 'postgres'} < ${resolvedPath}`;
 
     await execAsync(command);
 

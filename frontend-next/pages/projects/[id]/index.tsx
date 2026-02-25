@@ -186,7 +186,7 @@ const formatDate = (dateStr?: string, locale?: string) => {
 // API
 // =============================================
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL || '') + '/api';
 
 async function fetchWithAuth(url: string, token: string, options: RequestInit = {}) {
   const res = await fetch(url, {
@@ -277,7 +277,7 @@ export default function ProjectDetailPage() {
       setLoading(true);
       const token = localStorage.getItem('accessToken');
       if (!token) return;
-      const data = await fetchWithAuth(`${API_BASE}/api/projects/${id}`, token);
+      const data = await fetchWithAuth(`${API_BASE}/projects/${id}`, token);
       setProject(data.data);
     } catch (err: any) {
       console.error('Failed to fetch project:', err);
@@ -298,7 +298,7 @@ export default function ProjectDetailPage() {
       setDeleting(true);
       const token = localStorage.getItem('accessToken');
       if (!token) return;
-      await fetchWithAuth(`${API_BASE}/api/projects/${project.id}`, token, { method: 'DELETE' });
+      await fetchWithAuth(`${API_BASE}/projects/${project.id}`, token, { method: 'DELETE' });
       showToast(locale === 'ar' ? 'تم حذف المشروع بنجاح' : 'Project deleted successfully', 'success');
       router.push('/projects');
     } catch (err: any) {

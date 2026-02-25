@@ -11,6 +11,7 @@ import Card from '../../components/ui/Card';
 import { usePermissions } from '../../hooks/usePermissions';
 import { useTranslation } from '../../hooks/useTranslation';
 import { useToast } from '../../contexts/ToastContext';
+import { useCountries } from '../../hooks/useReferenceData';
 import {
   PlusIcon,
   PencilIcon,
@@ -58,29 +59,14 @@ const APPLIES_TO = [
   { value: 'both', label: 'Both', labelAr: 'كلاهما' },
 ];
 
-const COMMON_COUNTRIES = [
-  { code: '', name: 'All Countries' },
-  { code: 'SA', name: 'Saudi Arabia' },
-  { code: 'AE', name: 'UAE' },
-  { code: 'US', name: 'United States' },
-  { code: 'GB', name: 'United Kingdom' },
-  { code: 'DE', name: 'Germany' },
-  { code: 'FR', name: 'France' },
-  { code: 'JP', name: 'Japan' },
-  { code: 'CN', name: 'China' },
-  { code: 'IN', name: 'India' },
-  { code: 'EG', name: 'Egypt' },
-  { code: 'JO', name: 'Jordan' },
-  { code: 'KW', name: 'Kuwait' },
-  { code: 'BH', name: 'Bahrain' },
-  { code: 'QA', name: 'Qatar' },
-  { code: 'OM', name: 'Oman' },
-];
+// Countries loaded from API via useCountries hook
 
 function WithholdingTaxPage() {
   const { hasPermission } = usePermissions();
   const { t } = useTranslation();
   const { showToast } = useToast();
+  const { countries: apiCountries } = useCountries();
+  const COMMON_COUNTRIES = [{ code: '', name: 'All Countries' }, ...apiCountries.map(c => ({ code: c.code, name: c.name || c.name_en || c.code }))];
   const hasFetched = useRef(false);
 
   const [items, setItems] = useState<WithholdingTaxRate[]>([]);

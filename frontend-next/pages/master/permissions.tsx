@@ -11,6 +11,8 @@ import { usePermissions } from '@/hooks/usePermissions';
 import { useToast } from '@/contexts/ToastContext';
 import { useLocale } from '@/contexts/LocaleContext';
 import { useTranslation } from '@/hooks/useTranslation';
+import { useAuth } from '@/hooks/useAuth';
+import TenantAccessDenied from '@/components/tenant/TenantAccessDenied';
 
 interface Permission {
   id: number;
@@ -25,6 +27,8 @@ function PermissionsPage() {
   const { hasPermission } = usePermissions();
   const { showToast } = useToast();
   const { t } = useTranslation();
+  const { user } = useAuth();
+  const isTenantUser = !!(user as any)?.tenant_id;
 
   const [permissions, setPermissions] = useState<Permission[]>([]);
   const [loading, setLoading] = useState(true);
@@ -48,8 +52,8 @@ function PermissionsPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
-      const response = await fetch(`${API_BASE_URL}/api/roles/permissions`, {
+      const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || '') + '/api';
+      const response = await fetch(`${API_BASE_URL}/roles/permissions`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (response.ok) {
@@ -79,10 +83,10 @@ function PermissionsPage() {
 
     try {
       const token = localStorage.getItem('accessToken');
-      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
+      const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || '') + '/api';
       const url = editingId
-        ? `${API_BASE_URL}/api/roles/permissions/${editingId}`
-        : `${API_BASE_URL}/api/roles/permissions`;
+        ? `${API_BASE_URL}/roles/permissions/${editingId}`
+        : `${API_BASE_URL}/roles/permissions`;
 
       const response = await fetch(url, {
         method: editingId ? 'PUT' : 'POST',
@@ -118,8 +122,8 @@ function PermissionsPage() {
 
     try {
       const token = localStorage.getItem('accessToken');
-      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
-      const response = await fetch(`${API_BASE_URL}/api/roles/permissions/${deleteId}`, {
+      const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || '') + '/api';
+      const response = await fetch(`${API_BASE_URL}/roles/permissions/${deleteId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -140,6 +144,9 @@ function PermissionsPage() {
     return <MainLayout><div className="p-6 text-red-600">{t('messages.accessDenied')}</div></MainLayout>;
   }
 
+  // Tenant users: show read-only view, no CRUD allowed for system permissions
+  const canCRUD = !isTenantUser;
+
   const filteredPermissions = permissions.filter((p) =>
     p.permission_code.toLowerCase().includes(searchTerm.toLowerCase()) ||
     p.resource.toLowerCase().includes(searchTerm.toLowerCase())
@@ -151,7 +158,7 @@ function PermissionsPage() {
       <div className="p-6">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-3xl font-bold">{t('master.permissions.title')}</h1>
-          {hasPermission('permissions:create') && (
+          {canCRUD && hasPermission('permissions:create') && (
             <Button
               onClick={() => {
                 setEditingId(null);
@@ -187,7 +194,7 @@ function PermissionsPage() {
                   <th className="px-6 py-3 text-left text-sm font-semibold">{t('master.permissions.columns.resource')}</th>
                   <th className="px-6 py-3 text-left text-sm font-semibold">{t('master.permissions.columns.action')}</th>
                   <th className="px-6 py-3 text-left text-sm font-semibold">{t('master.permissions.columns.description')}</th>
-                  <th className="px-6 py-3 text-right text-sm font-semibold">{t('common.actions')}</th>
+                  {canCRUD && <th className="px-6 py-3 text-right text-sm font-semibold">{t('common.actions')}</th>}
                 </tr>
               </thead>
               <tbody>
@@ -197,6 +204,7 @@ function PermissionsPage() {
                     <td className="px-6 py-4">{perm.resource}</td>
                     <td className="px-6 py-4">{perm.action}</td>
                     <td className="px-6 py-4 text-sm text-gray-600">{perm.description}</td>
+                    {canCRUD && (
                     <td className="px-6 py-4 text-right space-x-2 flex justify-end">
                       {hasPermission('permissions:edit') && (
                         <Button size="sm" variant="secondary" onClick={() => { setFormData({ permission_code: perm.permission_code, resource: perm.resource, action: perm.action, description: perm.description || '' }); setEditingId(perm.id); setIsModalOpen(true); }}>
@@ -209,6 +217,7 @@ function PermissionsPage() {
                         </Button>
                       )}
                     </td>
+                    )}
                   </tr>
                 ))}
               </tbody>

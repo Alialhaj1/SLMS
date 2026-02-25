@@ -102,7 +102,7 @@ export const loadCompanyContext = async (
     // Last-resort fallback: super_admin sessions may not have user_companies rows.
     // Still enforce scoping by selecting a default company when none is provided.
     if (!companyId && req.user) {
-      const SUPER_ADMIN_ROLES = ['super_admin', 'Super Admin', 'Admin', 'system_admin', 'System Admin'];
+      const SUPER_ADMIN_ROLES = ['super_admin', 'Super Admin', 'system_admin', 'System Admin'];
       const isSuperAdmin = req.user.roles?.some((role) => SUPER_ADMIN_ROLES.includes(role));
       if (isSuperAdmin) {
         const anyCompany = await pool.query(
@@ -129,15 +129,23 @@ export const loadCompanyContext = async (
     // Verify user has access to this company
     if (req.user) {
       // Super admin can access any company
-      const SUPER_ADMIN_ROLES = ['super_admin', 'Super Admin', 'Admin', 'system_admin', 'System Admin'];
+      const SUPER_ADMIN_ROLES = ['super_admin', 'Super Admin', 'system_admin', 'System Admin'];
       const isSuperAdmin = req.user.roles?.some(role => SUPER_ADMIN_ROLES.includes(role));
       
       if (!isSuperAdmin) {
-        const accessCheck = await pool.query(
-          `SELECT 1 FROM user_companies 
-           WHERE user_id = $1 AND company_id = $2`,
-          [req.user.id, companyId]
-        );
+        // TENANT ISOLATION: Verify company belongs to user's tenant AND user has access
+        const tenantId = (req as any).user?.tenant_id || (req as any).tenantIsolation?.tenantId;
+        let accessQuery = `SELECT 1 FROM user_companies uc
+           JOIN companies c ON uc.company_id = c.id
+           WHERE uc.user_id = $1 AND uc.company_id = $2`;
+        const accessParams: any[] = [req.user.id, companyId];
+        
+        if (tenantId) {
+          accessQuery += ` AND c.tenant_id = $3`;
+          accessParams.push(tenantId);
+        }
+        
+        const accessCheck = await pool.query(accessQuery, accessParams);
         
         if (accessCheck.rows.length === 0) {
           return res.status(403).json({
@@ -146,20 +154,42 @@ export const loadCompanyContext = async (
             code: 'COMPANY_ACCESS_DENIED'
           });
         }
+      } else {
+        // Even super admins: verify company belongs to their tenant (if they have a tenant_id)
+        const tenantId = (req as any).user?.tenant_id || (req as any).tenantIsolation?.tenantId;
+        if (tenantId) {
+          const tenantCheck = await pool.query(
+            `SELECT 1 FROM companies WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
+            [companyId, tenantId]
+          );
+          if (tenantCheck.rows.length === 0) {
+            return res.status(403).json({
+              success: false,
+              error: 'Company does not belong to your organization',
+              code: 'CROSS_TENANT_ACCESS_DENIED'
+            });
+          }
+        }
       }
     }
     
-    // Load company context
-    // Note: fiscal_years and accounting_periods joins are commented out until those tables are created
-    const company = await pool.query(
-      `SELECT 
-        c.id, c.name, c.code, c.currency as currency_id,
+    // Load company context (with tenant isolation)
+    const tenantIdForLoad = (req as any).user?.tenant_id || (req as any).tenantIsolation?.tenantId;
+    let companyQuery = `SELECT 
+        c.id, c.name, c.code, c.currency as currency_id, c.tenant_id,
         NULL::INTEGER as fiscal_year_id,
         NULL::INTEGER as current_period_id
        FROM companies c
-       WHERE c.id = $1 AND c.deleted_at IS NULL`,
-      [companyId]
-    );
+       WHERE c.id = $1 AND c.deleted_at IS NULL`;
+    const companyParams: any[] = [companyId];
+    
+    // Add tenant filter for tenant users (defense-in-depth)
+    if (tenantIdForLoad) {
+      companyQuery += ` AND c.tenant_id = $2`;
+      companyParams.push(tenantIdForLoad);
+    }
+    
+    const company = await pool.query(companyQuery, companyParams);
     
     if (company.rows.length === 0) {
       return res.status(404).json({

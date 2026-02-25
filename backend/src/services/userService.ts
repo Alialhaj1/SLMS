@@ -12,6 +12,7 @@ export interface CreateUserData {
   password: string;
   full_name: string;
   role_ids: number[];
+  tenant_id?: number | null;
 }
 
 export interface UpdateUserData {
@@ -45,19 +46,32 @@ export class UserService {
    */
   static async getById(userId: number, includePassword = false) {
     const fields = includePassword 
-      ? 'u.id, u.email, u.password, u.full_name, u.status, u.created_at, u.deleted_at'
-      : 'u.id, u.email, u.full_name, u.status, u.created_at, u.deleted_at';
+      ? 'u.id, u.email, u.password, u.full_name, u.status, u.tenant_id, u.created_at, u.deleted_at'
+      : 'u.id, u.email, u.full_name, u.status, u.tenant_id, u.created_at, u.deleted_at';
 
     const result = await pool.query(
       `SELECT ${fields},
               array_agg(DISTINCT r.name) FILTER (WHERE r.name IS NOT NULL) as roles,
+              (SELECT array_agg(ur2.role_id) FROM user_roles ur2 WHERE ur2.user_id = u.id) as role_ids,
               (
                 SELECT array_agg(DISTINCT perm)
                 FROM user_roles ur2
                 JOIN roles r2 ON ur2.role_id = r2.id
                 CROSS JOIN LATERAL jsonb_array_elements_text(r2.permissions) AS perm
                 WHERE ur2.user_id = u.id
-              ) as permissions
+              ) as permissions,
+              (SELECT json_agg(json_build_object(
+                'company_id', uc_d.company_id,
+                'company_name', c_d.name,
+                'role_id', uc_d.role_id,
+                'access_scope', uc_d.access_scope,
+                'is_default', uc_d.is_default,
+                'is_active', uc_d.is_active
+              ) ORDER BY uc_d.is_default DESC)
+               FROM user_companies uc_d
+               JOIN companies c_d ON c_d.id = uc_d.company_id
+               WHERE uc_d.user_id = u.id AND uc_d.is_active = true
+              ) as company_assignments
        FROM users u
        LEFT JOIN user_roles ur ON u.id = ur.user_id
        LEFT JOIN roles r ON ur.role_id = r.id
@@ -79,18 +93,29 @@ export class UserService {
     limit?: number;
     offset?: number;
     excludeRoleNames?: string[];
+    tenantId?: number | null;
+    companyIds?: number[] | null;
   } = {}) {
-    const { includeDeleted = false, status, search, limit, offset, excludeRoleNames } = options;
+    const { includeDeleted = false, status, search, limit, offset, excludeRoleNames, tenantId, companyIds } = options;
 
     let query = `
       SELECT 
-        u.id, u.email, u.full_name, u.status,
+        u.id, u.email, u.full_name, u.status, u.tenant_id,
         u.failed_login_count, u.locked_until,
         u.last_login_at, u.last_login_ip,
         u.disabled_at, u.disabled_by, u.disable_reason,
         u.deleted_at, u.created_at,
         array_agg(DISTINCT r.name) as roles,
-        disabler.email as disabled_by_email
+        disabler.email as disabled_by_email,
+        (SELECT array_agg(DISTINCT c_sub.name ORDER BY c_sub.name)
+         FROM user_companies uc_sub
+         JOIN companies c_sub ON c_sub.id = uc_sub.company_id
+         WHERE uc_sub.user_id = u.id AND uc_sub.is_active = true
+        ) as company_names,
+        (SELECT array_agg(DISTINCT uc_sub2.company_id)
+         FROM user_companies uc_sub2
+         WHERE uc_sub2.user_id = u.id AND uc_sub2.is_active = true
+        ) as company_ids
       FROM users u
       LEFT JOIN user_roles ur ON u.id = ur.user_id
       LEFT JOIN roles r ON ur.role_id = r.id
@@ -100,6 +125,9 @@ export class UserService {
     const conditions: string[] = [];
     const params: any[] = [];
     let paramIndex = 1;
+
+    // Always hide system accounts from listings
+    conditions.push('(u.is_system_account IS NOT TRUE)');
 
     if (!includeDeleted) {
       conditions.push('u.deleted_at IS NULL');
@@ -131,11 +159,35 @@ export class UserService {
       paramIndex++;
     }
 
+    // Tenant isolation: only show users belonging to same tenant
+    if (tenantId !== undefined && tenantId !== null) {
+      conditions.push(`u.tenant_id = $${paramIndex}`);
+      params.push(tenantId);
+      paramIndex++;
+    }
+
+    // Company scope: only show users assigned to user's companies
+    if (companyIds !== undefined && companyIds !== null && companyIds.length > 0) {
+      conditions.push(
+        `EXISTS (
+          SELECT 1 FROM user_companies uc_scope
+          WHERE uc_scope.user_id = u.id
+            AND uc_scope.is_active = true
+            AND uc_scope.company_id = ANY($${paramIndex}::int[])
+        )`
+      );
+      params.push(companyIds);
+      paramIndex++;
+    } else if (companyIds !== null && Array.isArray(companyIds) && companyIds.length === 0) {
+      // User has no company assignments — show no users
+      conditions.push('FALSE');
+    }
+
     if (conditions.length > 0) {
       query += ' WHERE ' + conditions.join(' AND ');
     }
 
-    query += ' GROUP BY u.id, disabler.email ORDER BY u.created_at DESC';
+    query += ' GROUP BY u.id, u.email, u.full_name, u.status, u.tenant_id, u.failed_login_count, u.locked_until, u.last_login_at, u.last_login_ip, u.disabled_at, u.disabled_by, u.disable_reason, u.deleted_at, u.created_at, disabler.email ORDER BY u.created_at DESC';
 
     // Add pagination if provided
     if (limit !== undefined && offset !== undefined) {
@@ -155,8 +207,10 @@ export class UserService {
     status?: string;
     search?: string;
     excludeRoleNames?: string[];
+    tenantId?: number | null;
+    companyIds?: number[] | null;
   } = {}): Promise<number> {
-    const { includeDeleted = false, status, search, excludeRoleNames } = options;
+    const { includeDeleted = false, status, search, excludeRoleNames, tenantId, companyIds } = options;
 
     let query = 'SELECT COUNT(DISTINCT u.id) as total FROM users u';
 
@@ -194,6 +248,29 @@ export class UserService {
       paramIndex++;
     }
 
+    // Tenant isolation: only count users belonging to same tenant
+    if (tenantId !== undefined && tenantId !== null) {
+      conditions.push(`u.tenant_id = $${paramIndex}`);
+      params.push(tenantId);
+      paramIndex++;
+    }
+
+    // Company scope: only count users assigned to user's companies
+    if (companyIds !== undefined && companyIds !== null && companyIds.length > 0) {
+      conditions.push(
+        `EXISTS (
+          SELECT 1 FROM user_companies uc_scope
+          WHERE uc_scope.user_id = u.id
+            AND uc_scope.is_active = true
+            AND uc_scope.company_id = ANY($${paramIndex}::int[])
+        )`
+      );
+      params.push(companyIds);
+      paramIndex++;
+    } else if (companyIds !== null && Array.isArray(companyIds) && companyIds.length === 0) {
+      conditions.push('FALSE');
+    }
+
     if (conditions.length > 0) {
       query += ' WHERE ' + conditions.join(' AND ');
     }
@@ -206,7 +283,7 @@ export class UserService {
    * Create new user
    */
   static async create(data: CreateUserData, createdBy: number) {
-    const { email, password, full_name, role_ids } = data;
+    const { email, password, full_name, role_ids, tenant_id } = data;
     const client = await pool.connect();
 
     try {
@@ -265,12 +342,12 @@ export class UserService {
           [createdBy, user.id]
         );
       } else {
-        // Insert user
+        // Insert user (with tenant_id if provided)
         const userResult = await client.query(
-          `INSERT INTO users (email, password, full_name, status)
-           VALUES ($1, $2, $3, 'active')
-           RETURNING id, email, full_name, status, created_at`,
-          [email, hashedPassword, full_name]
+          `INSERT INTO users (email, password, full_name, status, tenant_id)
+           VALUES ($1, $2, $3, 'active', $4)
+           RETURNING id, email, full_name, status, created_at, tenant_id`,
+          [email, hashedPassword, full_name, tenant_id || null]
         );
 
         user = userResult.rows[0];

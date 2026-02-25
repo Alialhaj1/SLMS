@@ -3,6 +3,7 @@ import Head from 'next/head';
 import MainLayout from '../../components/layout/MainLayout';
 import { withPermission } from '../../utils/withPermission';
 import { MenuPermissions } from '../../config/menu.permissions';
+import { exportToCSV } from '../../utils/exportData';
 import {
   ChartBarIcon,
   ArrowDownTrayIcon,
@@ -43,10 +44,10 @@ const ExpenseReports: React.FC = () => {
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
+      const apiUrl = (process.env.NEXT_PUBLIC_API_URL || '') + '/api';
 
       const response = await fetch(
-        `${apiUrl}/api/expenses/reports?start=${dateRange.start}&end=${dateRange.end}`,
+        `${apiUrl}/expenses/reports?start=${dateRange.start}&end=${dateRange.end}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
@@ -110,8 +111,13 @@ const ExpenseReports: React.FC = () => {
   };
 
   const handleExport = () => {
-    showToast(t('reports.exporting', 'Exporting report...'), 'info');
-    // TODO: Implement actual export functionality
+    exportToCSV(reportData, 'expense-report', [
+      { key: 'category', label: 'Category' },
+      { key: 'total', label: 'Total (SAR)' },
+      { key: 'count', label: 'Count' },
+      { key: 'percentage', label: 'Percentage %' },
+    ]);
+    showToast(t('reports.exported', 'Exported successfully'), 'success');
   };
 
   return (

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import Head from 'next/head';
 import MainLayout from '../../components/layout/MainLayout';
+import { exportToCSV } from '../../utils/exportData';
 import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
 import { useTranslation } from '../../hooks/useTranslation';
@@ -69,7 +70,19 @@ export default function CustomsReportsPage() {
   };
 
   const handleExport = (format: 'pdf' | 'excel') => {
-    showToast(locale === 'ar' ? `جاري التصدير كـ ${format.toUpperCase()}...` : `Exporting as ${format.toUpperCase()}...`, 'info');
+    exportToCSV(filteredReports, 'customs-report', [
+      { key: 'declarationNo', label: 'Declaration No' },
+      { key: 'type', label: 'Type' },
+      { key: 'portName', label: 'Port' },
+      { key: 'customsOffice', label: 'Customs Office' },
+      { key: 'shipmentCount', label: 'Shipments' },
+      { key: 'totalValue', label: 'Total Value (SAR)' },
+      { key: 'dutiesCollected', label: 'Duties Collected (SAR)' },
+      { key: 'status', label: 'Status' },
+      { key: 'date', label: 'Date' },
+      { key: 'clearanceTime', label: 'Clearance Time (days)' },
+    ]);
+    showToast(locale === 'ar' ? 'تم التصدير بنجاح' : 'Exported successfully', 'success');
   };
 
   const handleRefresh = async () => {

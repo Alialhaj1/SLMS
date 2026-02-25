@@ -2,9 +2,10 @@
  * 🔐 Security Policies - سياسات الأمان
  * =====================================================
  * إدارة سياسات الأمان وكلمات المرور والجلسات
+ * Connected to /api/system-policies?category=security
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import Head from 'next/head';
 import {
   LockClosedIcon,
@@ -24,6 +25,10 @@ import { useToast } from '../../contexts/ToastContext';
 import { useTranslation } from '../../hooks/useTranslation';
 import { usePermissions } from '../../hooks/usePermissions';
 import clsx from 'clsx';
+
+/* ------------------------------------------------------------------ */
+/*  Types & helpers                                                   */
+/* ------------------------------------------------------------------ */
 
 interface SecurityPolicies {
   // Password Policies
@@ -67,6 +72,101 @@ interface SecurityPolicies {
   audit_retention_days: number;
 }
 
+/** Maps every SecurityPolicies field → its matching policy_key in system_policies */
+const FIELD_TO_POLICY_KEY: Record<keyof SecurityPolicies, string> = {
+  password_min_length: 'password_min_length',
+  password_require_uppercase: 'password_require_uppercase',
+  password_require_lowercase: 'password_require_lowercase',
+  password_require_numbers: 'password_require_number',          // DB key differs
+  password_require_symbols: 'password_require_special_char',    // DB key differs
+  password_expiry_days: 'password_expiry_days',
+  password_history_count: 'password_history_count',
+  password_max_attempts: 'max_login_attempts',                  // DB key differs
+  session_timeout_minutes: 'session_timeout_minutes',
+  session_max_concurrent: 'session_max_concurrent',
+  session_extend_on_activity: 'session_extend_on_activity',
+  session_single_device: 'session_single_device',
+  session_remember_me_days: 'refresh_token_expiry_days',        // DB key differs
+  account_lockout_duration_minutes: 'lockout_duration_minutes', // DB key differs
+  account_lockout_threshold: 'account_lockout_threshold',
+  account_require_email_verification: 'account_require_email_verification',
+  account_require_phone_verification: 'account_require_phone_verification',
+  tfa_enabled: 'enable_2fa',                                    // DB key differs
+  tfa_required_for_admins: 'tfa_required_for_admins',
+  tfa_methods: 'tfa_methods',
+  ip_whitelist_enabled: 'ip_whitelist_enabled',
+  ip_whitelist: 'ip_whitelist',
+  ip_blacklist_enabled: 'ip_blacklist_enabled',
+  ip_blacklist: 'ip_blacklist',
+  audit_login_attempts: 'audit_login_attempts',
+  audit_password_changes: 'audit_password_changes',
+  audit_permission_changes: 'audit_permission_changes',
+  audit_retention_days: 'audit_retention_days',
+};
+
+/** Reverse lookup: policy_key → SecurityPolicies field name */
+const POLICY_KEY_TO_FIELD: Record<string, keyof SecurityPolicies> = {};
+for (const [field, pk] of Object.entries(FIELD_TO_POLICY_KEY)) {
+  POLICY_KEY_TO_FIELD[pk] = field as keyof SecurityPolicies;
+}
+
+const DEFAULTS: SecurityPolicies = {
+  password_min_length: 8,
+  password_require_uppercase: true,
+  password_require_lowercase: true,
+  password_require_numbers: true,
+  password_require_symbols: false,
+  password_expiry_days: 90,
+  password_history_count: 5,
+  password_max_attempts: 5,
+  session_timeout_minutes: 30,
+  session_max_concurrent: 3,
+  session_extend_on_activity: true,
+  session_single_device: false,
+  session_remember_me_days: 30,
+  account_lockout_duration_minutes: 30,
+  account_lockout_threshold: 5,
+  account_require_email_verification: true,
+  account_require_phone_verification: false,
+  tfa_enabled: true,
+  tfa_required_for_admins: true,
+  tfa_methods: ['app', 'sms'],
+  ip_whitelist_enabled: false,
+  ip_whitelist: [],
+  ip_blacklist_enabled: false,
+  ip_blacklist: [],
+  audit_login_attempts: true,
+  audit_password_changes: true,
+  audit_permission_changes: true,
+  audit_retention_days: 365,
+};
+
+/** Parse a string value coming from the DB into the right JS type */
+function parseValue(value: string, dataType: string, field: keyof SecurityPolicies): any {
+  if (dataType === 'boolean') return value === 'true';
+  if (dataType === 'integer' || dataType === 'number' || dataType === 'float') return Number(value) || 0;
+  if (dataType === 'json') {
+    try { return JSON.parse(value); } catch { return DEFAULTS[field]; }
+  }
+  return value;
+}
+
+/** Serialize a JS value to the DB string format */
+function serializeValue(value: any): string {
+  if (typeof value === 'boolean') return String(value);
+  if (typeof value === 'number') return String(value);
+  if (Array.isArray(value) || typeof value === 'object') return JSON.stringify(value);
+  return String(value);
+}
+
+const API_BASE = (typeof window !== 'undefined' && (window as any).__NEXT_DATA__?.runtimeConfig?.apiUrl)
+  || process.env.NEXT_PUBLIC_API_URL
+  || 'http://localhost:4000';
+
+/* ------------------------------------------------------------------ */
+/*  Component                                                         */
+/* ------------------------------------------------------------------ */
+
 export default function SecurityPoliciesPage() {
   const { t } = useTranslation();
   const { showToast } = useToast();
@@ -77,85 +177,166 @@ export default function SecurityPoliciesPage() {
   const [hasChanges, setHasChanges] = useState(false);
   const [activeTab, setActiveTab] = useState<'password' | 'session' | 'tfa' | 'access' | 'audit'>('password');
   
-  const [policies, setPolicies] = useState<SecurityPolicies>({
-    password_min_length: 8,
-    password_require_uppercase: true,
-    password_require_lowercase: true,
-    password_require_numbers: true,
-    password_require_symbols: false,
-    password_expiry_days: 90,
-    password_history_count: 5,
-    password_max_attempts: 5,
-    session_timeout_minutes: 30,
-    session_max_concurrent: 3,
-    session_extend_on_activity: true,
-    session_single_device: false,
-    session_remember_me_days: 30,
-    account_lockout_duration_minutes: 30,
-    account_lockout_threshold: 5,
-    account_require_email_verification: true,
-    account_require_phone_verification: false,
-    tfa_enabled: true,
-    tfa_required_for_admins: true,
-    tfa_methods: ['app', 'sms'],
-    ip_whitelist_enabled: false,
-    ip_whitelist: [],
-    ip_blacklist_enabled: false,
-    ip_blacklist: [],
-    audit_login_attempts: true,
-    audit_password_changes: true,
-    audit_permission_changes: true,
-    audit_retention_days: 365,
-  });
+  const [policies, setPolicies] = useState<SecurityPolicies>({ ...DEFAULTS });
 
-  const canManage = hasPermission('security_policies:manage');
+  /** Track DB row ids per policy_key so we can PUT to the right row */
+  const policyRowMap = useRef<Record<string, { id: number; data_type: string }>>({});
+  /** Snapshot of last-saved state so we only send changed fields */
+  const savedSnapshot = useRef<SecurityPolicies>({ ...DEFAULTS });
 
-  useEffect(() => {
-    fetchPolicies();
-  }, []);
+  const canManage = hasPermission('system_policies:edit');
 
-  const fetchPolicies = async () => {
+  /* ---------- Fetch all security-category policies from the real API ---------- */
+  const fetchPolicies = useCallback(async () => {
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch('/api/security-policies', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
-      if (res.ok) {
-        const data = await res.json();
-        setPolicies({ ...policies, ...data });
+      const res = await fetch(
+        `${API_BASE}/api/system-policies?category=security&limit=100`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      const json = await res.json();
+      const rows: any[] = json.data ?? json.rows ?? json ?? [];
+
+      const newState: SecurityPolicies = { ...DEFAULTS };
+      const newMap: Record<string, { id: number; data_type: string }> = {};
+
+      for (const row of rows) {
+        const field = POLICY_KEY_TO_FIELD[row.policy_key];
+        if (!field) continue; // skip unknown keys
+        newMap[row.policy_key] = { id: row.id, data_type: row.data_type || 'string' };
+        (newState as any)[field] = parseValue(row.policy_value, row.data_type || 'string', field);
       }
+
+      policyRowMap.current = newMap;
+      savedSnapshot.current = { ...newState };
+      setPolicies(newState);
     } catch (error) {
-      // Use defaults
+      console.error('Failed to fetch security policies:', error);
+      // Keep defaults on error
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
+  useEffect(() => { fetchPolicies(); }, [fetchPolicies]);
+
+  /* ---------- Generic field change handler ---------- */
   const handleChange = <K extends keyof SecurityPolicies>(key: K, value: SecurityPolicies[K]) => {
     setPolicies(prev => ({ ...prev, [key]: value }));
     setHasChanges(true);
   };
 
+  /* ---------- Save – PUT only changed policies ---------- */
   const handleSave = async () => {
     setSaving(true);
     try {
-      showToast(t('common.saveSuccess') || 'Policies saved successfully', 'success');
-      setHasChanges(false);
+      const token = localStorage.getItem('accessToken');
+      const changedFields: (keyof SecurityPolicies)[] = [];
+
+      // Detect which fields actually changed
+      for (const field of Object.keys(DEFAULTS) as (keyof SecurityPolicies)[]) {
+        const cur = policies[field];
+        const prev = savedSnapshot.current[field];
+        if (JSON.stringify(cur) !== JSON.stringify(prev)) {
+          changedFields.push(field);
+        }
+      }
+
+      if (changedFields.length === 0) {
+        setHasChanges(false);
+        return;
+      }
+
+      let successCount = 0;
+      let errorCount = 0;
+
+      for (const field of changedFields) {
+        const policyKey = FIELD_TO_POLICY_KEY[field];
+        const rowInfo = policyRowMap.current[policyKey];
+
+        if (rowInfo) {
+          // PUT existing row
+          const res = await fetch(`${API_BASE}/api/system-policies/${rowInfo.id}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ policy_value: serializeValue(policies[field]) }),
+          });
+          if (res.ok) {
+            successCount++;
+          } else {
+            console.error(`Failed to update ${policyKey}:`, await res.text());
+            errorCount++;
+          }
+        } else {
+          // POST new row (policy not yet in DB)
+          const dataType = typeof policies[field] === 'boolean'
+            ? 'boolean'
+            : typeof policies[field] === 'number'
+              ? 'integer'
+              : Array.isArray(policies[field]) || typeof policies[field] === 'object'
+                ? 'json'
+                : 'string';
+
+          const res = await fetch(`${API_BASE}/api/system-policies`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              policy_key: policyKey,
+              policy_value: serializeValue(policies[field]),
+              data_type: dataType,
+              category: 'security',
+              is_system_policy: true,
+              is_active: true,
+            }),
+          });
+          if (res.ok) {
+            const created = await res.json();
+            policyRowMap.current[policyKey] = {
+              id: created.data?.id ?? created.id,
+              data_type: dataType,
+            };
+            successCount++;
+          } else {
+            console.error(`Failed to create ${policyKey}:`, await res.text());
+            errorCount++;
+          }
+        }
+      }
+
+      if (errorCount === 0) {
+        showToast('success', t('common.saveSuccess'));
+        savedSnapshot.current = { ...policies };
+        setHasChanges(false);
+      } else if (successCount > 0) {
+        showToast('warning', `${successCount} saved, ${errorCount} failed`);
+        savedSnapshot.current = { ...policies };
+      } else {
+        showToast('error', t('common.error'));
+      }
     } catch (error) {
-      showToast(t('common.error') || 'Failed to save policies', 'error');
+      console.error('Save error:', error);
+      showToast('error', t('common.error'));
     } finally {
       setSaving(false);
     }
   };
 
   const tabs = [
-    { id: 'password', label: t('security.password') || 'Password', icon: KeyIcon },
-    { id: 'session', label: t('security.session') || 'Session', icon: ClockIcon },
-    { id: 'tfa', label: t('security.tfa') || '2FA', icon: FingerPrintIcon },
-    { id: 'access', label: t('security.access') || 'Access', icon: ShieldExclamationIcon },
-    { id: 'audit', label: t('security.audit') || 'Audit', icon: DevicePhoneMobileIcon },
+    { id: 'password', label: t('security.password'), icon: KeyIcon },
+    { id: 'session', label: t('security.session'), icon: ClockIcon },
+    { id: 'tfa', label: t('security.tfa'), icon: FingerPrintIcon },
+    { id: 'access', label: t('security.access'), icon: ShieldExclamationIcon },
+    { id: 'audit', label: t('security.audit'), icon: DevicePhoneMobileIcon },
   ];
 
   const getPasswordStrength = () => {
@@ -167,9 +348,9 @@ export default function SecurityPoliciesPage() {
     if (policies.password_require_numbers) strength++;
     if (policies.password_require_symbols) strength++;
     
-    if (strength <= 2) return { label: t('security.weak') || 'Weak', color: 'text-red-500', bg: 'bg-red-500' };
-    if (strength <= 4) return { label: t('security.medium') || 'Medium', color: 'text-yellow-500', bg: 'bg-yellow-500' };
-    return { label: t('security.strong') || 'Strong', color: 'text-green-500', bg: 'bg-green-500' };
+    if (strength <= 2) return { label: t('security.weak'), color: 'text-red-500', bg: 'bg-red-500' };
+    if (strength <= 4) return { label: t('security.medium'), color: 'text-yellow-500', bg: 'bg-yellow-500' };
+    return { label: t('security.strong'), color: 'text-green-500', bg: 'bg-green-500' };
   };
 
   const passwordStrength = getPasswordStrength();
@@ -177,7 +358,7 @@ export default function SecurityPoliciesPage() {
   return (
     <MainLayout>
       <Head>
-        <title>{t('security.title') || 'Security Policies'} | SLMS</title>
+        <title>{t('security.title')} | SLMS</title>
       </Head>
 
       <div className="space-y-6 animate-fade-in">
@@ -189,10 +370,10 @@ export default function SecurityPoliciesPage() {
             </div>
             <div>
               <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">
-                {t('security.title') || 'Security Policies'}
+                {t('security.title')}
               </h1>
               <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                {t('security.subtitle') || 'Configure security settings and policies'}
+                {t('security.subtitle')}
               </p>
             </div>
           </div>
@@ -201,7 +382,7 @@ export default function SecurityPoliciesPage() {
             {hasChanges && (
               <Button onClick={handleSave} loading={saving} disabled={!canManage}>
                 <CheckIcon className="w-5 h-5 me-2" />
-                {t('common.saveChanges') || 'Save Changes'}
+                {t('common.saveChanges')}
               </Button>
             )}
             <Button variant="secondary" onClick={fetchPolicies} disabled={loading}>
@@ -246,7 +427,7 @@ export default function SecurityPoliciesPage() {
                     <div className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                          {t('security.passwordStrength') || 'Password Policy Strength'}
+                          {t('security.passwordStrength')}
                         </span>
                         <span className={clsx('text-sm font-medium', passwordStrength.color)}>
                           {passwordStrength.label}
@@ -263,7 +444,7 @@ export default function SecurityPoliciesPage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          {t('security.minLength') || 'Minimum Password Length'}
+                          {t('security.minLength')}
                         </label>
                         <select
                           value={policies.password_min_length}
@@ -271,17 +452,17 @@ export default function SecurityPoliciesPage() {
                           disabled={!canManage}
                           className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg"
                         >
-                          <option value={6}>6 {t('common.characters') || 'characters'}</option>
-                          <option value={8}>8 {t('common.characters') || 'characters'}</option>
-                          <option value={10}>10 {t('common.characters') || 'characters'}</option>
-                          <option value={12}>12 {t('common.characters') || 'characters'}</option>
-                          <option value={16}>16 {t('common.characters') || 'characters'}</option>
+                          <option value={6}>6 {t('common.characters')}</option>
+                          <option value={8}>8 {t('common.characters')}</option>
+                          <option value={10}>10 {t('common.characters')}</option>
+                          <option value={12}>12 {t('common.characters')}</option>
+                          <option value={16}>16 {t('common.characters')}</option>
                         </select>
                       </div>
                       
                       <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          {t('security.expiryDays') || 'Password Expiry (Days)'}
+                          {t('security.expiryDays')}
                         </label>
                         <select
                           value={policies.password_expiry_days}
@@ -289,18 +470,18 @@ export default function SecurityPoliciesPage() {
                           disabled={!canManage}
                           className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg"
                         >
-                          <option value={0}>{t('security.never') || 'Never'}</option>
-                          <option value={30}>30 {t('common.days') || 'days'}</option>
-                          <option value={60}>60 {t('common.days') || 'days'}</option>
-                          <option value={90}>90 {t('common.days') || 'days'}</option>
-                          <option value={180}>180 {t('common.days') || 'days'}</option>
-                          <option value={365}>365 {t('common.days') || 'days'}</option>
+                          <option value={0}>{t('security.never')}</option>
+                          <option value={30}>30 {t('common.days')}</option>
+                          <option value={60}>60 {t('common.days')}</option>
+                          <option value={90}>90 {t('common.days')}</option>
+                          <option value={180}>180 {t('common.days')}</option>
+                          <option value={365}>365 {t('common.days')}</option>
                         </select>
                       </div>
                       
                       <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          {t('security.historyCount') || 'Password History'}
+                          {t('security.historyCount')}
                         </label>
                         <select
                           value={policies.password_history_count}
@@ -308,16 +489,16 @@ export default function SecurityPoliciesPage() {
                           disabled={!canManage}
                           className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg"
                         >
-                          <option value={0}>{t('security.none') || 'None'}</option>
-                          <option value={3}>{t('security.lastN', { n: 3 }) || 'Last 3 passwords'}</option>
-                          <option value={5}>{t('security.lastN', { n: 5 }) || 'Last 5 passwords'}</option>
-                          <option value={10}>{t('security.lastN', { n: 10 }) || 'Last 10 passwords'}</option>
+                          <option value={0}>{t('security.none')}</option>
+                          <option value={3}>{t('security.last3')}</option>
+                          <option value={5}>{t('security.last5')}</option>
+                          <option value={10}>{t('security.last10')}</option>
                         </select>
                       </div>
                       
                       <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          {t('security.maxAttempts') || 'Max Failed Attempts'}
+                          {t('security.maxAttempts')}
                         </label>
                         <select
                           value={policies.password_max_attempts}
@@ -328,21 +509,21 @@ export default function SecurityPoliciesPage() {
                           <option value={3}>3</option>
                           <option value={5}>5</option>
                           <option value={10}>10</option>
-                          <option value={0}>{t('security.unlimited') || 'Unlimited'}</option>
+                          <option value={0}>{t('security.unlimited')}</option>
                         </select>
                       </div>
                     </div>
 
                     <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
                       <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
-                        {t('security.requirements') || 'Password Requirements'}
+                        {t('security.requirements')}
                       </h3>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {[
-                          { key: 'password_require_uppercase', label: t('security.requireUppercase') || 'Require uppercase letter' },
-                          { key: 'password_require_lowercase', label: t('security.requireLowercase') || 'Require lowercase letter' },
-                          { key: 'password_require_numbers', label: t('security.requireNumbers') || 'Require number' },
-                          { key: 'password_require_symbols', label: t('security.requireSymbols') || 'Require special character' },
+                          { key: 'password_require_uppercase', label: t('security.requireUppercase') },
+                          { key: 'password_require_lowercase', label: t('security.requireLowercase') },
+                          { key: 'password_require_numbers', label: t('security.requireNumbers') },
+                          { key: 'password_require_symbols', label: t('security.requireSymbols') },
                         ].map((item) => (
                           <div key={item.key} className="flex items-center gap-3">
                             <input
@@ -369,7 +550,7 @@ export default function SecurityPoliciesPage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          {t('security.sessionTimeout') || 'Session Timeout (Minutes)'}
+                          {t('security.sessionTimeout')}
                         </label>
                         <select
                           value={policies.session_timeout_minutes}
@@ -377,18 +558,18 @@ export default function SecurityPoliciesPage() {
                           disabled={!canManage}
                           className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg"
                         >
-                          <option value={15}>15 {t('common.minutes') || 'minutes'}</option>
-                          <option value={30}>30 {t('common.minutes') || 'minutes'}</option>
-                          <option value={60}>1 {t('common.hour') || 'hour'}</option>
-                          <option value={120}>2 {t('common.hours') || 'hours'}</option>
-                          <option value={480}>8 {t('common.hours') || 'hours'}</option>
-                          <option value={0}>{t('security.never') || 'Never'}</option>
+                          <option value={15}>15 {t('common.minutes')}</option>
+                          <option value={30}>30 {t('common.minutes')}</option>
+                          <option value={60}>1 {t('common.hour')}</option>
+                          <option value={120}>2 {t('common.hours')}</option>
+                          <option value={480}>8 {t('common.hours')}</option>
+                          <option value={0}>{t('security.never')}</option>
                         </select>
                       </div>
                       
                       <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          {t('security.maxConcurrent') || 'Max Concurrent Sessions'}
+                          {t('security.maxConcurrent')}
                         </label>
                         <select
                           value={policies.session_max_concurrent}
@@ -400,13 +581,13 @@ export default function SecurityPoliciesPage() {
                           <option value={3}>3</option>
                           <option value={5}>5</option>
                           <option value={10}>10</option>
-                          <option value={0}>{t('security.unlimited') || 'Unlimited'}</option>
+                          <option value={0}>{t('security.unlimited')}</option>
                         </select>
                       </div>
                       
                       <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          {t('security.rememberMeDays') || 'Remember Me Duration (Days)'}
+                          {t('security.rememberMeDays')}
                         </label>
                         <select
                           value={policies.session_remember_me_days}
@@ -414,17 +595,17 @@ export default function SecurityPoliciesPage() {
                           disabled={!canManage}
                           className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg"
                         >
-                          <option value={0}>{t('security.disabled') || 'Disabled'}</option>
-                          <option value={7}>7 {t('common.days') || 'days'}</option>
-                          <option value={14}>14 {t('common.days') || 'days'}</option>
-                          <option value={30}>30 {t('common.days') || 'days'}</option>
-                          <option value={90}>90 {t('common.days') || 'days'}</option>
+                          <option value={0}>{t('security.disabled')}</option>
+                          <option value={7}>7 {t('common.days')}</option>
+                          <option value={14}>14 {t('common.days')}</option>
+                          <option value={30}>30 {t('common.days')}</option>
+                          <option value={90}>90 {t('common.days')}</option>
                         </select>
                       </div>
                       
                       <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          {t('security.lockoutDuration') || 'Account Lockout Duration (Minutes)'}
+                          {t('security.lockoutDuration')}
                         </label>
                         <select
                           value={policies.account_lockout_duration_minutes}
@@ -432,11 +613,11 @@ export default function SecurityPoliciesPage() {
                           disabled={!canManage}
                           className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg"
                         >
-                          <option value={5}>5 {t('common.minutes') || 'minutes'}</option>
-                          <option value={15}>15 {t('common.minutes') || 'minutes'}</option>
-                          <option value={30}>30 {t('common.minutes') || 'minutes'}</option>
-                          <option value={60}>1 {t('common.hour') || 'hour'}</option>
-                          <option value={-1}>{t('security.manual') || 'Manual unlock required'}</option>
+                          <option value={5}>5 {t('common.minutes')}</option>
+                          <option value={15}>15 {t('common.minutes')}</option>
+                          <option value={30}>30 {t('common.minutes')}</option>
+                          <option value={60}>1 {t('common.hour')}</option>
+                          <option value={-1}>{t('security.manual')}</option>
                         </select>
                       </div>
                     </div>
@@ -453,7 +634,7 @@ export default function SecurityPoliciesPage() {
                             className="w-5 h-5 text-red-600 rounded focus:ring-red-500"
                           />
                           <label htmlFor="session_extend_on_activity" className="text-sm text-gray-700 dark:text-gray-300">
-                            {t('security.extendOnActivity') || 'Extend session on user activity'}
+                            {t('security.extendOnActivity')}
                           </label>
                         </div>
                         
@@ -467,7 +648,7 @@ export default function SecurityPoliciesPage() {
                             className="w-5 h-5 text-red-600 rounded focus:ring-red-500"
                           />
                           <label htmlFor="session_single_device" className="text-sm text-gray-700 dark:text-gray-300">
-                            {t('security.singleDevice') || 'Allow login from single device only'}
+                            {t('security.singleDevice')}
                           </label>
                         </div>
                       </div>
@@ -481,10 +662,10 @@ export default function SecurityPoliciesPage() {
                     <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
                       <div>
                         <h3 className="font-medium text-gray-900 dark:text-white">
-                          {t('security.enableTfa') || 'Enable Two-Factor Authentication'}
+                          {t('security.enableTfa')}
                         </h3>
                         <p className="text-sm text-gray-500 dark:text-gray-400">
-                          {t('security.tfaDescription') || 'Add an extra layer of security to user accounts'}
+                          {t('security.tfaDescription')}
                         </p>
                       </div>
                       <label className="relative inline-flex items-center cursor-pointer">
@@ -511,19 +692,19 @@ export default function SecurityPoliciesPage() {
                             className="w-5 h-5 text-red-600 rounded focus:ring-red-500"
                           />
                           <label htmlFor="tfa_required_for_admins" className="text-sm text-gray-700 dark:text-gray-300">
-                            {t('security.tfaRequiredAdmins') || 'Require 2FA for administrators'}
+                            {t('security.tfaRequiredAdmins')}
                           </label>
                         </div>
 
                         <div>
                           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                            {t('security.tfaMethods') || 'Allowed 2FA Methods'}
+                            {t('security.tfaMethods')}
                           </label>
                           <div className="space-y-3">
                             {[
-                              { key: 'app', label: t('security.tfaApp') || 'Authenticator App (Google, Microsoft)', icon: '📱' },
-                              { key: 'sms', label: t('security.tfaSms') || 'SMS Code', icon: '💬' },
-                              { key: 'email', label: t('security.tfaEmail') || 'Email Code', icon: '📧' },
+                              { key: 'app', label: t('security.tfaApp'), icon: '📱' },
+                              { key: 'sms', label: t('security.tfaSms'), icon: '💬' },
+                              { key: 'email', label: t('security.tfaEmail'), icon: '📧' },
                             ].map((method) => (
                               <div key={method.key} className="flex items-center gap-3">
                                 <input
@@ -560,10 +741,10 @@ export default function SecurityPoliciesPage() {
                         <ExclamationTriangleIcon className="w-6 h-6 text-yellow-600 flex-shrink-0 mt-0.5" />
                         <div>
                           <h4 className="font-medium text-yellow-900 dark:text-yellow-100">
-                            {t('security.accessWarning') || 'Advanced Settings'}
+                            {t('security.accessWarning')}
                           </h4>
                           <p className="text-sm text-yellow-800 dark:text-yellow-200 mt-1">
-                            {t('security.accessWarningMessage') || 'Be careful when configuring IP restrictions. Incorrect settings may lock out legitimate users.'}
+                            {t('security.accessWarningMessage')}
                           </p>
                         </div>
                       </div>
@@ -580,7 +761,7 @@ export default function SecurityPoliciesPage() {
                           className="w-5 h-5 text-red-600 rounded focus:ring-red-500"
                         />
                         <label htmlFor="account_require_email_verification" className="text-sm text-gray-700 dark:text-gray-300">
-                          {t('security.requireEmailVerification') || 'Require email verification for new accounts'}
+                          {t('security.requireEmailVerification')}
                         </label>
                       </div>
                       
@@ -594,7 +775,7 @@ export default function SecurityPoliciesPage() {
                           className="w-5 h-5 text-red-600 rounded focus:ring-red-500"
                         />
                         <label htmlFor="account_require_phone_verification" className="text-sm text-gray-700 dark:text-gray-300">
-                          {t('security.requirePhoneVerification') || 'Require phone verification for new accounts'}
+                          {t('security.requirePhoneVerification')}
                         </label>
                       </div>
                     </div>
@@ -602,7 +783,7 @@ export default function SecurityPoliciesPage() {
                     <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
                       <div className="flex items-center justify-between mb-4">
                         <h3 className="font-medium text-gray-900 dark:text-white">
-                          {t('security.ipWhitelist') || 'IP Whitelist'}
+                          {t('security.ipWhitelist')}
                         </h3>
                         <label className="relative inline-flex items-center cursor-pointer">
                           <input
@@ -617,7 +798,7 @@ export default function SecurityPoliciesPage() {
                       </div>
                       {policies.ip_whitelist_enabled && (
                         <textarea
-                          placeholder={t('security.ipPlaceholder') || 'Enter IP addresses (one per line)'}
+                          placeholder={t('security.ipPlaceholder')}
                           value={policies.ip_whitelist.join('\n')}
                           onChange={(e) => handleChange('ip_whitelist', e.target.value.split('\n').filter(Boolean))}
                           disabled={!canManage}
@@ -635,12 +816,12 @@ export default function SecurityPoliciesPage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div className="space-y-4">
                         <h3 className="font-medium text-gray-900 dark:text-white">
-                          {t('security.auditEvents') || 'Events to Audit'}
+                          {t('security.auditEvents')}
                         </h3>
                         {[
-                          { key: 'audit_login_attempts', label: t('security.auditLogin') || 'Login attempts (success & failure)' },
-                          { key: 'audit_password_changes', label: t('security.auditPassword') || 'Password changes' },
-                          { key: 'audit_permission_changes', label: t('security.auditPermissions') || 'Permission changes' },
+                          { key: 'audit_login_attempts', label: t('security.auditLogin') },
+                          { key: 'audit_password_changes', label: t('security.auditPassword') },
+                          { key: 'audit_permission_changes', label: t('security.auditPermissions') },
                         ].map((item) => (
                           <div key={item.key} className="flex items-center gap-3">
                             <input
@@ -660,7 +841,7 @@ export default function SecurityPoliciesPage() {
                       
                       <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          {t('security.auditRetention') || 'Audit Log Retention'}
+                          {t('security.auditRetention')}
                         </label>
                         <select
                           value={policies.audit_retention_days}
@@ -668,12 +849,12 @@ export default function SecurityPoliciesPage() {
                           disabled={!canManage}
                           className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg"
                         >
-                          <option value={30}>30 {t('common.days') || 'days'}</option>
-                          <option value={90}>90 {t('common.days') || 'days'}</option>
-                          <option value={180}>180 {t('common.days') || 'days'}</option>
-                          <option value={365}>1 {t('common.year') || 'year'}</option>
-                          <option value={730}>2 {t('common.years') || 'years'}</option>
-                          <option value={0}>{t('security.forever') || 'Forever'}</option>
+                          <option value={30}>30 {t('common.days')}</option>
+                          <option value={90}>90 {t('common.days')}</option>
+                          <option value={180}>180 {t('common.days')}</option>
+                          <option value={365}>1 {t('common.year')}</option>
+                          <option value={730}>2 {t('common.years')}</option>
+                          <option value={0}>{t('security.forever')}</option>
                         </select>
                       </div>
                     </div>

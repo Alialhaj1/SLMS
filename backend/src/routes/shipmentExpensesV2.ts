@@ -1,5 +1,5 @@
-/**
- * 📦 SHIPMENT EXPENSES V2 API
+﻿/**
+ * ðŸ“¦ SHIPMENT EXPENSES V2 API
  * ===========================
  * Enhanced shipment expenses with dynamic fields based on expense type
  * 
@@ -26,15 +26,19 @@ import pool from '../db';
 import { authenticate } from '../middleware/auth';
 import { requirePermission, requireAnyPermission } from '../middleware/rbac';
 import { amountToWordsArabic, amountToWordsEnglish } from '../utils/numberToWords';
+import { loadCompanyContext } from '../middleware/companyContext';
 
 const router = Router();
+
+// Apply company context globally to all shipment expense routes
+router.use(authenticate, loadCompanyContext);
 
 // =====================================================
 // GET EXPENSE TYPES
 // =====================================================
 router.get('/types', authenticate, async (req: Request, res: Response) => {
   try {
-    const companyId = (req as any).user?.companyId || 1;
+    const companyId = (req as any).companyId;
     
     // Join with accounts table to get latest account names
     const result = await pool.query(`
@@ -69,7 +73,7 @@ router.get('/types', authenticate, async (req: Request, res: Response) => {
 // =====================================================
 router.get('/parent-accounts', authenticate, async (req: Request, res: Response) => {
   try {
-    const companyId = (req as any).user?.companyId || 1;
+    const companyId = (req as any).companyId;
     
     // Get the configurable parent accounts for shipment expenses
     const parentCodes = ['1151010003', '2111010001', '3221020002'];
@@ -104,7 +108,7 @@ router.get('/parent-accounts', authenticate, async (req: Request, res: Response)
 // =====================================================
 router.get('/expense-accounts', authenticate, async (req: Request, res: Response) => {
   try {
-    const companyId = (req as any).user?.companyId || 1;
+    const companyId = (req as any).companyId;
     const { parent_code } = req.query;
     
     // Default to 1151010003 if no parent specified
@@ -175,7 +179,7 @@ router.get('/expense-accounts', authenticate, async (req: Request, res: Response
 router.get('/shipment/:shipmentId', authenticate, async (req: Request, res: Response) => {
   try {
     const { shipmentId } = req.params;
-    const companyId = (req as any).user?.companyId || 1;
+    const companyId = (req as any).companyId;
     
     // Get shipment info first with extended details for customs declaration
     const shipmentResult = await pool.query(`
@@ -282,7 +286,7 @@ router.get('/shipment/:shipmentId', authenticate, async (req: Request, res: Resp
 router.get('/:id', authenticate, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const companyId = (req as any).user?.companyId || 1;
+    const companyId = (req as any).companyId;
     
     // Use COALESCE to prefer account names (which user can update) over static expense type names
     const result = await pool.query(`
@@ -337,7 +341,7 @@ router.post('/', authenticate, requirePermission('shipment_expenses:create'), as
     await client.query('BEGIN');
     
     const userId = (req as any).user?.id;
-    const companyId = (req as any).user?.companyId || 1;
+    const companyId = (req as any).companyId;
     
     const {
       shipment_id,
@@ -393,7 +397,7 @@ router.post('/', authenticate, requirePermission('shipment_expenses:create'), as
     if (expenseType.code === '8005') {
       // Validate declaration number is required
       if (!customs_declaration_number || customs_declaration_number.trim() === '') {
-        throw new Error('رقم البيان الجمركي مطلوب | Customs declaration number is required');
+        throw new Error('Ø±Ù‚Ù… Ø§Ù„Ø¨ÙŠØ§Ù† Ø§Ù„Ø¬Ù…Ø±ÙƒÙŠ Ù…Ø·Ù„ÙˆØ¨ | Customs declaration number is required');
       }
       
       const existingDeclarationResult = await client.query(`
@@ -403,7 +407,7 @@ router.post('/', authenticate, requirePermission('shipment_expenses:create'), as
       `, [shipment_id, companyId]);
       
       if (existingDeclarationResult.rows.length > 0) {
-        throw new Error('لا يمكن إضافة أكثر من بيان جمركي لنفس الشحنة | Cannot add more than one customs declaration per shipment');
+        throw new Error('Ù„Ø§ ÙŠÙ…ÙƒÙ† Ø¥Ø¶Ø§ÙØ© Ø£ÙƒØ«Ø± Ù…Ù† Ø¨ÙŠØ§Ù† Ø¬Ù…Ø±ÙƒÙŠ Ù„Ù†ÙØ³ Ø§Ù„Ø´Ø­Ù†Ø© | Cannot add more than one customs declaration per shipment');
       }
     }
     
@@ -635,9 +639,13 @@ router.post('/', authenticate, requirePermission('shipment_expenses:create'), as
     }
     
     // Insert expense with account_id from Chart of Accounts
+    // Look up tenant_id from company
+    const tenantResult = await client.query('SELECT tenant_id FROM companies WHERE id = $1', [companyId]);
+    const tenantId = tenantResult.rows[0]?.tenant_id || companyId;
+    
     const insertResult = await client.query(`
       INSERT INTO shipment_expenses (
-        company_id, shipment_id, project_id,
+        company_id, tenant_id, shipment_id, project_id,
         expense_type_id, expense_type_code, expense_type_name, analytic_account_code,
         account_id,
         amount_before_vat, vat_rate, vat_amount, total_amount,
@@ -665,10 +673,10 @@ router.post('/', authenticate, requirePermission('shipment_expenses:create'), as
         $21, $22, $23, $24, $25, $26, $27, $28, $29, $30,
         $31, $32, $33, $34, $35, $36, $37, $38, $39, $40,
         $41, $42, $43, $44, $45, $46, $47, $48, $49, $50,
-        $51, $52, $53, $54, $55, $56, 'draft', $57, NOW()
+        $51, $52, $53, $54, $55, $56, $57, 'draft', $58, NOW()
       ) RETURNING *
     `, [
-      companyId, shipment_id, shipment.project_id,
+      companyId, tenantId, shipment_id, shipment.project_id,
       expense_type_id, expenseType.code, expenseType.name, expenseType.analytic_account_code,
       account_id && account_id !== '' ? parseInt(account_id) : null,
       amount_before_vat, actualVatRate, vatAmount, totalAmount,
@@ -715,7 +723,7 @@ router.put('/:id', authenticate, requirePermission('shipment_expenses:update'), 
     
     const { id } = req.params;
     const userId = (req as any).user?.id;
-    const companyId = (req as any).user?.companyId || 1;
+    const companyId = (req as any).companyId;
     
     // Check if expense exists and is not posted
     const existingResult = await client.query(`
@@ -934,7 +942,7 @@ router.delete('/:id', authenticate, requirePermission('shipment_expenses:delete'
   try {
     const { id } = req.params;
     const userId = (req as any).user?.id;
-    const companyId = (req as any).user?.companyId || 1;
+    const companyId = (req as any).companyId;
     
     // Check if expense exists and is not posted
     const existingResult = await pool.query(`
@@ -980,7 +988,7 @@ router.post('/:id/approve', authenticate, requirePermission('shipment_expenses:a
   try {
     const { id } = req.params;
     const userId = (req as any).user?.id;
-    const companyId = (req as any).user?.companyId || 1;
+    const companyId = (req as any).companyId;
     const { approval_notes } = req.body;
     
     const result = await pool.query(`
@@ -1017,7 +1025,7 @@ router.post('/:id/post', authenticate, requirePermission('shipment_expenses:post
     
     const { id } = req.params;
     const userId = (req as any).user?.id;
-    const companyId = (req as any).user?.companyId || 1;
+    const companyId = (req as any).companyId;
     
     // Get expense details with related info
     const expenseResult = await client.query(`
@@ -1109,7 +1117,7 @@ router.post('/:id/post', authenticate, requirePermission('shipment_expenses:post
       entryNumber,
       expense.expense_date,
       `Shipment Expense: ${expense.expense_type_name} - Shipment ${expense.shipment_number}`,
-      `مصروف شحنة: ${expense.expense_type_name_ar || expense.expense_type_name} - شحنة ${expense.shipment_number}`,
+      `Ù…ØµØ±ÙˆÙ Ø´Ø­Ù†Ø©: ${expense.expense_type_name_ar || expense.expense_type_name} - Ø´Ø­Ù†Ø© ${expense.shipment_number}`,
       expense.id,
       userId
     ]);
@@ -1149,7 +1157,7 @@ router.post('/:id/post', authenticate, requirePermission('shipment_expenses:post
         vatAccount.id,
         expense.vat_amount,
         `VAT on ${expense.expense_type_name}`,
-        `ضريبة على ${expense.expense_type_name_ar || expense.expense_type_name}`,
+        `Ø¶Ø±ÙŠØ¨Ø© Ø¹Ù„Ù‰ ${expense.expense_type_name_ar || expense.expense_type_name}`,
         expense.id
       ]);
     }
@@ -1167,7 +1175,7 @@ router.post('/:id/post', authenticate, requirePermission('shipment_expenses:post
       payableAccount.id,
       expense.total_amount,
       `Payable for ${expense.expense_type_name}`,
-      `مستحقات ${expense.expense_type_name_ar || expense.expense_type_name}`,
+      `Ù…Ø³ØªØ­Ù‚Ø§Øª ${expense.expense_type_name_ar || expense.expense_type_name}`,
       expense.id
     ]);
     
@@ -1218,7 +1226,7 @@ router.post('/:id/reverse', authenticate, requirePermission('shipment_expenses:r
     
     const { id } = req.params;
     const userId = (req as any).user?.id;
-    const companyId = (req as any).user?.companyId || 1;
+    const companyId = (req as any).companyId;
     const { reason } = req.body;
     
     // Get expense with journal entry
@@ -1270,7 +1278,7 @@ router.post('/:id/reverse', authenticate, requirePermission('shipment_expenses:r
       companyId,
       entryNumber,
       `Reversal: ${expense.entry_number} - ${reason || 'Expense reversal'}`,
-      `عكس قيد: ${expense.entry_number} - ${reason || 'عكس مصروف'}`,
+      `Ø¹ÙƒØ³ Ù‚ÙŠØ¯: ${expense.entry_number} - ${reason || 'Ø¹ÙƒØ³ Ù…ØµØ±ÙˆÙ'}`,
       expense.id,
       expense.journal_id,
       userId
@@ -1293,7 +1301,7 @@ router.post('/:id/reverse', authenticate, requirePermission('shipment_expenses:r
         line.credit_amount,  // Swap: credit becomes debit
         line.debit_amount,   // Swap: debit becomes credit
         `Reversal: ${line.description || ''}`,
-        `عكس: ${line.description_ar || ''}`,
+        `Ø¹ÙƒØ³: ${line.description_ar || ''}`,
         expense.id
       ]);
     }
@@ -1366,7 +1374,7 @@ router.get('/summary/:shipmentId', authenticate, async (req: Request, res: Respo
 // Insurance Companies
 router.get('/ref/insurance-companies', authenticate, async (req: Request, res: Response) => {
   try {
-    const companyId = (req as any).user?.companyId || 1;
+    const companyId = (req as any).companyId;
     const result = await pool.query(`
       SELECT id, code, name, name_ar, contact_person, phone, email
       FROM insurance_companies
@@ -1382,7 +1390,7 @@ router.get('/ref/insurance-companies', authenticate, async (req: Request, res: R
 // Clearance Offices
 router.get('/ref/clearance-offices', authenticate, async (req: Request, res: Response) => {
   try {
-    const companyId = (req as any).user?.companyId || 1;
+    const companyId = (req as any).companyId;
     const result = await pool.query(`
       SELECT id, code, name, name_ar, license_number, specialization
       FROM clearance_offices
@@ -1398,7 +1406,7 @@ router.get('/ref/clearance-offices', authenticate, async (req: Request, res: Res
 // Laboratories
 router.get('/ref/laboratories', authenticate, async (req: Request, res: Response) => {
   try {
-    const companyId = (req as any).user?.companyId || 1;
+    const companyId = (req as any).companyId;
     const result = await pool.query(`
       SELECT id, code, name, name_ar, lab_type, is_saber_certified
       FROM laboratories
@@ -1414,7 +1422,7 @@ router.get('/ref/laboratories', authenticate, async (req: Request, res: Response
 // Shipping Agents
 router.get('/ref/shipping-agents', authenticate, async (req: Request, res: Response) => {
   try {
-    const companyId = (req as any).user?.companyId || 1;
+    const companyId = (req as any).companyId;
     const { type } = req.query;
     
     let query = `
@@ -1457,7 +1465,7 @@ router.get('/ref/saudi-ports', authenticate, async (req: Request, res: Response)
 // Freight Agents (shipping_line type)
 router.get('/ref/freight-agents', authenticate, async (req: Request, res: Response) => {
   try {
-    const companyId = (req as any).user?.companyId || 1;
+    const companyId = (req as any).companyId;
     const result = await pool.query(`
       SELECT id, code, name, name_ar, agent_type, services
       FROM shipping_agents
@@ -1474,7 +1482,7 @@ router.get('/ref/freight-agents', authenticate, async (req: Request, res: Respon
 // Forwarders (freight_forwarder type)
 router.get('/ref/forwarders', authenticate, async (req: Request, res: Response) => {
   try {
-    const companyId = (req as any).user?.companyId || 1;
+    const companyId = (req as any).companyId;
     const result = await pool.query(`
       SELECT id, code, name, name_ar, agent_type, services
       FROM shipping_agents
@@ -1491,7 +1499,7 @@ router.get('/ref/forwarders', authenticate, async (req: Request, res: Response) 
 // Transport Companies
 router.get('/ref/transport-companies', authenticate, async (req: Request, res: Response) => {
   try {
-    const companyId = (req as any).user?.companyId || 1;
+    const companyId = (req as any).companyId;
     // Use vendors with freight type (includes transport/logistics companies)
     const result = await pool.query(`
       SELECT id, code, name, name_ar
@@ -1513,7 +1521,7 @@ router.get('/ref/transport-companies', authenticate, async (req: Request, res: R
 router.get('/shipment/:shipmentId/customs-duty-breakdown', authenticate, async (req: Request, res: Response) => {
   try {
     const { shipmentId } = req.params;
-    const companyId = (req as any).user?.companyId || 1;
+    const companyId = (req as any).companyId;
     const countryCode = (req.query.country_code as string) || 'SA';
     
     // First, get the PO currency and exchange rate from database
@@ -1606,7 +1614,7 @@ router.get('/shipment/:shipmentId/customs-duty-breakdown', authenticate, async (
       // Check if exempt (rate is 0 or notes contain exempt keywords)
       const notesEn = (item.tariff_notes_en || '').toLowerCase();
       const notesAr = (item.tariff_notes_ar || '').toLowerCase();
-      const isExempt = dutyRate === 0 || notesEn.includes('exempt') || notesAr.includes('معف');
+      const isExempt = dutyRate === 0 || notesEn.includes('exempt') || notesAr.includes('Ù…Ø¹Ù');
       
       const dutyAmount = isExempt ? 0 : Math.round(itemTotal * (dutyRate / 100) * 100) / 100;
       const dutyAmountLocal = Math.round(dutyAmount * exchangeRate * 100) / 100;
@@ -1664,7 +1672,7 @@ router.get('/shipment/:shipmentId/customs-duty-breakdown', authenticate, async (
 router.get('/shipment/:shipmentId/po-details', authenticate, async (req: Request, res: Response) => {
   try {
     const { shipmentId } = req.params;
-    const companyId = (req as any).user?.companyId || 1;
+    const companyId = (req as any).companyId;
     
     // Get shipment with PO info
     const result = await pool.query(`
@@ -1687,7 +1695,7 @@ router.get('/shipment/:shipmentId/po-details', authenticate, async (req: Request
         oc.code as origin_country_code,
         pod.country_id as destination_country_id,
         COALESCE(dc.name, 'Saudi Arabia') as destination_country_name,
-        COALESCE(dc.name_ar, 'المملكة العربية السعودية') as destination_country_name_ar,
+        COALESCE(dc.name_ar, 'Ø§Ù„Ù…Ù…Ù„ÙƒØ© Ø§Ù„Ø¹Ø±Ø¨ÙŠØ© Ø§Ù„Ø³Ø¹ÙˆØ¯ÙŠØ©') as destination_country_name_ar,
         COALESCE(dc.code, 'SA') as destination_country_code,
         ls.total_amount as shipment_value,
         po.id as po_id,

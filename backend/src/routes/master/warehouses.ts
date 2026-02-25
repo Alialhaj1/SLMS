@@ -1,7 +1,10 @@
 /**
- * WAREHOUSES API
+ * 🏭 WAREHOUSES API — Enterprise Edition
+ * ========================================
+ * Endpoints: /stats, /filters, GET (list+paginate), GET /:id, POST, PUT /:id, DELETE /:id, POST /:id/restore
  * Middlewares: ✅ Auth, ✅ Company Context, ✅ RBAC, ✅ Audit
  * Soft Delete: ✅ deleted_at
+ * Sub-tables: storage_locations (linked via warehouse_id)
  */
 
 import { Router, Request, Response } from 'express';
@@ -9,99 +12,282 @@ import pool from '../../db';
 import { authenticate } from '../../middleware/auth';
 import { loadCompanyContext } from '../../middleware/companyContext';
 import { requirePermission } from '../../middleware/rbac';
+import { applyEnhancedAudit } from '../../middleware/enhancedAuditLog';
+import { dynamicDeletionProtection } from '../../services/referenceIntegrityEngine';
 
 const router = Router();
 
 router.use(authenticate);
 router.use(loadCompanyContext);
+applyEnhancedAudit(router, 'warehouses');
+
+// ─── HELPERS ─────────────────────────────────────────────────────────
+
+async function tableExists(name: string): Promise<boolean> {
+  const r = await pool.query(
+    "SELECT 1 FROM information_schema.tables WHERE table_name = $1",
+    [name]
+  );
+  return (r.rowCount ?? 0) > 0;
+}
+
+async function columnExists(table: string, col: string): Promise<boolean> {
+  const r = await pool.query(
+    "SELECT 1 FROM information_schema.columns WHERE table_name = $1 AND column_name = $2",
+    [table, col]
+  );
+  return (r.rowCount ?? 0) > 0;
+}
+
+function addCol(
+  cols: string[], vals: any[], key: string, val: any
+): void {
+  if (val === undefined) return;
+  cols.push(key);
+  vals.push(val === '' ? null : val);
+}
+
+function setCol(
+  sets: string[], vals: any[], key: string, val: any, idx: () => number
+): void {
+  if (val === undefined) return;
+  sets.push(`${key} = $${idx()}`);
+  vals.push(val === '' ? null : val);
+}
+
+// ─── SELECT TEMPLATE ────────────────────────────────────────────────
+
+const WAREHOUSE_SELECT = `
+  SELECT
+    w.*,
+    -- Branch join
+    br.name       AS branch_name,
+    br.name_en    AS branch_name_en,
+    br.name_ar    AS branch_name_ar,
+    br.code       AS branch_code,
+    -- Warehouse type join
+    wt.name_en    AS warehouse_type_name,
+    wt.name_ar    AS warehouse_type_name_ar,
+    wt.code       AS warehouse_type_code,
+    wt.warehouse_category AS warehouse_type_category,
+    wt.requires_temperature_control AS type_requires_temp,
+    -- Country join
+    co.name       AS country_name,
+    co.code       AS country_code,
+    co.flag_emoji AS country_flag,
+    -- City join
+    ci.name       AS city_name,
+    ci.code       AS city_code,
+    -- Cost center join
+    cc.code       AS cost_center_code,
+    cc.name       AS cost_center_name,
+    cc.name_ar    AS cost_center_name_ar,
+    -- Created/updated by user
+    uc.email      AS created_by_name,
+    uu.email      AS updated_by_name
+  FROM warehouses w
+  LEFT JOIN branches br       ON br.id = w.branch_id      AND br.deleted_at IS NULL
+  LEFT JOIN warehouse_types wt ON wt.id = w.warehouse_type_id AND wt.deleted_at IS NULL
+  LEFT JOIN countries co      ON co.id = w.country_id     AND co.deleted_at IS NULL
+  LEFT JOIN cities ci         ON ci.id = w.city_id        AND ci.deleted_at IS NULL
+  LEFT JOIN cost_centers cc   ON cc.id = w.cost_center_id AND cc.deleted_at IS NULL
+  LEFT JOIN users uc          ON uc.id = w.created_by
+  LEFT JOIN users uu          ON uu.id = w.updated_by
+`;
+
+// ─── GET /stats ─────────────────────────────────────────────────────
+
+router.get(
+  '/stats',
+  requirePermission('master:warehouses:view'),
+  async (req: Request, res: Response) => {
+    try {
+      const companyId =
+        (req as any).companyId ?? (req as any).companyContext?.companyId ?? (req as any).companyContext?.id;
+
+      const hasCapacity = await columnExists('warehouses', 'capacity_m3');
+      const hasNegStock = await columnExists('warehouses', 'allows_negative_stock');
+      const hasBranch = await columnExists('warehouses', 'branch_id');
+
+      const stats = await pool.query(`
+        SELECT
+          COUNT(*)::int                                         AS total,
+          COUNT(*) FILTER (WHERE w.is_active = true)::int       AS active,
+          COUNT(*) FILTER (WHERE w.is_active = false)::int      AS inactive,
+          COUNT(DISTINCT w.warehouse_type_id) FILTER (WHERE w.warehouse_type_id IS NOT NULL)::int AS type_count,
+          ${hasBranch ? "COUNT(DISTINCT w.branch_id) FILTER (WHERE w.branch_id IS NOT NULL)::int" : "0::int"} AS branch_count,
+          ${hasCapacity ? "COALESCE(SUM(w.capacity_m3), 0)" : "0"} AS total_capacity_m3,
+          ${hasNegStock ? "COUNT(*) FILTER (WHERE w.allows_negative_stock = true)::int" : "0::int"} AS allows_negative_count,
+          COUNT(*) FILTER (WHERE w.is_default = true)::int      AS default_count
+        FROM warehouses w
+        WHERE ${companyId ? 'w.company_id = $1 AND' : ''} w.deleted_at IS NULL
+      `, companyId ? [companyId] : []);
+
+      // By type breakdown
+      const hasWhTypes = await tableExists('warehouse_types');
+      let byType: any[] = [];
+      if (hasWhTypes) {
+        const bt = await pool.query(`
+          SELECT wt.name_en AS type_name, wt.name_ar AS type_name_ar, COUNT(w.id)::int AS count
+          FROM warehouses w
+          JOIN warehouse_types wt ON wt.id = w.warehouse_type_id AND wt.deleted_at IS NULL
+          WHERE ${companyId ? 'w.company_id = $1 AND' : ''} w.deleted_at IS NULL
+          GROUP BY wt.name_en, wt.name_ar
+          ORDER BY count DESC
+        `, companyId ? [companyId] : []);
+        byType = bt.rows;
+      }
+
+      res.json({ success: true, data: { ...stats.rows[0], by_type: byType } });
+    } catch (error: any) {
+      console.error('Error fetching warehouse stats:', error);
+      res.status(500).json({ success: false, error: { code: 'STATS_ERROR', message: 'Failed to fetch stats' } });
+    }
+  }
+);
+
+// ─── GET /filters ───────────────────────────────────────────────────
+
+router.get(
+  '/filters',
+  requirePermission('master:warehouses:view'),
+  async (req: Request, res: Response) => {
+    try {
+      const companyId =
+        (req as any).companyId ?? (req as any).companyContext?.companyId ?? (req as any).companyContext?.id;
+
+      const [whTypes, branches, countries, cities] = await Promise.all([
+        pool.query(`
+          SELECT id, name_en AS name, name_ar FROM warehouse_types
+          WHERE ${companyId ? 'company_id = $1 AND' : ''} deleted_at IS NULL
+          ORDER BY name_en
+        `, companyId ? [companyId] : []),
+        pool.query(`
+          SELECT id, name_en AS name, name_ar, code FROM branches
+          WHERE ${companyId ? 'company_id = $1 AND' : ''} deleted_at IS NULL
+          ORDER BY name_en
+        `, companyId ? [companyId] : []),
+        pool.query(`
+          SELECT id, name, name_ar, code, flag_emoji FROM countries
+          WHERE deleted_at IS NULL ORDER BY name LIMIT 300
+        `),
+        pool.query(`
+          SELECT id, name, name_ar, code FROM cities
+          WHERE deleted_at IS NULL ORDER BY name LIMIT 500
+        `),
+      ]);
+
+      res.json({
+        success: true,
+        data: {
+          warehouse_types: whTypes.rows,
+          branches: branches.rows,
+          countries: countries.rows,
+          cities: cities.rows,
+        },
+      });
+    } catch (error: any) {
+      console.error('Error fetching warehouse filters:', error);
+      res.status(500).json({ success: false, error: { code: 'FILTERS_ERROR', message: 'Failed to fetch filters' } });
+    }
+  }
+);
+
+// ─── GET / (list) ───────────────────────────────────────────────────
 
 router.get(
   '/',
   requirePermission('master:warehouses:view'),
   async (req: Request, res: Response) => {
     try {
-      const companyId = (req as any).companyContext?.companyId;
-      if (!companyId) {
-        return res.status(400).json({ success: false, error: { code: 'COMPANY_REQUIRED', message: 'Company context required' } });
-      }
-      const { search, is_active, warehouse_type, warehouse_type_id } = req.query;
+      const companyId =
+        (req as any).companyId ?? (req as any).companyContext?.companyId ?? (req as any).companyContext?.id;
 
-      let query = `
-        SELECT
-          w.id,
-          w.code,
-          w.name,
-          w.name_ar,
-          w.warehouse_type,
-          w.warehouse_type_id,
-          w.cost_center_id,
-          wt.code AS warehouse_type_code,
-          wt.name AS warehouse_type_name,
-          wt.name_ar AS warehouse_type_name_ar,
-          wt.warehouse_category AS warehouse_type_category,
-          cc.code AS cost_center_code,
-          cc.name AS cost_center_name,
-          cc.name_ar AS cost_center_name_ar,
-          w.address AS location,
-          NULL::text AS city,
-          NULL::text AS country,
-          w.city_id,
-          w.country_id,
-          w.manager_name,
-          w.phone AS manager_phone,
-          w.email,
-          NULL::numeric AS capacity,
-          w.is_active,
-          w.created_at,
-          w.updated_at,
-          w.deleted_at
-        FROM warehouses w
-        LEFT JOIN warehouse_types wt
-          ON wt.id = w.warehouse_type_id
-          AND wt.company_id = w.company_id
-          AND wt.deleted_at IS NULL
-        LEFT JOIN cost_centers cc
-          ON cc.id = w.cost_center_id
-          AND cc.company_id = w.company_id
-          AND cc.deleted_at IS NULL
-        WHERE w.company_id = $1 AND w.deleted_at IS NULL
-      `;
-      const params: any[] = [companyId];
-      let paramCount = 1;
+      const {
+        search, is_active, warehouse_type_id, branch_id, country_id, city_id,
+        sort = 'code', order = 'asc',
+        page = '1', limit = '25',
+      } = req.query as Record<string, string>;
+
+      const allowedSort: Record<string, string> = {
+        code: 'w.code', name: 'w.name', name_en: 'w.name_en',
+        warehouse_type_name: 'wt.name_en',
+        branch_name: 'br.name_en',
+        is_active: 'w.is_active',
+        created_at: 'w.created_at',
+        capacity_m3: 'w.capacity_m3',
+      };
+      const sortCol = allowedSort[sort] || 'w.code';
+      const sortDir = order?.toLowerCase() === 'desc' ? 'DESC' : 'ASC';
+
+      let where = 'w.deleted_at IS NULL';
+      const params: any[] = [];
+      let p = 0;
+
+      if (companyId) {
+        where += ` AND w.company_id = $${++p}`;
+        params.push(companyId);
+      }
 
       if (search) {
-        paramCount++;
-        query += ` AND (w.name ILIKE $${paramCount} OR w.code ILIKE $${paramCount} OR w.address ILIKE $${paramCount})`;
+        where += ` AND (w.name ILIKE $${++p} OR w.name_en ILIKE $${p} OR w.name_ar ILIKE $${p} OR w.code ILIKE $${p} OR w.address ILIKE $${p} OR w.manager_name ILIKE $${p})`;
         params.push(`%${search}%`);
       }
 
-      if (is_active !== undefined) {
-        paramCount++;
-        query += ` AND is_active = $${paramCount}`;
+      if (is_active !== undefined && is_active !== '') {
+        where += ` AND w.is_active = $${++p}`;
         params.push(is_active === 'true');
       }
 
-      if (warehouse_type) {
-        paramCount++;
-        query += ` AND warehouse_type = $${paramCount}`;
-        params.push(warehouse_type);
-      }
-
       if (warehouse_type_id) {
-        const parsedTypeId = Number(warehouse_type_id);
-        if (!Number.isFinite(parsedTypeId) || parsedTypeId <= 0) {
-          return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid warehouse_type_id' } });
-        }
-        paramCount++;
-        query += ` AND w.warehouse_type_id = $${paramCount}`;
-        params.push(parsedTypeId);
+        where += ` AND w.warehouse_type_id = $${++p}`;
+        params.push(Number(warehouse_type_id));
       }
 
-      query += ` ORDER BY code`;
+      if (branch_id) {
+        where += ` AND w.branch_id = $${++p}`;
+        params.push(Number(branch_id));
+      }
 
-      const result = await pool.query(query, params);
+      if (country_id) {
+        where += ` AND w.country_id = $${++p}`;
+        params.push(Number(country_id));
+      }
 
-      res.json({ success: true, data: result.rows, total: result.rowCount });
+      if (city_id) {
+        where += ` AND w.city_id = $${++p}`;
+        params.push(Number(city_id));
+      }
+
+      // Count
+      const countRes = await pool.query(
+        `SELECT COUNT(*)::int AS total FROM warehouses w WHERE ${where}`, params
+      );
+      const total = countRes.rows[0].total;
+
+      // Paginate
+      const pg = Math.max(1, parseInt(page) || 1);
+      const lim = Math.min(200, Math.max(1, parseInt(limit) || 25));
+      const offset = (pg - 1) * lim;
+
+      const q = `
+        ${WAREHOUSE_SELECT}
+        WHERE ${where}
+        ORDER BY ${sortCol} ${sortDir}
+        LIMIT $${++p} OFFSET $${++p}
+      `;
+      params.push(lim, offset);
+
+      const result = await pool.query(q, params);
+
+      res.json({
+        success: true,
+        data: result.rows,
+        total,
+        page: pg,
+        limit: lim,
+        totalPages: Math.ceil(total / lim),
+      });
     } catch (error: any) {
       console.error('Error fetching warehouses:', error);
       res.status(500).json({ success: false, error: { code: 'FETCH_ERROR', message: 'Failed to fetch warehouses' } });
@@ -109,137 +295,154 @@ router.get(
   }
 );
 
+// ─── GET /:id (detail) ─────────────────────────────────────────────
+
+router.get(
+  '/:id',
+  requirePermission('master:warehouses:view'),
+  async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const companyId =
+        (req as any).companyId ?? (req as any).companyContext?.companyId ?? (req as any).companyContext?.id;
+
+      let where = 'w.id = $1 AND w.deleted_at IS NULL';
+      const params: any[] = [id];
+      if (companyId) {
+        where += ' AND w.company_id = $2';
+        params.push(companyId);
+      }
+
+      const result = await pool.query(`${WAREHOUSE_SELECT} WHERE ${where}`, params);
+
+      if (result.rowCount === 0) {
+        return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Warehouse not found' } });
+      }
+
+      // Include storage locations if table exists
+      let storageLocations: any[] = [];
+      const hasSL = await tableExists('storage_locations');
+      if (hasSL) {
+        const slRes = await pool.query(
+          `SELECT sl.*, slt.name_en AS location_type_name, slt.name_ar AS location_type_name_ar
+           FROM storage_locations sl
+           LEFT JOIN storage_location_types slt ON slt.id = sl.storage_location_type_id AND slt.deleted_at IS NULL
+           WHERE sl.warehouse_id = $1 AND sl.deleted_at IS NULL
+           ORDER BY sl.code`,
+          [id]
+        );
+        storageLocations = slRes.rows;
+      }
+
+      res.json({
+        success: true,
+        data: {
+          ...result.rows[0],
+          storage_locations: storageLocations,
+        },
+      });
+    } catch (error: any) {
+      console.error('Error fetching warehouse detail:', error);
+      res.status(500).json({ success: false, error: { code: 'FETCH_ERROR', message: 'Failed to fetch warehouse' } });
+    }
+  }
+);
+
+// ─── POST / (create) ────────────────────────────────────────────────
+
 router.post(
   '/',
   requirePermission('master:warehouses:create'),
   async (req: Request, res: Response) => {
     try {
-      const companyId = (req as any).companyContext?.companyId;
+      const companyId =
+        (req as any).companyId ?? (req as any).companyContext?.companyId ?? (req as any).companyContext?.id;
       const userId = (req as any).user?.id;
+
       if (!companyId) {
         return res.status(400).json({ success: false, error: { code: 'COMPANY_REQUIRED', message: 'Company context required' } });
       }
+
       const {
         code,
-        name,
+        name: rawName,
+        name_en,
         name_ar,
-        warehouse_type,
+        short_name,
+        branch_id,
         warehouse_type_id,
         cost_center_id,
-        location,
-        city_id,
         country_id,
+        city_id,
+        address,
         manager_name,
-        manager_phone,
+        phone,
         email,
-        is_active = true,
+        capacity_m3,
+        capacity_tons,
+        min_temp_celsius,
+        max_temp_celsius,
+        inventory_account_id,
+        allows_negative_stock,
+        is_default,
+        is_active,
+        latitude,
+        longitude,
+        warehouse_type,
+        notes,
       } = req.body;
+
+      const name = rawName || name_en;
 
       if (!code || !name) {
         return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Code and name are required' } });
       }
 
-      const duplicateCheck = await pool.query(
+      // Duplicate check
+      const dup = await pool.query(
         'SELECT id FROM warehouses WHERE company_id = $1 AND code = $2 AND deleted_at IS NULL',
-        [companyId, code]
+        [companyId, code.toUpperCase()]
       );
-
-      if (duplicateCheck.rows.length > 0) {
+      if ((dup.rowCount ?? 0) > 0) {
         return res.status(400).json({ success: false, error: { code: 'DUPLICATE_CODE', message: 'Warehouse code already exists' } });
       }
 
-      let resolvedWarehouseTypeId: number | null = null;
-      let resolvedWarehouseTypeLegacy: string | null = warehouse_type || null;
+      // Build dynamic INSERT
+      const cols: string[] = ['company_id', 'tenant_id'];
+      const vals: any[] = [companyId, (req as any).tenantId ?? companyId];
 
-      if (warehouse_type_id !== undefined && warehouse_type_id !== null && warehouse_type_id !== '') {
-        const parsedTypeId = Number(warehouse_type_id);
-        if (!Number.isFinite(parsedTypeId) || parsedTypeId <= 0) {
-          return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid warehouse_type_id' } });
-        }
-        const typeRow = await pool.query(
-          `SELECT id, warehouse_category FROM warehouse_types WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL`,
-          [parsedTypeId, companyId]
-        );
-        if (typeRow.rowCount === 0) {
-          return res.status(400).json({ success: false, error: { code: 'INVALID_TYPE', message: 'Warehouse type not found' } });
-        }
-        resolvedWarehouseTypeId = parsedTypeId;
-        resolvedWarehouseTypeLegacy = typeRow.rows[0].warehouse_category;
-      } else {
-        // Default to company default warehouse type if exists
-        const defaultType = await pool.query(
-          `SELECT id, warehouse_category FROM warehouse_types WHERE company_id = $1 AND is_default = TRUE AND deleted_at IS NULL ORDER BY id LIMIT 1`,
-          [companyId]
-        );
-        if (defaultType.rowCount > 0) {
-          resolvedWarehouseTypeId = defaultType.rows[0].id;
-          resolvedWarehouseTypeLegacy = defaultType.rows[0].warehouse_category;
-        }
-      }
+      addCol(cols, vals, 'code', code.toUpperCase());
+      addCol(cols, vals, 'name', name);
+      addCol(cols, vals, 'name_en', name_en || name);
+      addCol(cols, vals, 'name_ar', name_ar);
+      addCol(cols, vals, 'short_name', short_name);
+      addCol(cols, vals, 'branch_id', branch_id || null);
+      addCol(cols, vals, 'warehouse_type_id', warehouse_type_id || null);
+      addCol(cols, vals, 'cost_center_id', cost_center_id || null);
+      addCol(cols, vals, 'country_id', country_id || null);
+      addCol(cols, vals, 'city_id', city_id || null);
+      addCol(cols, vals, 'address', address);
+      addCol(cols, vals, 'manager_name', manager_name);
+      addCol(cols, vals, 'phone', phone);
+      addCol(cols, vals, 'email', email);
+      addCol(cols, vals, 'capacity_m3', capacity_m3 !== undefined ? capacity_m3 : null);
+      addCol(cols, vals, 'capacity_tons', capacity_tons !== undefined ? capacity_tons : null);
+      addCol(cols, vals, 'min_temp_celsius', min_temp_celsius !== undefined ? min_temp_celsius : null);
+      addCol(cols, vals, 'max_temp_celsius', max_temp_celsius !== undefined ? max_temp_celsius : null);
+      addCol(cols, vals, 'inventory_account_id', inventory_account_id || null);
+      addCol(cols, vals, 'allows_negative_stock', allows_negative_stock ?? false);
+      addCol(cols, vals, 'allow_negative_stock', allows_negative_stock ?? false);
+      addCol(cols, vals, 'is_default', is_default ?? false);
+      addCol(cols, vals, 'is_active', is_active ?? true);
+      addCol(cols, vals, 'latitude', latitude !== undefined ? latitude : null);
+      addCol(cols, vals, 'longitude', longitude !== undefined ? longitude : null);
+      addCol(cols, vals, 'warehouse_type', warehouse_type || null);
+      addCol(cols, vals, 'created_by', userId);
 
-      let resolvedCostCenterId: number | null = null;
-      if (cost_center_id !== undefined) {
-        if (cost_center_id === null || cost_center_id === '') {
-          resolvedCostCenterId = null;
-        } else {
-          const parsedCostCenterId = Number(cost_center_id);
-          if (!Number.isFinite(parsedCostCenterId) || parsedCostCenterId <= 0) {
-            return res
-              .status(400)
-              .json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid cost_center_id' } });
-          }
-          const ccRow = await pool.query(
-            `SELECT id FROM cost_centers WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL`,
-            [parsedCostCenterId, companyId]
-          );
-          if (ccRow.rowCount === 0) {
-            return res
-              .status(400)
-              .json({ success: false, error: { code: 'INVALID_COST_CENTER', message: 'Cost center not found' } });
-          }
-          resolvedCostCenterId = parsedCostCenterId;
-        }
-      }
+      const placeholders = vals.map((_, i) => `$${i + 1}`).join(', ');
+      const insertQ = `INSERT INTO warehouses (${cols.join(', ')}) VALUES (${placeholders}) RETURNING *`;
 
-      const result = await pool.query(
-        `INSERT INTO warehouses (
-          company_id,
-          code,
-          name,
-          name_ar,
-          warehouse_type,
-          warehouse_type_id,
-          cost_center_id,
-          address,
-          city_id,
-          country_id,
-          manager_name,
-          phone,
-          email,
-          is_active,
-          created_by,
-          created_at,
-          updated_at
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
-        RETURNING id, code, name, name_ar, warehouse_type, warehouse_type_id, cost_center_id, address AS location, city_id, country_id, manager_name, phone AS manager_phone, email, is_active, created_at, updated_at, deleted_at`,
-        [
-          companyId,
-          code.toUpperCase(),
-          name,
-          name_ar || null,
-          resolvedWarehouseTypeLegacy || 'storage',
-          resolvedWarehouseTypeId,
-          resolvedCostCenterId,
-          location || null,
-          city_id || null,
-          country_id || null,
-          manager_name || null,
-          manager_phone || null,
-          email || null,
-          is_active,
-          userId,
-        ]
-      );
+      const result = await pool.query(insertQ, vals);
 
       res.status(201).json({ success: true, data: result.rows[0], message: 'Warehouse created successfully' });
     } catch (error: any) {
@@ -249,132 +452,116 @@ router.post(
   }
 );
 
+// ─── PUT /:id (update) ─────────────────────────────────────────────
+
 router.put(
   '/:id',
   requirePermission('master:warehouses:edit'),
   async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
-      const companyId = (req as any).companyContext?.companyId;
+      const companyId =
+        (req as any).companyId ?? (req as any).companyContext?.companyId ?? (req as any).companyContext?.id;
+      const userId = (req as any).user?.id;
+
       if (!companyId) {
         return res.status(400).json({ success: false, error: { code: 'COMPANY_REQUIRED', message: 'Company context required' } });
       }
 
-      const existingWarehouse = await pool.query(
-        'SELECT * FROM warehouses WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL',
+      // Confirm exists
+      const existing = await pool.query(
+        'SELECT id FROM warehouses WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL',
         [id, companyId]
       );
-
-      if (existingWarehouse.rows.length === 0) {
+      if (existing.rowCount === 0) {
         return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Warehouse not found' } });
       }
 
       const {
         code,
-        name,
+        name: rawName,
+        name_en,
         name_ar,
-        warehouse_type,
+        short_name,
+        branch_id,
         warehouse_type_id,
         cost_center_id,
-        location,
-        city_id,
         country_id,
+        city_id,
+        address,
         manager_name,
-        manager_phone,
+        phone,
         email,
+        capacity_m3,
+        capacity_tons,
+        min_temp_celsius,
+        max_temp_celsius,
+        inventory_account_id,
+        allows_negative_stock,
+        is_default,
         is_active,
+        latitude,
+        longitude,
+        warehouse_type,
+        notes,
       } = req.body;
 
-      const warehouseTypeIdProvided = Object.prototype.hasOwnProperty.call(req.body, 'warehouse_type_id');
-      const costCenterIdProvided = Object.prototype.hasOwnProperty.call(req.body, 'cost_center_id');
+      const name = rawName || name_en;
 
-      let resolvedWarehouseTypeId: number | null = null;
-      let resolvedWarehouseTypeLegacy: string | null = null;
-      if (warehouseTypeIdProvided) {
-        if (warehouse_type_id === null || warehouse_type_id === '') {
-          resolvedWarehouseTypeId = null;
-          resolvedWarehouseTypeLegacy = warehouse_type ?? null;
-        } else {
-          const parsedTypeId = Number(warehouse_type_id);
-          if (!Number.isFinite(parsedTypeId) || parsedTypeId <= 0) {
-            return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid warehouse_type_id' } });
-          }
-          const typeRow = await pool.query(
-            `SELECT id, warehouse_category FROM warehouse_types WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL`,
-            [parsedTypeId, companyId]
-          );
-          if (typeRow.rowCount === 0) {
-            return res.status(400).json({ success: false, error: { code: 'INVALID_TYPE', message: 'Warehouse type not found' } });
-          }
-          resolvedWarehouseTypeId = parsedTypeId;
-          resolvedWarehouseTypeLegacy = typeRow.rows[0].warehouse_category;
-        }
+      if (!code || !name) {
+        return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Code and name are required' } });
       }
 
-      let resolvedCostCenterId: number | null = null;
-      if (costCenterIdProvided) {
-        if (cost_center_id === null || cost_center_id === '') {
-          resolvedCostCenterId = null;
-        } else {
-          const parsedCostCenterId = Number(cost_center_id);
-          if (!Number.isFinite(parsedCostCenterId) || parsedCostCenterId <= 0) {
-            return res
-              .status(400)
-              .json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid cost_center_id' } });
-          }
-          const ccRow = await pool.query(
-            `SELECT id FROM cost_centers WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL`,
-            [parsedCostCenterId, companyId]
-          );
-          if (ccRow.rowCount === 0) {
-            return res
-              .status(400)
-              .json({ success: false, error: { code: 'INVALID_COST_CENTER', message: 'Cost center not found' } });
-          }
-          resolvedCostCenterId = parsedCostCenterId;
-        }
-      }
-
-      const result = await pool.query(
-        `UPDATE warehouses
-         SET
-           code = COALESCE($1, code),
-           name = COALESCE($2, name),
-           name_ar = COALESCE($3, name_ar),
-           warehouse_type = COALESCE($4, warehouse_type),
-           warehouse_type_id = CASE WHEN $15 THEN $5 ELSE warehouse_type_id END,
-           cost_center_id = CASE WHEN $17 THEN $16 ELSE cost_center_id END,
-           address = COALESCE($6, address),
-           city_id = COALESCE($7, city_id),
-           country_id = COALESCE($8, country_id),
-           manager_name = COALESCE($9, manager_name),
-           phone = COALESCE($10, phone),
-           email = COALESCE($11, email),
-           is_active = COALESCE($12, is_active),
-           updated_at = CURRENT_TIMESTAMP
-         WHERE id = $13 AND company_id = $14 AND deleted_at IS NULL
-         RETURNING id, code, name, name_ar, warehouse_type, warehouse_type_id, cost_center_id, address AS location, city_id, country_id, manager_name, phone AS manager_phone, email, is_active, created_at, updated_at, deleted_at`,
-        [
-          code ? String(code).toUpperCase() : null,
-          name ?? null,
-          name_ar ?? null,
-          // If warehouse_type_id is provided, we prefer derived category for legacy field.
-          resolvedWarehouseTypeLegacy ?? warehouse_type ?? null,
-          resolvedWarehouseTypeId,
-          location ?? null,
-          city_id ?? null,
-          country_id ?? null,
-          manager_name ?? null,
-          manager_phone ?? null,
-          email ?? null,
-          typeof is_active === 'boolean' ? is_active : null,
-          id,
-          companyId,
-          warehouseTypeIdProvided,
-          resolvedCostCenterId,
-          costCenterIdProvided,
-        ]
+      // Duplicate code check (exclude self)
+      const dup = await pool.query(
+        'SELECT id FROM warehouses WHERE company_id = $1 AND code = $2 AND id != $3 AND deleted_at IS NULL',
+        [companyId, code.toUpperCase(), id]
       );
+      if ((dup.rowCount ?? 0) > 0) {
+        return res.status(400).json({ success: false, error: { code: 'DUPLICATE_CODE', message: 'Warehouse code already exists' } });
+      }
+
+      // Dynamic SET
+      const sets: string[] = [];
+      const vals: any[] = [];
+      let pi = 0;
+      const idx = () => ++pi;
+
+      setCol(sets, vals, 'code', code?.toUpperCase(), idx);
+      setCol(sets, vals, 'name', name, idx);
+      setCol(sets, vals, 'name_en', name_en || name, idx);
+      setCol(sets, vals, 'name_ar', name_ar, idx);
+      setCol(sets, vals, 'short_name', short_name, idx);
+      setCol(sets, vals, 'branch_id', branch_id !== undefined ? (branch_id || null) : undefined, idx);
+      setCol(sets, vals, 'warehouse_type_id', warehouse_type_id !== undefined ? (warehouse_type_id || null) : undefined, idx);
+      setCol(sets, vals, 'cost_center_id', cost_center_id !== undefined ? (cost_center_id || null) : undefined, idx);
+      setCol(sets, vals, 'country_id', country_id !== undefined ? (country_id || null) : undefined, idx);
+      setCol(sets, vals, 'city_id', city_id !== undefined ? (city_id || null) : undefined, idx);
+      setCol(sets, vals, 'address', address, idx);
+      setCol(sets, vals, 'manager_name', manager_name, idx);
+      setCol(sets, vals, 'phone', phone, idx);
+      setCol(sets, vals, 'email', email, idx);
+      setCol(sets, vals, 'capacity_m3', capacity_m3, idx);
+      setCol(sets, vals, 'capacity_tons', capacity_tons, idx);
+      setCol(sets, vals, 'min_temp_celsius', min_temp_celsius, idx);
+      setCol(sets, vals, 'max_temp_celsius', max_temp_celsius, idx);
+      setCol(sets, vals, 'inventory_account_id', inventory_account_id !== undefined ? (inventory_account_id || null) : undefined, idx);
+      if (allows_negative_stock !== undefined) {
+        setCol(sets, vals, 'allows_negative_stock', allows_negative_stock, idx);
+        setCol(sets, vals, 'allow_negative_stock', allows_negative_stock, idx);
+      }
+      setCol(sets, vals, 'is_default', is_default, idx);
+      setCol(sets, vals, 'is_active', is_active, idx);
+      setCol(sets, vals, 'latitude', latitude, idx);
+      setCol(sets, vals, 'longitude', longitude, idx);
+      setCol(sets, vals, 'warehouse_type', warehouse_type, idx);
+      setCol(sets, vals, 'updated_by', userId, idx);
+      sets.push(`updated_at = CURRENT_TIMESTAMP`);
+
+      const updateQ = `UPDATE warehouses SET ${sets.join(', ')} WHERE id = $${idx()} AND company_id = $${idx()} AND deleted_at IS NULL RETURNING *`;
+      vals.push(id, companyId);
+
+      const result = await pool.query(updateQ, vals);
 
       res.json({ success: true, data: result.rows[0], message: 'Warehouse updated successfully' });
     } catch (error: any) {
@@ -384,36 +571,44 @@ router.put(
   }
 );
 
+// ─── DELETE /:id ────────────────────────────────────────────────────
+
 router.delete(
   '/:id',
   requirePermission('master:warehouses:delete'),
+  dynamicDeletionProtection('warehouses'),
   async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
-      const companyId = (req as any).companyContext?.companyId;
+      const companyId =
+        (req as any).companyId ?? (req as any).companyContext?.companyId ?? (req as any).companyContext?.id;
       const userId = (req as any).user?.id;
+
       if (!companyId) {
         return res.status(400).json({ success: false, error: { code: 'COMPANY_REQUIRED', message: 'Company context required' } });
       }
 
-      const existingWarehouse = await pool.query(
-        'SELECT * FROM warehouses WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL',
+      const existing = await pool.query(
+        'SELECT id FROM warehouses WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL',
         [id, companyId]
       );
-
-      if (existingWarehouse.rows.length === 0) {
+      if (existing.rowCount === 0) {
         return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Warehouse not found' } });
       }
 
-      const inUse = await pool.query(
-        'SELECT COUNT(*)::int AS cnt FROM warehouse_locations wl WHERE wl.warehouse_id = $1',
-        [id]
-      );
-      if (inUse.rows[0]?.cnt > 0) {
-        return res.status(400).json({
-          success: false,
-          error: { code: 'HAS_LOCATIONS', message: 'Cannot delete warehouse with locations. Delete locations first.' },
-        });
+      // Check if warehouse has storage locations
+      const hasSL = await tableExists('storage_locations');
+      if (hasSL) {
+        const slCount = await pool.query(
+          'SELECT COUNT(*)::int AS cnt FROM storage_locations WHERE warehouse_id = $1 AND deleted_at IS NULL',
+          [id]
+        );
+        if (slCount.rows[0]?.cnt > 0) {
+          return res.status(400).json({
+            success: false,
+            error: { code: 'HAS_LOCATIONS', message: 'Cannot delete warehouse with storage locations. Remove locations first.' },
+          });
+        }
       }
 
       await pool.query(
@@ -434,30 +629,30 @@ router.delete(
   }
 );
 
+// ─── POST /:id/restore ─────────────────────────────────────────────
+
 router.post(
   '/:id/restore',
-  requirePermission('master:warehouses:create'),
+  requirePermission('master:warehouses:edit'),
   async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
-      const companyId = (req as any).companyContext?.companyId;
-      if (!companyId) {
-        return res.status(400).json({ success: false, error: { code: 'COMPANY_REQUIRED', message: 'Company context required' } });
-      }
+      const companyId =
+        (req as any).companyId ?? (req as any).companyContext?.companyId ?? (req as any).companyContext?.id;
 
       const result = await pool.query(
-        `UPDATE warehouses 
-        SET deleted_at = NULL,
-            is_deleted = FALSE,
-            deleted_by = NULL,
-            updated_at = CURRENT_TIMESTAMP
-        WHERE id = $1 AND company_id = $2 AND deleted_at IS NOT NULL
-        RETURNING *`,
+        `UPDATE warehouses
+         SET deleted_at = NULL,
+             is_deleted = FALSE,
+             deleted_by = NULL,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $1 AND company_id = $2 AND deleted_at IS NOT NULL
+         RETURNING *`,
         [id, companyId]
       );
 
-      if (result.rows.length === 0) {
-        return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Warehouse not found or already active' } });
+      if (result.rowCount === 0) {
+        return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Deleted warehouse not found' } });
       }
 
       res.json({ success: true, data: result.rows[0], message: 'Warehouse restored successfully' });

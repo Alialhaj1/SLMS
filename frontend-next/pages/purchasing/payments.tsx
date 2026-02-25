@@ -132,7 +132,7 @@ interface OutstandingInvoice {
   allocated_amount: number;
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL || '') + '/api';
 
 // ===========================
 // MAIN COMPONENT
@@ -209,7 +209,7 @@ function VendorPaymentsPage() {
 
   const fetchVendors = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/procurement/vendors`, { headers: getHeaders() });
+      const res = await fetch(`${API_BASE}/procurement/vendors`, { headers: getHeaders() });
       if (res.ok) {
         const result = await res.json();
         setVendors(result.data || []);
@@ -229,7 +229,7 @@ function VendorPaymentsPage() {
       if (searchTerm) params.append('search', searchTerm);
       if (statusFilter) params.append('status', statusFilter);
 
-      const res = await fetch(`${API_BASE}/api/procurement/vendor-payments?${params}`, {
+      const res = await fetch(`${API_BASE}/procurement/vendor-payments?${params}`, {
         headers: getHeaders(),
       });
 
@@ -251,7 +251,7 @@ function VendorPaymentsPage() {
   const fetchOutstandingInvoices = async (vendorId: number) => {
     setLoadingInvoices(true);
     try {
-      const res = await fetch(`${API_BASE}/api/procurement/vendors/${vendorId}/outstanding-invoices`, {
+      const res = await fetch(`${API_BASE}/procurement/vendors/${vendorId}/outstanding-invoices`, {
         headers: getHeaders(),
       });
       if (res.ok) {
@@ -382,8 +382,8 @@ function VendorPaymentsPage() {
     setSubmitting(true);
     try {
       const url = editingPayment
-        ? `${API_BASE}/api/procurement/vendor-payments/${editingPayment.id}`
-        : `${API_BASE}/api/procurement/vendor-payments`;
+        ? `${API_BASE}/procurement/vendor-payments/${editingPayment.id}`
+        : `${API_BASE}/procurement/vendor-payments`;
       const method = editingPayment ? 'PUT' : 'POST';
 
       const body = {
@@ -435,7 +435,7 @@ function VendorPaymentsPage() {
 
     setPosting(true);
     try {
-      const res = await fetch(`${API_BASE}/api/procurement/vendor-payments/${paymentToPost.id}/post`, {
+      const res = await fetch(`${API_BASE}/procurement/vendor-payments/${paymentToPost.id}/post`, {
         method: 'PUT',
         headers: getHeaders(),
       });
@@ -466,7 +466,7 @@ function VendorPaymentsPage() {
 
     setDeleting(true);
     try {
-      const res = await fetch(`${API_BASE}/api/procurement/vendor-payments/${paymentToDelete.id}`, {
+      const res = await fetch(`${API_BASE}/procurement/vendor-payments/${paymentToDelete.id}`, {
         method: 'DELETE',
         headers: getHeaders(),
       });
@@ -515,7 +515,7 @@ function VendorPaymentsPage() {
 
   const fetchPaymentDetails = async (id: number) => {
     try {
-      const res = await fetch(`${API_BASE}/api/procurement/vendor-payments/${id}`, {
+      const res = await fetch(`${API_BASE}/procurement/vendor-payments/${id}`, {
         headers: getHeaders(),
       });
       if (res.ok) {

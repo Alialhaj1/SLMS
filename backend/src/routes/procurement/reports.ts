@@ -2,8 +2,10 @@ import { Router, Request, Response } from 'express';
 import pool from '../../db';
 import { authenticate } from '../../middleware/auth';
 import { requirePermission } from '../../middleware/rbac';
+import { loadCompanyContext } from '../../middleware/companyContext';
 
 const router = Router();
+router.use(authenticate, loadCompanyContext);
 
 /**
  * GET /api/procurement/reports/vendor-aging

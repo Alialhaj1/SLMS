@@ -19,8 +19,47 @@ import { requirePermission } from '../middleware/rbac';
 import { sendSuccess, sendError } from '../utils/response';
 import { logger } from '../utils/logger';
 import pool from '../db';
+import { getIsolatedTenantId } from '../middleware/tenantIsolation';
 
 const router = Router();
+
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+
+/**
+ * Resolve company + tenant filtering for dashboard queries.
+ * - Platform users (no tenant_id): see all data, optionally filtered by companyId
+ * - Tenant users: ALWAYS filter by tenant_id (via companies.tenant_id JOIN)
+ *   and optionally by companyId within their tenant
+ */
+function getDashboardFilters(req: Request): { companyFilter: string; params: any[] } {
+  const companyId = (req as any).user?.company_id || (req as any).user?.companyId || null;
+  const tenantId = getIsolatedTenantId(req as any);
+
+  if (tenantId && companyId) {
+    // Tenant user with specific company — filter by both
+    return {
+      companyFilter: 'AND company_id = $1',
+      params: [companyId],
+    };
+  } else if (tenantId && !companyId) {
+    // Tenant user without specific company — filter by all companies in tenant
+    return {
+      companyFilter: 'AND company_id IN (SELECT id FROM companies WHERE tenant_id = $1 AND deleted_at IS NULL)',
+      params: [tenantId],
+    };
+  } else if (companyId) {
+    // Platform user viewing specific company
+    return {
+      companyFilter: 'AND company_id = $1',
+      params: [companyId],
+    };
+  }
+
+  // Platform user — no filter
+  return { companyFilter: '', params: [] };
+}
 
 // ============================================================================
 // HELPER FUNCTIONS
@@ -96,9 +135,7 @@ function calculateChange(current: number, previous: number): number {
  */
 router.get('/overview', authenticate, requirePermission('dashboard:view'), async (req: Request, res: Response) => {
   try {
-    const companyId = (req as any).user?.company_id || (req as any).user?.companyId || null;
-    const companyFilter = companyId ? 'AND company_id = $1' : '';
-    const params = companyId ? [companyId] : [];
+    const { companyFilter, params } = getDashboardFilters(req);
 
     // Active Shipments (not completed/cancelled)
     const activeShipments = await safeCountQuery(
@@ -269,9 +306,7 @@ router.get('/overview', authenticate, requirePermission('dashboard:view'), async
  */
 router.get('/logistics', authenticate, requirePermission('dashboard:view'), async (req: Request, res: Response) => {
   try {
-    const companyId = (req as any).user?.company_id || (req as any).user?.companyId || null;
-    const companyFilter = companyId ? 'AND company_id = $1' : '';
-    const params = companyId ? [companyId] : [];
+    const { companyFilter, params } = getDashboardFilters(req);
 
     // Status Distribution
     const statusRows = await safeRowsQuery<{ status_code: string; count: string }>(
@@ -379,9 +414,7 @@ router.get('/logistics', authenticate, requirePermission('dashboard:view'), asyn
  */
 router.get('/financial', authenticate, requirePermission('dashboard:view'), async (req: Request, res: Response) => {
   try {
-    const companyId = (req as any).user?.company_id || (req as any).user?.companyId || null;
-    const companyFilter = companyId ? 'AND company_id = $1' : '';
-    const params = companyId ? [companyId] : [];
+    const { companyFilter, params } = getDashboardFilters(req);
 
     // Cash Flow (last 30 days - using shipment expenses)
     const cashFlowRows = await safeRowsQuery<{ date: Date; expenses: string }>(
@@ -479,9 +512,7 @@ router.get('/financial', authenticate, requirePermission('dashboard:view'), asyn
  */
 router.get('/procurement', authenticate, requirePermission('dashboard:view'), async (req: Request, res: Response) => {
   try {
-    const companyId = (req as any).user?.company_id || (req as any).user?.companyId || null;
-    const companyFilter = companyId ? 'AND company_id = $1' : '';
-    const params = companyId ? [companyId] : [];
+    const { companyFilter, params } = getDashboardFilters(req);
 
     // POs in Progress
     const posInProgress = await safeCountQuery(
@@ -547,9 +578,7 @@ router.get('/procurement', authenticate, requirePermission('dashboard:view'), as
  */
 router.get('/projects', authenticate, requirePermission('dashboard:view'), async (req: Request, res: Response) => {
   try {
-    const companyId = (req as any).user?.company_id || (req as any).user?.companyId || null;
-    const companyFilter = companyId ? 'AND company_id = $1' : '';
-    const params = companyId ? [companyId] : [];
+    const { companyFilter, params } = getDashboardFilters(req);
 
     // Active Projects with progress
     const projects = await safeRowsQuery<{
@@ -604,9 +633,7 @@ router.get('/projects', authenticate, requirePermission('dashboard:view'), async
  */
 router.get('/alerts', authenticate, requirePermission('dashboard:view'), async (req: Request, res: Response) => {
   try {
-    const companyId = (req as any).user?.company_id || (req as any).user?.companyId || null;
-    const companyFilter = companyId ? 'AND company_id = $1' : '';
-    const params = companyId ? [companyId] : [];
+    const { companyFilter, params } = getDashboardFilters(req);
 
     const alerts: any[] = [];
 
@@ -688,16 +715,13 @@ router.get('/alerts', authenticate, requirePermission('dashboard:view'), async (
  */
 router.get('/badges', authenticate, requirePermission('dashboard:view'), async (req: Request, res: Response) => {
   try {
-    const companyId = (req as any).user?.company_id || (req as any).user?.companyId || null;
+    const { companyFilter, params } = getDashboardFilters(req);
     const userId = (req as any).user!.id;
 
     // 1. Pending Approvals (journal entries in 'draft' or 'pending' status)
-    const pendingApprovalsQuery = companyId 
-      ? `SELECT COUNT(*) as count FROM journal_entries WHERE company_id = $1 AND status IN ('draft', 'pending')`
-      : `SELECT COUNT(*) as count FROM journal_entries WHERE status IN ('draft', 'pending')`;
     const pendingApprovals = await safeCountQuery(
-      pendingApprovalsQuery,
-      companyId ? [companyId] : [],
+      `SELECT COUNT(*) as count FROM journal_entries WHERE deleted_at IS NULL ${companyFilter} AND status IN ('draft', 'pending')`,
+      params,
       'pendingApprovals'
     );
 
@@ -712,12 +736,9 @@ router.get('/badges', authenticate, requirePermission('dashboard:view'), async (
     );
 
     // 3. Today's Journal Entries (posted today)
-    const todayJournalsQuery = companyId
-      ? `SELECT COUNT(*) as count FROM journal_entries WHERE company_id = $1 AND DATE(created_at) = CURRENT_DATE`
-      : `SELECT COUNT(*) as count FROM journal_entries WHERE DATE(created_at) = CURRENT_DATE`;
     const todayJournals = await safeCountQuery(
-      todayJournalsQuery,
-      companyId ? [companyId] : [],
+      `SELECT COUNT(*) as count FROM journal_entries WHERE deleted_at IS NULL ${companyFilter} AND DATE(created_at) = CURRENT_DATE`,
+      params,
       'journalsToday'
     );
 
@@ -745,7 +766,7 @@ router.get('/badges', authenticate, requirePermission('dashboard:view'), async (
  */
 router.get('/stats', authenticate, requirePermission('dashboard:view'), async (req: Request, res: Response) => {
   try {
-    const companyId = (req as any).user?.company_id || (req as any).user?.companyId || null;
+    const { companyFilter, params } = getDashboardFilters(req);
     const userId = (req as any).user!.id;
 
     // ============ TOTALS ============
@@ -753,12 +774,9 @@ router.get('/stats', authenticate, requirePermission('dashboard:view'), async (r
     const users = await safeCountQuery('SELECT COUNT(*) as count FROM users', [], 'totalUsers');
 
     // Journals posted today
-    const journalsTodayQuery = companyId
-      ? `SELECT COUNT(*) as count FROM journal_entries WHERE company_id = $1 AND DATE(created_at) = CURRENT_DATE AND status = 'posted'`
-      : `SELECT COUNT(*) as count FROM journal_entries WHERE DATE(created_at) = CURRENT_DATE AND status = 'posted'`;
     const journalsToday = await safeCountQuery(
-      journalsTodayQuery,
-      companyId ? [companyId] : [],
+      `SELECT COUNT(*) as count FROM journal_entries WHERE deleted_at IS NULL ${companyFilter} AND DATE(created_at) = CURRENT_DATE AND status = 'posted'`,
+      params,
       'journalsTodayPosted'
     );
 
@@ -773,12 +791,9 @@ router.get('/stats', authenticate, requirePermission('dashboard:view'), async (r
     );
 
     // Pending approvals (journal entries in draft/pending)
-    const pendingApprovalsQuery = companyId
-      ? `SELECT COUNT(*) as count FROM journal_entries WHERE company_id = $1 AND status IN ('draft', 'pending')`
-      : `SELECT COUNT(*) as count FROM journal_entries WHERE status IN ('draft', 'pending')`;
     const pendingApprovals = await safeCountQuery(
-      pendingApprovalsQuery,
-      companyId ? [companyId] : [],
+      `SELECT COUNT(*) as count FROM journal_entries WHERE deleted_at IS NULL ${companyFilter} AND status IN ('draft', 'pending')`,
+      params,
       'pendingApprovals'
     );
 
@@ -802,12 +817,9 @@ router.get('/stats', authenticate, requirePermission('dashboard:view'), async (r
     }));
 
     // Journal trends (last 7 days)
-    const journalTrendsQuery = companyId
-      ? `SELECT DATE(created_at) as date, COUNT(*) as count FROM journal_entries WHERE company_id = $1 AND created_at >= NOW() - INTERVAL '7 days' GROUP BY DATE(created_at) ORDER BY date ASC`
-      : `SELECT DATE(created_at) as date, COUNT(*) as count FROM journal_entries WHERE created_at >= NOW() - INTERVAL '7 days' GROUP BY DATE(created_at) ORDER BY date ASC`;
     const journalTrendsRows = await safeRowsQuery<{ date: Date; count: string }>(
-      journalTrendsQuery,
-      companyId ? [companyId] : [],
+      `SELECT DATE(created_at) as date, COUNT(*) as count FROM journal_entries WHERE deleted_at IS NULL ${companyFilter} AND created_at >= NOW() - INTERVAL '7 days' GROUP BY DATE(created_at) ORDER BY date ASC`,
+      params,
       'journalTrends'
     );
     const journals = journalTrendsRows.map((row) => ({
@@ -828,10 +840,8 @@ router.get('/stats', authenticate, requirePermission('dashboard:view'), async (r
       ip_address?: string;
       error_message?: string;
     }>(
-      companyId
-        ? `SELECT id, user_id, user_email, action, resource_type, resource_id, created_at, ip_address, error_message FROM audit_logs WHERE company_id = $1 ORDER BY created_at DESC LIMIT 10`
-        : `SELECT id, user_id, user_email, action, resource_type, resource_id, created_at, ip_address, error_message FROM audit_logs ORDER BY created_at DESC LIMIT 10`,
-      companyId ? [companyId] : [],
+      `SELECT id, user_id, user_email, action, resource_type, resource_id, created_at, ip_address, error_message FROM audit_logs WHERE 1=1 ${companyFilter.replace('company_id', 'company_id')} ORDER BY created_at DESC LIMIT 10`,
+      params,
       'recentActivity'
     );
 

@@ -1,9 +1,12 @@
 import { Router, Request, Response } from 'express';
 import pool from '../db';
 import { authenticate } from '../middleware/auth';
+import { requirePermission } from '../middleware/rbac';
+import { loadCompanyContext } from '../middleware/companyContext';
 import { z } from 'zod';
 
 const router = Router();
+router.use(authenticate, loadCompanyContext);
 
 // Validation schema
 const helpRequestSchema = z.object({
@@ -15,7 +18,7 @@ const helpRequestSchema = z.object({
 });
 
 // POST /api/help-requests - Create new help request
-router.post('/', authenticate, async (req: Request, res: Response) => {
+router.post('/', authenticate, requirePermission('help_requests:create'), async (req: Request, res: Response) => {
   try {
     const validatedData = helpRequestSchema.parse(req.body);
     const { id: userId, email, companyId } = req.user!;
@@ -58,7 +61,7 @@ router.post('/', authenticate, async (req: Request, res: Response) => {
 });
 
 // GET /api/help-requests - List help requests (admin only)
-router.get('/', authenticate, async (req: Request, res: Response) => {
+router.get('/', authenticate, requirePermission('help_requests:view'), async (req: Request, res: Response) => {
   try {
     const { status, page = 1, limit = 20 } = req.query;
     const offset = (Number(page) - 1) * Number(limit);
@@ -111,7 +114,7 @@ router.get('/', authenticate, async (req: Request, res: Response) => {
 });
 
 // PUT /api/help-requests/:id - Update help request status (admin only)
-router.put('/:id', authenticate, async (req: Request, res: Response) => {
+router.put('/:id', authenticate, requirePermission('help_requests:edit'), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { status, admin_response } = req.body;

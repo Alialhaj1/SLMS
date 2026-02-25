@@ -23,10 +23,14 @@ interface AuthRequest extends Request {
     company_id?: number;
     companyId?: number;
     branch_id?: number;
+    tenant_id?: number | null;
   };
 }
 
-async function loadUserPermissions(userId: number): Promise<string[]> {
+async function loadUserPermissions(userId: number, tenantId?: number | null): Promise<string[]> {
+  // For tenant users: exclude platform-domain permissions as defense-in-depth
+  const domainFilter = tenantId ? `AND p.domain != 'platform'` : '';
+  
   const result = await pool.query(
     `
     SELECT DISTINCT permission_code
@@ -36,6 +40,7 @@ async function loadUserPermissions(userId: number): Promise<string[]> {
       JOIN role_permissions rp ON rp.permission_id = p.id
       JOIN user_roles ur ON ur.role_id = rp.role_id
       WHERE ur.user_id = $1
+      ${domainFilter}
 
       UNION
 
@@ -43,6 +48,7 @@ async function loadUserPermissions(userId: number): Promise<string[]> {
       FROM roles r
       JOIN user_roles ur ON r.id = ur.role_id
       WHERE ur.user_id = $1
+        AND r.is_platform_role IS NOT TRUE
     ) t
     ORDER BY permission_code
     `,
@@ -61,7 +67,7 @@ async function ensureUserPermissions(req: AuthRequest): Promise<string[]> {
   const existing = user.permissions;
   if (Array.isArray(existing) && existing.length > 0) return existing;
 
-  const perms = await loadUserPermissions(user.id);
+  const perms = await loadUserPermissions(user.id, user.tenant_id);
   user.permissions = perms;
   return perms;
 }
@@ -90,8 +96,10 @@ export const requirePermission = (permission: Permission) => {
       }
 
       // Super admin has all permissions (bypass permission checks)
-      const SUPER_ADMIN_ROLES = ['super_admin', 'super admin', 'admin', 'system_admin', 'system admin'];
-      const isSuperAdmin = (user.roles || []).some(role => {
+      // IMPORTANT: Only platform users (tenant_id = null) with super_admin role can bypass
+      // The 'admin' role is used for tenant admins and must NOT bypass permission checks
+      const SUPER_ADMIN_ROLES = ['super_admin', 'super admin', 'system_admin', 'system admin'];
+      const isSuperAdmin = !user.tenant_id && (user.roles || []).some(role => {
         const normalized = String(role || '').trim().toLowerCase();
         return SUPER_ADMIN_ROLES.includes(normalized);
       });
@@ -103,7 +111,12 @@ export const requirePermission = (permission: Permission) => {
       const userPermissions = await ensureUserPermissions(req);
 
       // Check if user has the required permission
-      if (!userPermissions.includes(permission)) {
+      // Supports both exact match and suffix match (e.g., 'users:view' matches 'system:users:view')
+      const hasPermission = userPermissions.some(p => 
+        p === permission || p.endsWith(':' + permission)
+      );
+
+      if (!hasPermission) {
         // Log permission denial for security audit
         console.warn(`Permission denied: User ${user.id} (${user.email}) attempted ${permission} on ${req.method} ${req.path}`);
         
@@ -139,9 +152,9 @@ export const requireAnyPermission = (permissions: Permission[]) => {
         return res.status(401).json({ error: 'Authentication required' });
       }
 
-      // Super admin bypass
-      const SUPER_ADMIN_ROLES = ['super_admin', 'super admin', 'admin', 'system_admin', 'system admin'];
-      const isSuperAdmin = (user.roles || []).some(role => {
+      // Super admin bypass (platform users only, not tenant admins)
+      const SUPER_ADMIN_ROLES = ['super_admin', 'super admin', 'system_admin', 'system admin'];
+      const isSuperAdmin = !user.tenant_id && (user.roles || []).some(role => {
         const normalized = String(role || '').trim().toLowerCase();
         return SUPER_ADMIN_ROLES.includes(normalized);
       });
@@ -152,7 +165,9 @@ export const requireAnyPermission = (permissions: Permission[]) => {
       // Permissions are loaded on-demand (JWT is intentionally small)
       const userPermissions = await ensureUserPermissions(req);
 
-      const hasPermission = permissions.some(perm => userPermissions.includes(perm));
+      const hasPermission = permissions.some(perm => 
+        userPermissions.some(p => p === perm || p.endsWith(':' + perm))
+      );
 
       if (!hasPermission) {
         return res.status(403).json({ 

@@ -79,6 +79,12 @@ export function useMasterData<T = any>(arg: UseMasterDataArg) {
   const { t } = useTranslation();
   const { showToast } = useToast();
 
+  /** Extract error message from backend response (handles both string and object error formats) */
+  const extractError = (errorData: any, fallback: string): string => {
+    if (typeof errorData.error === 'string') return errorData.error;
+    return errorData.error?.message || errorData.message || fallback;
+  };
+
   const apiBaseUrl = (process.env.NEXT_PUBLIC_API_URL || '')
     .replace(/\/$/, '')
     .replace(/\/api$/, '');
@@ -194,18 +200,18 @@ export function useMasterData<T = any>(arg: UseMasterDataArg) {
 
       if (response.status === 403) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error?.message || errorData.message || 'Forbidden');
+        throw new Error(extractError(errorData, 'Forbidden'));
       }
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error?.message || `HTTP ${response.status}`);
+        throw new Error(extractError(errorData, `HTTP ${response.status}`));
       }
 
       const result = await response.json();
 
       if (result.success === false) {
-        throw new Error(result.error?.message || 'Failed to fetch data');
+        throw new Error(extractError(result, 'Failed to fetch data'));
       }
 
       setData(result.data || []);
@@ -288,18 +294,18 @@ export function useMasterData<T = any>(arg: UseMasterDataArg) {
 
       if (response.status === 403) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error?.message || errorData.message || 'Forbidden');
+        throw new Error(extractError(errorData, 'Forbidden'));
       }
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error?.message || `HTTP ${response.status}`);
+        throw new Error(extractError(errorData, `HTTP ${response.status}`));
       }
 
       const result = await response.json();
 
       if (result.success === false) {
-        throw new Error(result.error?.message || 'Failed to fetch item');
+        throw new Error(extractError(result, 'Failed to fetch item'));
       }
 
       setSelectedItem(result.data);
@@ -347,18 +353,18 @@ export function useMasterData<T = any>(arg: UseMasterDataArg) {
 
       if (response.status === 403) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error?.message || errorData.message || 'Forbidden');
+        throw new Error(extractError(errorData, 'Forbidden'));
       }
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error?.message || `HTTP ${response.status}`);
+        throw new Error(extractError(errorData, `HTTP ${response.status}`));
       }
 
       const result = await response.json();
 
       if (result.success === false) {
-        throw new Error(result.error?.message || 'Failed to create item');
+        throw new Error(extractError(result, 'Failed to create item'));
       }
 
       showToast(t('common.createSuccess'), 'success');
@@ -410,18 +416,18 @@ export function useMasterData<T = any>(arg: UseMasterDataArg) {
 
       if (response.status === 403) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error?.message || errorData.message || 'Forbidden');
+        throw new Error(extractError(errorData, 'Forbidden'));
       }
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error?.message || `HTTP ${response.status}`);
+        throw new Error(extractError(errorData, `HTTP ${response.status}`));
       }
 
       const result = await response.json();
 
       if (result.success === false) {
-        throw new Error(result.error?.message || 'Failed to update item');
+        throw new Error(extractError(result, 'Failed to update item'));
       }
 
       showToast(t('common.updateSuccess'), 'success');
@@ -472,18 +478,18 @@ export function useMasterData<T = any>(arg: UseMasterDataArg) {
 
       if (response.status === 403) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error?.message || errorData.message || 'Forbidden');
+        throw new Error(extractError(errorData, 'Forbidden'));
       }
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error?.message || `HTTP ${response.status}`);
+        throw new Error(extractError(errorData, `HTTP ${response.status}`));
       }
 
       const result = await response.json();
 
       if (result.success === false) {
-        throw new Error(result.error?.message || 'Failed to delete item');
+        throw new Error(extractError(result, 'Failed to delete item'));
       }
 
       showToast(t('common.deleteSuccess'), 'success');

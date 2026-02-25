@@ -114,7 +114,6 @@ export function useTranslation() {
     const localized = getNestedValue(translations[locale], normalizedKey);
     const localizedViaMasterNamespace =
       localized === undefined &&
-      locale === 'ar' &&
       typeof normalizedKey === 'string' &&
       !normalizedKey.startsWith('master.')
         ? getNestedValue(translations[locale], `master.${normalizedKey}`)

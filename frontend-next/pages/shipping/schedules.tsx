@@ -101,7 +101,7 @@ export default function ShippingSchedulesPage() {
               </p>
             </div>
           </div>
-          <Button onClick={() => showToast(locale === 'ar' ? 'إضافة جدول...' : 'Add schedule...', 'info')}>
+          <Button onClick={() => showToast(locale === 'ar' ? 'إضافة جدول... (قريباً)' : 'Add schedule... (Coming soon)', 'info')}>
             <PlusIcon className="h-4 w-4 mr-1" />
             {locale === 'ar' ? 'جدول جديد' : 'New Schedule'}
           </Button>
@@ -241,7 +241,7 @@ export default function ShippingSchedulesPage() {
               </div>
             </div>
             <div className="flex gap-2 pt-4 border-t dark:border-gray-700">
-              <Button onClick={() => showToast(locale === 'ar' ? 'تم الحجز' : 'Booked', 'success')}>{locale === 'ar' ? 'حجز' : 'Book Now'}</Button>
+              <Button onClick={() => showToast(locale === 'ar' ? 'تم الحجز - قيد التطوير' : 'Booked - Feature under development', 'warning')}>{locale === 'ar' ? 'حجز' : 'Book Now'}</Button>
               <Button variant="secondary" onClick={() => setSelectedSchedule(null)}>{locale === 'ar' ? 'إغلاق' : 'Close'}</Button>
             </div>
           </div>

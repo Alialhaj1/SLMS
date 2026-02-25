@@ -31,7 +31,7 @@ import {
 type TabType = 'overview' | 'security' | 'history';
 
 // API base URL for images
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
+const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || '') + '/api';
 
 export default function ProfilePage() {
   const { user, refreshUser } = useAuth();

@@ -12,6 +12,7 @@ import { requirePermission, requireAnyPermission } from '../middleware/rbac';
 import { loadCompanyContext } from '../middleware/companyContext';
 
 const router = express.Router();
+router.use(authenticate, loadCompanyContext);
 
 /**
  * GET /api/transfer-requests
@@ -669,6 +670,8 @@ router.post(
 
       const {
         vendor_payment_id,
+        project_id: override_project_id,  // Optional override if payment not linked to project
+        shipment_id: override_shipment_id, // Optional override if payment not linked to shipment
         transfer_method,
         expected_transfer_date,
         bank_account_id,
@@ -717,20 +720,32 @@ router.post(
 
       const vendorPayment = paymentCheck.rows[0];
 
-      // Validate required fields for transfer request
-      if (!vendorPayment.resolved_project_id) {
+      // Use override values if provided, otherwise use resolved ones
+      const finalProjectId = override_project_id || vendorPayment.resolved_project_id;
+      const finalShipmentId = override_shipment_id || vendorPayment.resolved_shipment_id;
+
+      // Validate required fields for transfer request - project is required
+      if (!finalProjectId) {
         await client.query('ROLLBACK');
         return res.status(400).json({ 
-          error: 'Cannot create transfer request: Payment is not linked to a project' 
+          error: 'Cannot create transfer request: Payment is not linked to a project. Please provide a project_id.',
+          code: 'PROJECT_REQUIRED'
         });
       }
 
-      if (!vendorPayment.resolved_shipment_id) {
-        await client.query('ROLLBACK');
-        return res.status(400).json({ 
-          error: 'Cannot create transfer request: Payment is not linked to a shipment' 
-        });
+      // Validate project exists if override provided
+      if (override_project_id) {
+        const projectCheck = await client.query(
+          'SELECT id FROM projects WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL',
+          [override_project_id, companyId]
+        );
+        if (projectCheck.rows.length === 0) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({ error: 'Invalid project_id provided' });
+        }
       }
+
+      // Shipment is now optional - some transfer requests may not be linked to shipments
 
       // Check if transfer request already exists for this payment
       const existingTransfer = await client.query(
@@ -771,8 +786,8 @@ router.post(
         companyId,
         userId,
         vendor_payment_id,
-        vendorPayment.resolved_project_id,  // Use resolved project
-        vendorPayment.resolved_shipment_id, // Use resolved shipment
+        finalProjectId,  // Use final (potentially overridden) project
+        finalShipmentId || null, // Use final shipment (optional)
         vendorPayment.vendor_id,
         vendorPayment.currency_id,
         vendorPayment.payment_amount,

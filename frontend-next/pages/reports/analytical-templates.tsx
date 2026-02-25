@@ -287,7 +287,7 @@ export default function AnalyticalTemplatesPage() {
             </select>
           </div>
           <div className="flex gap-2 pt-4">
-            <Button onClick={() => { setShowModal(false); showToast(locale === 'ar' ? 'تم إنشاء القالب' : 'Template created', 'success'); }}>{locale === 'ar' ? 'إنشاء' : 'Create'}</Button>
+            <Button onClick={() => { setShowModal(false); showToast(locale === 'ar' ? 'سيتم تفعيل الإنشاء قريباً' : 'Create feature coming soon', 'warning'); }}>{locale === 'ar' ? 'إنشاء' : 'Create'}</Button>
             <Button variant="secondary" onClick={() => setShowModal(false)}>{locale === 'ar' ? 'إلغاء' : 'Cancel'}</Button>
           </div>
         </div>

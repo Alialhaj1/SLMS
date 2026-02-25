@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Head from 'next/head';
 import MainLayout from '../../components/layout/MainLayout';
+import { exportToCSV } from '../../utils/exportData';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import Modal from '../../components/ui/Modal';
@@ -273,7 +274,19 @@ function OpeningBalancesPage() {
                 <option value="reversed">{locale === 'ar' ? 'معكوس' : 'Reversed'}</option>
               </select>
             </div>
-            <Button variant="secondary" onClick={() => showToast(locale === 'ar' ? 'قريباً' : 'Coming soon', 'info')}>
+            <Button variant="secondary" onClick={() => {
+              exportToCSV(filtered, 'opening-balances', [
+                { key: 'batchNo', label: 'Batch No' },
+                { key: 'period', label: 'Period' },
+                { key: 'accountCode', label: 'Account Code' },
+                { key: 'accountName', label: 'Account Name' },
+                { key: 'debit', label: 'Debit' },
+                { key: 'credit', label: 'Credit' },
+                { key: 'currency', label: 'Currency' },
+                { key: 'status', label: 'Status' },
+              ]);
+              showToast(locale === 'ar' ? 'تم التصدير بنجاح' : 'Exported successfully', 'success');
+            }>
               <ArrowDownTrayIcon className="h-4 w-4" />
               {locale === 'ar' ? 'تصدير' : 'Export'}
             </Button>

@@ -33,10 +33,10 @@ const DANGEROUS_ACTIONS = [
 ];
 
 // Super admin role names (normalized to lowercase for case-insensitive matching)
+// NOTE: 'admin' is NOT included — it's used for tenant admins who must NOT bypass permissions
 const SUPER_ADMIN_ROLES = [
   'super_admin',
   'super admin',
-  'admin',
   'system_admin',
   'system admin',
 ];
@@ -128,19 +128,24 @@ export function usePermissions(): PermissionCheckResult {
   }, [userPermissions, normalizePermission]);
 
   // Check if user is super admin
+  // IMPORTANT: Must be a platform user (no tenant_id) to be considered super admin
   const isSuperAdmin = useMemo(() => {
     if (!user) return false;
     
-    // Check by role name
+    // Tenant users are NEVER super admins, even if they have 'admin' role
+    const userAny = user as any;
+    if (userAny.tenant_id) return false;
+    
+    // Check by role name (platform users only)
     if (Array.isArray(user.roles)) {
-      return user.roles.some((role: any) => {
+      const hasSuperAdminRole = user.roles.some((role: any) => {
         const roleName = typeof role === 'string' ? role : (role?.name ?? role?.role_name ?? role?.role);
         return SUPER_ADMIN_ROLES.includes(normalizeRoleName(roleName));
       });
+      if (hasSuperAdminRole) return true;
     }
     
     // Check by flag (may not exist in all User types)
-    const userAny = user as any;
     if (userAny.is_super_admin || userAny.isSuperAdmin) {
       return true;
     }

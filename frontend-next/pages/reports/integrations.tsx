@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import Head from 'next/head';
 import MainLayout from '../../components/layout/MainLayout';
+import { exportToCSV } from '../../utils/exportData';
 import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
 import { useTranslation } from '../../hooks/useTranslation';
@@ -77,7 +78,19 @@ export default function IntegrationsReportsPage() {
   };
 
   const handleExport = () => {
-    showToast(locale === 'ar' ? 'جاري التصدير...' : 'Exporting...', 'info');
+    exportToCSV(filteredLogs, 'integrations-report', [
+      { key: 'integrationName', label: 'Integration' },
+      { key: 'type', label: 'Type' },
+      { key: 'direction', label: 'Direction' },
+      { key: 'status', label: 'Status' },
+      { key: 'recordsProcessed', label: 'Records Processed' },
+      { key: 'recordsFailed', label: 'Records Failed' },
+      { key: 'startTime', label: 'Start Time' },
+      { key: 'endTime', label: 'End Time' },
+      { key: 'duration', label: 'Duration (s)' },
+      { key: 'errorMessage', label: 'Error Message' },
+    ]);
+    showToast(locale === 'ar' ? 'تم التصدير بنجاح' : 'Exported successfully', 'success');
   };
 
   const getStatusIcon = (status: string) => {

@@ -12,6 +12,7 @@
  */
 
 import { companyStore } from './companyStore';
+import { branchStore } from './branchStore';
 
 // Simple UUID v4 generator for request tracing (no external dependency)
 function generateRequestId(): string {
@@ -22,7 +23,8 @@ function generateRequestId(): string {
   });
 }
 
-// Normalize base URL: strip trailing slashes and a trailing '/api' so we can always prefix endpoints with '/api/...'
+// Normalize base URL: strip trailing slashes and a trailing '/api' 
+// apiClient will auto-prepend '/api' to all endpoints (unless already present)
 const rawBase = process.env.NEXT_PUBLIC_API_URL || '';
 const API_URL = rawBase.replace(/\/$/, '').replace(/\/api$/, '');
 
@@ -203,14 +205,21 @@ class APIClient {
     
     // Add Company Context Header only if companyId is set and endpoint is not /auth/login or /auth/refresh
     const companyId = companyStore.getActiveCompanyId();
+    const branchId = branchStore.getActiveBranchId();
     const isAuthEndpoint = endpoint.startsWith('/api/auth/login') || endpoint.startsWith('/api/auth/refresh');
     if (companyId && !isAuthEndpoint) {
       headers['X-Company-Id'] = companyId.toString();
     }
+    if (branchId && !isAuthEndpoint) {
+      headers['X-Branch-Id'] = branchId.toString();
+    }
 
     // Make request
+    // Auto-prepend /api to endpoint if not already present
+    const normalizedEndpoint = endpoint.startsWith('/api/') ? endpoint : `/api${endpoint}`;
+    
     try {
-      const response = await fetch(`${this.baseURL}${endpoint}`, {
+      const response = await fetch(`${this.baseURL}${normalizedEndpoint}`, {
         ...fetchOptions,
         headers,
       });
@@ -230,12 +239,17 @@ class APIClient {
       if (response.status === 403) {
         const errorData = await response.json().catch(() => ({}));
         const message = errorData?.error?.message || errorData?.message || 'You do not have permission to perform this action';
-        
-        this.showToast(message, 'error');
+        const errorCode = errorData?.error?.code || '';
+
+        // Don't show toast for MFA-related 403s on login — they are expected flows
+        if (errorCode !== 'MFA_REQUIRED' && errorCode !== 'MFA_SETUP_REQUIRED') {
+          this.showToast(message, 'error');
+        }
         
         const err: any = new Error(message);
         err.status = 403;
         err.response = { data: errorData };
+        err.data = errorData;
         throw err;
       }
 

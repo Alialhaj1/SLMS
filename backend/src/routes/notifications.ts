@@ -8,6 +8,7 @@ import { Router, Request, Response } from 'express';
 import { NotificationService } from '../services/notificationService';
 import { authenticate } from '../middleware/auth';
 import { requirePermission } from '../middleware/rbac';
+import { getIsolatedTenantId } from '../middleware/tenantIsolation';
 import { sendSuccess, sendError } from '../utils/response';
 import { getPaginationParams, sendPaginated } from '../utils/response';
 import { logger } from '../utils/logger';
@@ -53,14 +54,19 @@ router.get('/', authenticate, async (req: AuthRequest, res: Response) => {
       return sendError(res, 'VALIDATION_ERROR', `Invalid category. Must be one of: ${validCategories.join(', ')}`, 400);
     }
 
-    // Get notifications
+    // Get notifications with tenant/company isolation
+    const tenantId = getIsolatedTenantId(req as any);
+    const companyId = req.companyId || (req as any).user?.company_id;
+    
     const { notifications, total } = await NotificationService.getUserNotifications({
       userId,
       unreadOnly: unread_only === 'true',
       type: type as string,
       category: category as string,
       limit,
-      offset
+      offset,
+      tenantId,
+      companyId
     });
 
     // Transform notifications for frontend compatibility

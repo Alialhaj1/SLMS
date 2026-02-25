@@ -228,7 +228,7 @@ function CreateShipmentPage() {
         apiClient.get<{ success: boolean; data: Country[] }>('/api/master/countries?limit=300', { cache: 'no-store' }),
         apiClient.get<{ success: boolean; data: City[] }>('/api/master/cities?limit=500', { cache: 'no-store' }),
         apiClient.get<{ success: boolean; data: Port[] }>('/api/ports?limit=500', { cache: 'no-store' }).catch(() => ({ data: [] })),
-        apiClient.get<{ success: boolean; data: Project[] }>('/api/projects?limit=500&status=active', { cache: 'no-store' }).catch(() => ({ data: [] })),
+        apiClient.get<{ success: boolean; data: Project[] }>('/projects?limit=500&status=active', { cache: 'no-store' }).catch(() => ({ data: [] })),
         apiClient.get<{ success: boolean; data: PurchaseOrder[] }>('/api/procurement/purchase-orders?limit=200&exclude_with_shipments=true', { cache: 'no-store' }).catch(() => ({ data: [] })),
         apiClient.get<{ success: boolean; data: any[] }>('/api/shipment-lifecycle-statuses?limit=100', { cache: 'no-store' }).catch(() => ({ data: [] })),
         apiClient.get<{ success: boolean; data: any[] }>('/api/shipment-stages?limit=100', { cache: 'no-store' }).catch(() => ({ data: [] })),

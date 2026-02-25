@@ -133,7 +133,7 @@ const initialFormData: FormData = {
 // API
 // =============================================
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL || '') + '/api';
 
 async function fetchWithAuth(url: string, token: string, options: RequestInit = {}) {
   const res = await fetch(url, {
@@ -292,11 +292,11 @@ export default function NewProjectPage() {
       if (!token) return;
 
       const [typesRes, projectsRes, costCentersRes, usersRes, vendorsRes] = await Promise.all([
-        fetchWithAuth(`${API_BASE}/api/projects/types`, token).catch(() => ({ data: [] })),
-        fetchWithAuth(`${API_BASE}/api/projects?limit=500`, token),
-        fetchWithAuth(`${API_BASE}/api/cost-centers`, token).catch(() => ({ data: [] })),
-        fetchWithAuth(`${API_BASE}/api/users`, token).catch(() => ({ data: [] })),
-        fetchWithAuth(`${API_BASE}/api/vendors`, token).catch(() => ({ data: [] })),
+        fetchWithAuth(`${API_BASE}/projects/types`, token).catch(() => ({ data: [] })),
+        fetchWithAuth(`${API_BASE}/projects?limit=500`, token),
+        fetchWithAuth(`${API_BASE}/cost-centers`, token).catch(() => ({ data: [] })),
+        fetchWithAuth(`${API_BASE}/users`, token).catch(() => ({ data: [] })),
+        fetchWithAuth(`${API_BASE}/vendors`, token).catch(() => ({ data: [] })),
       ]);
 
       setProjectTypes(typesRes.data || []);
@@ -326,7 +326,7 @@ export default function NewProjectPage() {
       const token = localStorage.getItem('accessToken');
       if (!token) return;
       
-      let url = `${API_BASE}/api/projects/next-code?project_level=${level}`;
+      let url = `${API_BASE}/projects/next-code?project_level=${level}`;
       if (parentId) {
         url += `&parent_id=${parentId}`;
       }
@@ -486,7 +486,7 @@ export default function NewProjectPage() {
 
       console.log('Submitting project with payload:', JSON.stringify(payload, null, 2));
 
-      await fetchWithAuth(`${API_BASE}/api/projects`, token, {
+      await fetchWithAuth(`${API_BASE}/projects`, token, {
         method: 'POST',
         body: JSON.stringify(payload),
       });

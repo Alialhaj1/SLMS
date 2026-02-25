@@ -2,9 +2,11 @@ import { Router, Request, Response } from 'express';
 import pool from '../db';
 import { authenticate } from '../middleware/auth';
 import { requirePermission, requireAnyPermission } from '../middleware/rbac';
+import { loadCompanyContext } from '../middleware/companyContext';
 import { getPendingApprovalsCount } from '../utils/approvalHelpers';
 
 const router = Router();
+router.use(authenticate, loadCompanyContext);
 
 /**
  * GET /api/approvals/pending

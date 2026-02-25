@@ -50,7 +50,7 @@ function TrackingPage() {
   const [searched, setSearched] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || '';
+  const apiBaseUrl = (process.env.NEXT_PUBLIC_API_URL || '') + '/api';
 
   const getAuthHeaders = () => {
     const token = localStorage.getItem('accessToken');
@@ -89,7 +89,7 @@ function TrackingPage() {
 
       let shipments: Shipment[] = [];
       if (isIdSearch) {
-        const response = await fetch(`${apiBaseUrl}/api/shipments/${q}`, { headers });
+        const response = await fetch(`${apiBaseUrl}/shipments/${q}`, { headers });
         if (!response.ok) throw new Error('Shipment not found');
         const shipment = await response.json();
         shipments = shipment ? [shipment] : [];
@@ -100,7 +100,7 @@ function TrackingPage() {
           container_no: q,
           bl_no: q,
         });
-        const response = await fetch(`${apiBaseUrl}/api/shipments${queryString}`, { headers });
+        const response = await fetch(`${apiBaseUrl}/shipments${queryString}`, { headers });
         if (!response.ok) throw new Error('Shipment not found');
 
         const payload = await response.json();
@@ -110,7 +110,7 @@ function TrackingPage() {
       const trackingData: TrackingInfo[] = await Promise.all(
         shipments.map(async (shipment) => {
           const eventsRes = await fetch(
-            `${apiBaseUrl}/api/shipment-events${buildQuery({ shipment_id: shipment.id })}`,
+            `${apiBaseUrl}/shipment-events${buildQuery({ shipment_id: shipment.id })}`,
             { headers }
           );
 

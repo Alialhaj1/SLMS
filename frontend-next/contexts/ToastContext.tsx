@@ -10,7 +10,7 @@ interface Toast {
 }
 
 interface ToastContextType {
-  showToast: (message: unknown, type: ToastType, duration?: number) => void;
+  showToast: (type: ToastType, message: unknown, duration?: number) => void;
 }
 
 const ToastContext = createContext<ToastContextType | undefined>(undefined);
@@ -39,7 +39,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const showToast = useCallback(
-    (message: unknown, type: ToastType, duration: number = 5000) => {
+    (type: ToastType, message: unknown, duration: number = 5000) => {
       const id = Math.random().toString(36).substr(2, 9);
       const toast: Toast = { id, type, message: normalizeToastMessage(message), duration };
       setToasts((prev) => [...prev, toast]);
@@ -104,7 +104,7 @@ export function useToast() {
   if (!context) {
     // Return default no-op function for SSR compatibility
     return {
-      showToast: (_message: unknown, _type: ToastType, _duration?: number) => {},
+      showToast: (_type: ToastType, _message: unknown, _duration?: number) => {},
     } as ToastContextType;
   }
   return context;

@@ -55,7 +55,7 @@ function StockReturnsPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
+      const apiUrl = (process.env.NEXT_PUBLIC_API_URL || '') + '/api';
       const companyId = companyStore.getActiveCompanyId();
 
       if (!companyId) {
@@ -64,7 +64,7 @@ function StockReturnsPage() {
         return;
       }
 
-      const resp = await fetch(`${apiUrl}/api/inventory/returns`, {
+      const resp = await fetch(`${apiUrl}/inventory/returns`, {
         headers: {
           Authorization: `Bearer ${token}`,
           'X-Company-Id': String(companyId),
@@ -105,7 +105,7 @@ function StockReturnsPage() {
     setSubmitting(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
+      const apiUrl = (process.env.NEXT_PUBLIC_API_URL || '') + '/api';
       const companyId = companyStore.getActiveCompanyId();
 
       if (!companyId) {
@@ -122,7 +122,7 @@ function StockReturnsPage() {
       };
       if (unitCost) body.unit_cost = Number(unitCost);
 
-      const resp = await fetch(`${apiUrl}/api/inventory/returns`, {
+      const resp = await fetch(`${apiUrl}/inventory/returns`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,

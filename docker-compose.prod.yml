@@ -65,6 +65,7 @@ services:
       - JWT_SECRET=${JWT_SECRET:?JWT secret required}
       - JWT_ACCESS_EXPIRATION=15m
       - JWT_REFRESH_EXPIRATION=7d
+      - MFA_ENCRYPTION_KEY=${MFA_ENCRYPTION_KEY:?MFA encryption key required}
       - MAX_FAILED_LOGIN_ATTEMPTS=5
       - LOCK_DURATION_MINUTES=30
       - BACKUP_DIR=/backups

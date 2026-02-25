@@ -1,409 +1,363 @@
+/**
+ * 🏭 WAREHOUSE TYPES API (Enterprise Edition)
+ * ==============================================
+ * Warehouse Types management (D-07):
+ *   - Enterprise CRUD (create, read, update, soft-delete)
+ *   - Stats endpoint for dashboard cards
+ *   - Filter by status, requires_temperature_control, is_external,
+ *     requires_special_license, is_system
+ *   - Sort, paginate, search across code/name_en/name_ar
+ *   - Toggle status & system-record protection
+ *
+ * Middlewares: ✅ Auth, ✅ Company Context, ✅ RBAC, ✅ Audit
+ * Soft Delete: ✅ deleted_at
+ */
+
 import { Router, Request, Response } from 'express';
 import pool from '../../db';
 import { authenticate } from '../../middleware/auth';
-import { requirePermission } from '../../middleware/rbac';
 import { loadCompanyContext } from '../../middleware/companyContext';
+import { requireAnyPermission } from '../../middleware/rbac';
+import { applyEnhancedAudit } from '../../middleware/enhancedAuditLog';
 
 const router = Router();
 
-const ALLOWED_CATEGORIES = new Set(['main', 'sub', 'external', 'transit', 'quarantine']);
-
 router.use(authenticate);
 router.use(loadCompanyContext);
+applyEnhancedAudit(router, 'warehouse_types');
 
-router.get('/', requirePermission('master:warehouses:view'), async (req: Request, res: Response) => {
-  try {
-    const companyId = (req as any).companyContext?.companyId;
-    if (!companyId) {
-      return res
-        .status(400)
-        .json({ success: false, error: { code: 'COMPANY_REQUIRED', message: 'Company context required' } });
-    }
-
-    const { search, warehouse_category, is_active } = req.query as any;
-
-    const params: any[] = [companyId];
-    let paramCount = 1;
-
-    let sql = `
-      SELECT
-        wt.id,
-        wt.code,
-        wt.name,
-        wt.name_ar,
-        wt.warehouse_category,
-        wt.parent_id,
-        parent.name AS parent_name,
-        wt.gl_account_id,
-        a.code AS gl_account_code,
-        a.name AS gl_account_name,
-        a.name_ar AS gl_account_name_ar,
-        wt.allows_sales,
-        wt.allows_purchases,
-        wt.allows_transfers,
-        wt.is_default,
-        wt.is_active,
-        wt.description,
-        wt.created_at,
-        wt.updated_at,
-        wt.deleted_at
-      FROM warehouse_types wt
-      LEFT JOIN warehouse_types parent ON parent.id = wt.parent_id
-      LEFT JOIN accounts a ON a.id = wt.gl_account_id AND a.deleted_at IS NULL
-      WHERE wt.company_id = $1 AND wt.deleted_at IS NULL
-    `;
-
-    if (search) {
-      paramCount++;
-      sql += ` AND (wt.code ILIKE $${paramCount} OR wt.name ILIKE $${paramCount} OR COALESCE(wt.name_ar,'') ILIKE $${paramCount})`;
-      params.push(`%${search}%`);
-    }
-
-    if (warehouse_category) {
-      paramCount++;
-      sql += ` AND wt.warehouse_category = $${paramCount}`;
-      params.push(String(warehouse_category));
-    }
-
-    if (typeof is_active === 'string') {
-      paramCount++;
-      sql += ` AND wt.is_active = $${paramCount}`;
-      params.push(is_active === 'true');
-    }
-
-    sql += ' ORDER BY wt.code';
-
-    const result = await pool.query(sql, params);
-    return res.json({ success: true, data: result.rows, total: result.rowCount });
-  } catch (error) {
-    console.error('Error fetching warehouse types:', error);
-    return res
-      .status(500)
-      .json({ success: false, error: { code: 'FETCH_ERROR', message: 'Failed to fetch warehouse types' } });
-  }
-});
-
-router.post('/', requirePermission('master:warehouses:create'), async (req: Request, res: Response) => {
-  const client = await pool.connect();
-  try {
-    const companyId = (req as any).companyContext?.companyId;
-    const userId = (req as any).user?.id ?? null;
-    if (!companyId) {
-      return res
-        .status(400)
-        .json({ success: false, error: { code: 'COMPANY_REQUIRED', message: 'Company context required' } });
-    }
-
-    const {
-      code,
-      name,
-      name_ar,
-      warehouse_category,
-      parent_id,
-      gl_account_id,
-      allows_sales,
-      allows_purchases,
-      allows_transfers,
-      is_default,
-      is_active,
-      description,
-    } = req.body ?? {};
-
-    if (!code || !name || !warehouse_category) {
-      return res
-        .status(400)
-        .json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'code, name and warehouse_category are required' } });
-    }
-
-    if (!ALLOWED_CATEGORIES.has(String(warehouse_category))) {
-      return res
-        .status(400)
-        .json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid warehouse_category' } });
-    }
-
-    if (parent_id) {
-      const parent = await client.query(
-        'SELECT id FROM warehouse_types WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL',
-        [parent_id, companyId]
-      );
-      if (parent.rows.length === 0) {
-        return res
-          .status(404)
-          .json({ success: false, error: { code: 'PARENT_NOT_FOUND', message: 'Parent warehouse type not found' } });
-      }
-    }
-
-    if (gl_account_id) {
-      const gl = await client.query(
-        'SELECT id FROM accounts WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL',
-        [gl_account_id, companyId]
-      );
-      if (gl.rows.length === 0) {
-        return res
-          .status(404)
-          .json({ success: false, error: { code: 'GL_ACCOUNT_NOT_FOUND', message: 'GL account not found' } });
-      }
-    }
-
-    await client.query('BEGIN');
-
-    if (is_default === true) {
-      await client.query(
-        'UPDATE warehouse_types SET is_default = FALSE, updated_at = CURRENT_TIMESTAMP, updated_by = $2 WHERE company_id = $1 AND deleted_at IS NULL',
-        [companyId, userId]
-      );
-    }
-
-    const insert = await client.query(
-      `INSERT INTO warehouse_types (
-        company_id,
-        code,
-        name,
-        name_ar,
-        warehouse_category,
-        parent_id,
-        gl_account_id,
-        allows_sales,
-        allows_purchases,
-        allows_transfers,
-        is_default,
-        is_active,
-        description,
-        created_by,
-        updated_by
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$14)
-      RETURNING id, code, name, name_ar, warehouse_category, parent_id, gl_account_id, allows_sales, allows_purchases, allows_transfers, is_default, is_active, description, created_at, updated_at`,
-      [
-        companyId,
-        String(code).toUpperCase(),
-        name,
-        name_ar || null,
-        String(warehouse_category),
-        parent_id || null,
-        gl_account_id || null,
-        allows_sales !== undefined ? !!allows_sales : true,
-        allows_purchases !== undefined ? !!allows_purchases : true,
-        allows_transfers !== undefined ? !!allows_transfers : true,
-        !!is_default,
-        is_active !== undefined ? !!is_active : true,
-        description || null,
-        userId,
-      ]
-    );
-
-    await client.query('COMMIT');
-
-    const row = insert.rows[0];
-    const parentName = parent_id
-      ? (
-          await client.query('SELECT name FROM warehouse_types WHERE id = $1', [parent_id])
-        ).rows[0]?.name ?? null
-      : null;
-
-    return res.status(201).json({ success: true, data: { ...row, parent_name: parentName }, message: 'Warehouse type created successfully' });
-  } catch (error: any) {
+// ─── GET /stats — Stats for dashboard cards ─────────────────────────────
+router.get(
+  '/stats',
+  requireAnyPermission(['warehouse_types:view', 'warehouse_types:manage']),
+  async (_req: Request, res: Response) => {
     try {
-      await client.query('ROLLBACK');
-    } catch {
-      // ignore
+      const result = await pool.query(`
+        SELECT
+          COUNT(*)::int                                                           AS total,
+          COUNT(*) FILTER (WHERE status = 'active')::int                          AS active,
+          COUNT(*) FILTER (WHERE requires_temperature_control = true)::int        AS temperature_controlled,
+          COUNT(*) FILTER (WHERE is_external = true)::int                         AS external_count,
+          COUNT(*) FILTER (WHERE requires_special_license = true)::int            AS licensed,
+          COUNT(*) FILTER (WHERE is_system = true)::int                           AS system_count
+        FROM warehouse_types
+        WHERE deleted_at IS NULL
+      `);
+      res.json({ success: true, data: result.rows[0] });
+    } catch (err: any) {
+      console.error('warehouse_types stats error:', err);
+      res.status(500).json({ error: 'Failed to fetch warehouse type stats' });
     }
-
-    if (error?.code === '23505') {
-      return res
-        .status(409)
-        .json({ success: false, error: { code: 'DUPLICATE_CODE', message: 'Warehouse type code already exists' } });
-    }
-
-    console.error('Error creating warehouse type:', error);
-    return res
-      .status(500)
-      .json({ success: false, error: { code: 'CREATE_ERROR', message: 'Failed to create warehouse type' } });
-  } finally {
-    client.release();
   }
-});
+);
 
-router.put('/:id', requirePermission('master:warehouses:edit'), async (req: Request, res: Response) => {
-  const client = await pool.connect();
-  try {
-    const companyId = (req as any).companyContext?.companyId;
-    const userId = (req as any).user?.id ?? null;
-    if (!companyId) {
-      return res
-        .status(400)
-        .json({ success: false, error: { code: 'COMPANY_REQUIRED', message: 'Company context required' } });
-    }
-
-    const { id } = req.params;
-    const existing = await client.query(
-      'SELECT * FROM warehouse_types WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL',
-      [id, companyId]
-    );
-    if (existing.rows.length === 0) {
-      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Warehouse type not found' } });
-    }
-
-    const {
-      code,
-      name,
-      name_ar,
-      warehouse_category,
-      parent_id,
-      gl_account_id,
-      allows_sales,
-      allows_purchases,
-      allows_transfers,
-      is_default,
-      is_active,
-      description,
-    } = req.body ?? {};
-
-    if (warehouse_category !== undefined && !ALLOWED_CATEGORIES.has(String(warehouse_category))) {
-      return res
-        .status(400)
-        .json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid warehouse_category' } });
-    }
-
-    if (parent_id !== undefined && parent_id) {
-      if (Number(parent_id) === Number(id)) {
-        return res
-          .status(400)
-          .json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'parent_id cannot equal id' } });
-      }
-      const parent = await client.query(
-        'SELECT id FROM warehouse_types WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL',
-        [parent_id, companyId]
-      );
-      if (parent.rows.length === 0) {
-        return res
-          .status(404)
-          .json({ success: false, error: { code: 'PARENT_NOT_FOUND', message: 'Parent warehouse type not found' } });
-      }
-    }
-
-    if (gl_account_id !== undefined && gl_account_id) {
-      const gl = await client.query(
-        'SELECT id FROM accounts WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL',
-        [gl_account_id, companyId]
-      );
-      if (gl.rows.length === 0) {
-        return res
-          .status(404)
-          .json({ success: false, error: { code: 'GL_ACCOUNT_NOT_FOUND', message: 'GL account not found' } });
-      }
-    }
-
-    await client.query('BEGIN');
-
-    if (is_default === true) {
-      await client.query(
-        'UPDATE warehouse_types SET is_default = FALSE, updated_at = CURRENT_TIMESTAMP, updated_by = $2 WHERE company_id = $1 AND deleted_at IS NULL',
-        [companyId, userId]
-      );
-    }
-
-    const updated = await client.query(
-      `UPDATE warehouse_types
-       SET
-         code = COALESCE($1, code),
-         name = COALESCE($2, name),
-         name_ar = COALESCE($3, name_ar),
-         warehouse_category = COALESCE($4, warehouse_category),
-         parent_id = COALESCE($5, parent_id),
-         gl_account_id = COALESCE($6, gl_account_id),
-         allows_sales = COALESCE($7, allows_sales),
-         allows_purchases = COALESCE($8, allows_purchases),
-         allows_transfers = COALESCE($9, allows_transfers),
-         is_default = COALESCE($10, is_default),
-         is_active = COALESCE($11, is_active),
-         description = COALESCE($12, description),
-         updated_by = $13,
-         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $14 AND company_id = $15 AND deleted_at IS NULL
-      RETURNING id, code, name, name_ar, warehouse_category, parent_id, gl_account_id, allows_sales, allows_purchases, allows_transfers, is_default, is_active, description, created_at, updated_at`,
-      [
-        code !== undefined ? String(code).toUpperCase() : null,
-        name ?? null,
-        name_ar ?? null,
-        warehouse_category ?? null,
-        parent_id !== undefined ? parent_id || null : null,
-        gl_account_id !== undefined ? gl_account_id || null : null,
-        allows_sales !== undefined ? !!allows_sales : null,
-        allows_purchases !== undefined ? !!allows_purchases : null,
-        allows_transfers !== undefined ? !!allows_transfers : null,
-        is_default !== undefined ? !!is_default : null,
-        typeof is_active === 'boolean' ? is_active : null,
-        description !== undefined ? description || null : null,
-        userId,
-        id,
-        companyId,
-      ]
-    );
-
-    await client.query('COMMIT');
-
-    const row = updated.rows[0];
-    const parentName = row.parent_id
-      ? (await client.query('SELECT name FROM warehouse_types WHERE id = $1', [row.parent_id])).rows[0]?.name ?? null
-      : null;
-
-    return res.json({ success: true, data: { ...row, parent_name: parentName }, message: 'Warehouse type updated successfully' });
-  } catch (error: any) {
+// ─── GET / — List with search, filter, sort, paginate ───────────────────
+router.get(
+  '/',
+  requireAnyPermission(['warehouse_types:view', 'warehouse_types:manage']),
+  async (req: Request, res: Response) => {
     try {
-      await client.query('ROLLBACK');
-    } catch {
-      // ignore
-    }
+      const {
+        search, status, requires_temperature_control, is_external,
+        requires_special_license, is_system,
+        sort = 'sort_order', order = 'asc',
+        page = '1', limit = '25',
+      } = req.query as Record<string, string>;
 
-    if (error?.code === '23505') {
-      return res
-        .status(409)
-        .json({ success: false, error: { code: 'DUPLICATE_CODE', message: 'Warehouse type code already exists' } });
-    }
+      const effectivePage  = Math.max(1, parseInt(page, 10) || 1);
+      const effectiveLimit = Math.min(100, Math.max(1, parseInt(limit, 10) || 25));
+      const offset = (effectivePage - 1) * effectiveLimit;
+      const effectiveOrder = order?.toLowerCase() === 'desc' ? 'DESC' : 'ASC';
 
-    console.error('Error updating warehouse type:', error);
-    return res
-      .status(500)
-      .json({ success: false, error: { code: 'UPDATE_ERROR', message: 'Failed to update warehouse type' } });
-  } finally {
-    client.release();
+      const conditions: string[] = ['deleted_at IS NULL'];
+      const params: any[] = [];
+      let idx = 1;
+
+      if (search) {
+        conditions.push(`(code ILIKE $${idx} OR name_en ILIKE $${idx} OR name_ar ILIKE $${idx})`);
+        params.push(`%${search}%`);
+        idx++;
+      }
+      if (status) {
+        conditions.push(`status = $${idx}`);
+        params.push(status);
+        idx++;
+      }
+      if (requires_temperature_control !== undefined && requires_temperature_control !== '') {
+        conditions.push(`requires_temperature_control = $${idx}`);
+        params.push(requires_temperature_control === 'true');
+        idx++;
+      }
+      if (is_external !== undefined && is_external !== '') {
+        conditions.push(`is_external = $${idx}`);
+        params.push(is_external === 'true');
+        idx++;
+      }
+      if (requires_special_license !== undefined && requires_special_license !== '') {
+        conditions.push(`requires_special_license = $${idx}`);
+        params.push(requires_special_license === 'true');
+        idx++;
+      }
+      if (is_system !== undefined && is_system !== '') {
+        conditions.push(`is_system = $${idx}`);
+        params.push(is_system === 'true');
+        idx++;
+      }
+
+      const allowedSort = [
+        'id', 'code', 'name_en', 'name_ar', 'warehouse_category',
+        'requires_temperature_control', 'is_external',
+        'requires_special_license', 'is_system',
+        'sort_order', 'status', 'created_at',
+      ];
+      const sortCol = allowedSort.includes(sort) ? sort : 'sort_order';
+      const where = conditions.join(' AND ');
+
+      const [dataRes, countRes] = await Promise.all([
+        pool.query(
+          `SELECT * FROM warehouse_types WHERE ${where} ORDER BY ${sortCol} ${effectiveOrder} LIMIT $${idx} OFFSET $${idx + 1}`,
+          [...params, effectiveLimit, offset]
+        ),
+        pool.query(
+          `SELECT COUNT(*)::int AS total FROM warehouse_types WHERE ${where}`,
+          params
+        ),
+      ]);
+
+      res.json({
+        success: true,
+        data: dataRes.rows,
+        total: countRes.rows[0].total,
+        meta: { page: effectivePage, limit: effectiveLimit, total: countRes.rows[0].total },
+      });
+    } catch (err: any) {
+      console.error('warehouse_types list error:', err);
+      res.status(500).json({ error: 'Failed to fetch warehouse types' });
+    }
   }
-});
+);
 
-router.delete('/:id', requirePermission('master:warehouses:delete'), async (req: Request, res: Response) => {
-  try {
-    const companyId = (req as any).companyContext?.companyId;
-    const userId = (req as any).user?.id ?? null;
-    if (!companyId) {
-      return res
-        .status(400)
-        .json({ success: false, error: { code: 'COMPANY_REQUIRED', message: 'Company context required' } });
+// ─── GET /:id — Single record ────────────────────────────────────────────
+router.get(
+  '/:id',
+  requireAnyPermission(['warehouse_types:view', 'warehouse_types:manage']),
+  async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const result = await pool.query(
+        'SELECT * FROM warehouse_types WHERE id = $1 AND deleted_at IS NULL',
+        [id]
+      );
+      if (!result.rows.length) {
+        return res.status(404).json({ error: 'Warehouse type not found' });
+      }
+      res.json({ success: true, data: result.rows[0] });
+    } catch (err: any) {
+      console.error('warehouse_types get error:', err);
+      res.status(500).json({ error: 'Failed to fetch warehouse type' });
     }
-
-    const { id } = req.params;
-
-    const existing = await pool.query(
-      'SELECT id FROM warehouse_types WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL',
-      [id, companyId]
-    );
-    if (existing.rows.length === 0) {
-      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Warehouse type not found' } });
-    }
-
-    await pool.query(
-      `UPDATE warehouse_types
-       SET deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP, updated_by = $3
-       WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL`,
-      [id, companyId, userId]
-    );
-
-    return res.json({ success: true, message: 'Warehouse type deleted successfully' });
-  } catch (error) {
-    console.error('Error deleting warehouse type:', error);
-    return res
-      .status(500)
-      .json({ success: false, error: { code: 'DELETE_ERROR', message: 'Failed to delete warehouse type' } });
   }
-});
+);
+
+// ─── POST / — Create ────────────────────────────────────────────────────
+router.post(
+  '/',
+  requireAnyPermission(['warehouse_types:create', 'warehouse_types:manage']),
+  async (req: Request, res: Response) => {
+    try {
+      const {
+        code, name_en, name_ar, description_en, description_ar,
+        icon, warehouse_category,
+        requires_temperature_control, min_temp_celsius, max_temp_celsius,
+        is_external, allows_public_access, requires_special_license,
+        is_system, sort_order, status,
+      } = req.body;
+
+      if (!code || !name_en || !name_ar) {
+        return res.status(400).json({ error: 'code, name_en, and name_ar are required' });
+      }
+
+      // Check duplicate code
+      const dup = await pool.query(
+        'SELECT id FROM warehouse_types WHERE LOWER(code) = LOWER($1) AND deleted_at IS NULL',
+        [code.trim()]
+      );
+      if (dup.rows.length) {
+        return res.status(409).json({ error: `Code "${code}" already exists` });
+      }
+
+      const result = await pool.query(
+        `INSERT INTO warehouse_types
+          (code, name_en, name_ar, description_en, description_ar,
+           icon, warehouse_category,
+           requires_temperature_control, min_temp_celsius, max_temp_celsius,
+           is_external, allows_public_access, requires_special_license,
+           is_system, sort_order, status, is_active,
+           created_by, company_id, is_global)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+         RETURNING *`,
+        [
+          code.toLowerCase().trim(), name_en.trim(), name_ar.trim(),
+          description_en || null, description_ar || null,
+          icon || null, warehouse_category || null,
+          requires_temperature_control ?? false,
+          min_temp_celsius ?? null, max_temp_celsius ?? null,
+          is_external ?? false, allows_public_access ?? false,
+          requires_special_license ?? false,
+          is_system ?? false,
+          sort_order ?? 0, status || 'active', true,
+          (req as any).user?.id || null,
+          (req as any).companyId || null,
+          true,
+        ]
+      );
+
+      res.status(201).json({ success: true, data: result.rows[0] });
+    } catch (err: any) {
+      console.error('warehouse_types create error:', err);
+      res.status(500).json({ error: 'Failed to create warehouse type' });
+    }
+  }
+);
+
+// ─── PUT /:id — Update ──────────────────────────────────────────────────
+router.put(
+  '/:id',
+  requireAnyPermission(['warehouse_types:edit', 'warehouse_types:manage']),
+  async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const existing = await pool.query(
+        'SELECT * FROM warehouse_types WHERE id = $1 AND deleted_at IS NULL',
+        [id]
+      );
+      if (!existing.rows.length) {
+        return res.status(404).json({ error: 'Warehouse type not found' });
+      }
+
+      const old = existing.rows[0];
+      const {
+        code, name_en, name_ar, description_en, description_ar,
+        icon, warehouse_category,
+        requires_temperature_control, min_temp_celsius, max_temp_celsius,
+        is_external, allows_public_access, requires_special_license,
+        sort_order, status,
+      } = req.body;
+
+      // System records: cannot change code
+      const newCode = old.is_system ? old.code : (code?.toLowerCase().trim() || old.code);
+
+      // Check duplicate code if changed
+      if (newCode !== old.code) {
+        const dup = await pool.query(
+          'SELECT id FROM warehouse_types WHERE LOWER(code) = LOWER($1) AND id != $2 AND deleted_at IS NULL',
+          [newCode, id]
+        );
+        if (dup.rows.length) {
+          return res.status(409).json({ error: `Code "${newCode}" already exists` });
+        }
+      }
+
+      const result = await pool.query(
+        `UPDATE warehouse_types SET
+          code                         = COALESCE($1, code),
+          name_en                      = COALESCE($2, name_en),
+          name_ar                      = COALESCE($3, name_ar),
+          description_en               = COALESCE($4, description_en),
+          description_ar               = COALESCE($5, description_ar),
+          icon                         = COALESCE($6, icon),
+          warehouse_category           = COALESCE($7, warehouse_category),
+          requires_temperature_control = COALESCE($8, requires_temperature_control),
+          min_temp_celsius             = COALESCE($9, min_temp_celsius),
+          max_temp_celsius             = COALESCE($10, max_temp_celsius),
+          is_external                  = COALESCE($11, is_external),
+          allows_public_access         = COALESCE($12, allows_public_access),
+          requires_special_license     = COALESCE($13, requires_special_license),
+          sort_order                   = COALESCE($14, sort_order),
+          status                       = COALESCE($15, status),
+          updated_by                   = $16,
+          updated_at                   = NOW()
+        WHERE id = $17 AND deleted_at IS NULL
+        RETURNING *`,
+        [
+          newCode, name_en?.trim(), name_ar?.trim(),
+          description_en, description_ar,
+          icon, warehouse_category,
+          requires_temperature_control, min_temp_celsius, max_temp_celsius,
+          is_external, allows_public_access, requires_special_license,
+          sort_order, status,
+          (req as any).user?.id || null,
+          id,
+        ]
+      );
+
+      res.json({ success: true, data: result.rows[0] });
+    } catch (err: any) {
+      console.error('warehouse_types update error:', err);
+      res.status(500).json({ error: 'Failed to update warehouse type' });
+    }
+  }
+);
+
+// ─── DELETE /:id — Soft delete ───────────────────────────────────────────
+router.delete(
+  '/:id',
+  requireAnyPermission(['warehouse_types:delete', 'warehouse_types:manage']),
+  async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const existing = await pool.query(
+        'SELECT * FROM warehouse_types WHERE id = $1 AND deleted_at IS NULL',
+        [id]
+      );
+      if (!existing.rows.length) {
+        return res.status(404).json({ error: 'Warehouse type not found' });
+      }
+      if (existing.rows[0].is_system) {
+        return res.status(403).json({ error: 'Cannot delete a system warehouse type' });
+      }
+
+      await pool.query(
+        'UPDATE warehouse_types SET deleted_at = NOW(), updated_by = $1 WHERE id = $2',
+        [(req as any).user?.id || null, id]
+      );
+
+      res.json({ success: true, message: 'Warehouse type deleted' });
+    } catch (err: any) {
+      console.error('warehouse_types delete error:', err);
+      res.status(500).json({ error: 'Failed to delete warehouse type' });
+    }
+  }
+);
+
+// ─── PATCH /:id/toggle-status — Toggle active/inactive ──────────────────
+router.patch(
+  '/:id/toggle-status',
+  requireAnyPermission(['warehouse_types:edit', 'warehouse_types:manage']),
+  async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const existing = await pool.query(
+        'SELECT * FROM warehouse_types WHERE id = $1 AND deleted_at IS NULL',
+        [id]
+      );
+      if (!existing.rows.length) {
+        return res.status(404).json({ error: 'Warehouse type not found' });
+      }
+
+      const newStatus = existing.rows[0].status === 'active' ? 'inactive' : 'active';
+      const result = await pool.query(
+        `UPDATE warehouse_types SET status = $1, updated_by = $2, updated_at = NOW()
+         WHERE id = $3 RETURNING *`,
+        [newStatus, (req as any).user?.id || null, id]
+      );
+
+      res.json({ success: true, data: result.rows[0] });
+    } catch (err: any) {
+      console.error('warehouse_types toggle error:', err);
+      res.status(500).json({ error: 'Failed to toggle status' });
+    }
+  }
+);
 
 export default router;

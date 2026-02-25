@@ -1,310 +1,413 @@
+/**
+ * 💳 PAYMENT METHODS — Enterprise Route (B-14)
+ * ═══════════════════════════════════════════════════════════════
+ * Endpoints: stats, filters, paginated list, detail, CRUD
+ * DB table : payment_methods (migration 016 + 055 + 342)
+ * Perms    : payment_methods:view / create / edit / delete
+ */
 import { Router, Request, Response } from 'express';
 import pool from '../db';
 import { authenticate } from '../middleware/auth';
 import { requirePermission } from '../middleware/rbac';
-import { z } from 'zod';
+import { loadCompanyContext } from '../middleware/companyContext';
+import logger from '../utils/logger';
 
 const router = Router();
+router.use(authenticate, loadCompanyContext);
 
-const paymentMethodSchema = z.object({
-  code: z.string().min(1).max(20),
-  name: z.string().min(1).max(100),
-  name_ar: z.string().max(100).optional().nullable(),
-  payment_type: z.enum(['cash', 'bank_transfer', 'cheque', 'credit_card', 'digital_wallet', 'credit', 'other']),
-  gl_account_code: z.string().max(50).optional().nullable(),
-  requires_reference: z.boolean().default(false),
-  requires_bank: z.boolean().default(false),
-  processing_days: z.number().int().min(0).max(3650).default(0),
-  transaction_fee_percent: z.number().min(0).max(100).optional().nullable(),
-  transaction_fee_fixed: z.number().min(0).optional().nullable(),
-  is_default: z.boolean().default(false),
-  is_active: z.boolean().default(true),
-  description: z.string().optional().nullable(),
-  company_id: z.number().int().positive().optional().nullable(),
-});
-
-const isMissingTableError = (error: any) => {
-  const msg = String(error?.message || '').toLowerCase();
-  return msg.includes('relation') && msg.includes('payment_methods') && msg.includes('does not exist');
-};
-
-/**
- * GET /api/payment-methods
- */
-router.get('/', authenticate, requirePermission('master:payment_methods:view'), async (req: Request, res: Response) => {
+// ════════════════════════════════════════════════════════════════════════
+// STATS — GET /api/payment-methods/stats
+// ════════════════════════════════════════════════════════════════════════
+router.get('/stats', requirePermission('payment_methods:view'), async (req: Request, res: Response) => {
   try {
-    const { companyId } = req.user!;
-    const { search, payment_type, is_active } = req.query;
-
-    let query = `
+    const companyId = (req as any).companyContext?.companyId;
+    const result = await pool.query(`
       SELECT
-        id,
-        code,
-        name,
-        name_ar,
-        payment_type,
-        gl_account_code,
-        COALESCE(requires_reference, FALSE) AS requires_reference,
-        COALESCE(requires_bank, requires_bank_account, FALSE) AS requires_bank,
-        COALESCE(processing_days, 0) AS processing_days,
-        transaction_fee_percent,
-        transaction_fee_fixed,
-        COALESCE(is_default, FALSE) AS is_default,
-        is_active,
-        description,
-        created_at
+        COUNT(*)::int                                                              AS total,
+        COUNT(*) FILTER (WHERE is_active = true)::int                              AS active,
+        COUNT(*) FILTER (WHERE is_active = false)::int                             AS inactive,
+        COUNT(*) FILTER (WHERE payment_type = 'cash')::int                         AS cash,
+        COUNT(*) FILTER (WHERE payment_type = 'bank_transfer')::int                AS bank_transfer,
+        COUNT(*) FILTER (WHERE payment_type = 'check')::int                        AS "check",
+        COUNT(*) FILTER (WHERE payment_type IN ('credit_card','debit_card'))::int   AS card,
+        COUNT(*) FILTER (WHERE payment_type = 'digital_wallet')::int               AS digital_wallet,
+        COUNT(*) FILTER (WHERE payment_type = 'letter_of_credit')::int             AS letter_of_credit,
+        COUNT(*) FILTER (WHERE is_available_for_sales = true)::int                 AS for_sales,
+        COUNT(*) FILTER (WHERE is_available_for_purchases = true)::int             AS for_purchases
       FROM payment_methods
       WHERE deleted_at IS NULL
-    `;
-
-    const params: any[] = [];
-    let paramCount = 1;
-
-    if (companyId) {
-      query += ` AND (company_id = $${paramCount} OR company_id IS NULL)`;
-      params.push(companyId);
-      paramCount++;
-    }
-
-    if (payment_type) {
-      query += ` AND payment_type = $${paramCount}`;
-      params.push(payment_type);
-      paramCount++;
-    }
-
-    if (is_active !== undefined) {
-      query += ` AND is_active = $${paramCount}`;
-      params.push(is_active === 'true');
-      paramCount++;
-    }
-
-    if (search) {
-      query += ` AND (code ILIKE $${paramCount} OR name ILIKE $${paramCount} OR name_ar ILIKE $${paramCount})`;
-      params.push(`%${search}%`);
-      paramCount++;
-    }
-
-    query += ` ORDER BY is_default DESC, code ASC`;
-
-    const result = await pool.query(query, params);
-    return res.json({ success: true, data: result.rows, total: result.rows.length });
+        AND (company_id = $1 OR company_id IS NULL OR $1::int IS NULL)
+    `, [companyId]);
+    res.json(result.rows[0]);
   } catch (error) {
-    if (isMissingTableError(error)) {
-      return res.json({ success: true, data: [], total: 0 });
-    }
-
-    console.error('Error fetching payment methods:', error);
-    return res.status(500).json({ success: false, error: { message: 'Failed to fetch payment methods' } });
+    logger.error('Error fetching payment methods stats:', error);
+    res.status(500).json({ error: 'Failed to fetch stats' });
   }
 });
 
-/**
- * POST /api/payment-methods
- */
-router.post('/', authenticate, requirePermission('master:payment_methods:create'), async (req: Request, res: Response) => {
+// ════════════════════════════════════════════════════════════════════════
+// FILTERS — GET /api/payment-methods/filters
+// ════════════════════════════════════════════════════════════════════════
+router.get('/filters', requirePermission('payment_methods:view'), async (_req: Request, res: Response) => {
+  try {
+    res.json({
+      payment_type: [
+        { id: 'cash',             name_en: 'Cash',              name_ar: 'نقدي' },
+        { id: 'bank_transfer',    name_en: 'Bank Transfer',     name_ar: 'تحويل بنكي' },
+        { id: 'check',            name_en: 'Cheque',            name_ar: 'شيك' },
+        { id: 'credit_card',      name_en: 'Credit Card',       name_ar: 'بطاقة ائتمانية' },
+        { id: 'debit_card',       name_en: 'Debit Card',        name_ar: 'بطاقة خصم' },
+        { id: 'digital_wallet',   name_en: 'Digital Wallet',    name_ar: 'محفظة رقمية' },
+        { id: 'letter_of_credit', name_en: 'Letter of Credit',  name_ar: 'خطاب اعتماد' },
+      ],
+    });
+  } catch (error) {
+    logger.error('Error fetching payment methods filters:', error);
+    res.status(500).json({ error: 'Failed to fetch filters' });
+  }
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// LIST — GET /api/payment-methods
+// ════════════════════════════════════════════════════════════════════════
+router.get('/', requirePermission('payment_methods:view'), async (req: Request, res: Response) => {
+  try {
+    const companyId = (req as any).companyContext?.companyId;
+    const {
+      page = '1', limit = '25', search,
+      sortBy = 'sort_order', sortOrder = 'asc',
+      is_active, payment_type, is_available_for_sales, is_available_for_purchases,
+    } = req.query as Record<string, string>;
+
+    const pageNum  = Math.max(1, parseInt(page) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 25));
+    const offset   = (pageNum - 1) * limitNum;
+
+    const allowedSorts: Record<string, string> = {
+      code: 'pm.code', name: 'COALESCE(pm.name_en, pm.name)',
+      payment_type: 'pm.payment_type', clearing_days: 'pm.clearing_days',
+      sort_order: 'pm.sort_order', is_active: 'pm.is_active',
+      created_at: 'pm.created_at',
+    };
+    const sortCol = allowedSorts[sortBy] || 'pm.sort_order';
+    const sortDir = sortOrder?.toLowerCase() === 'desc' ? 'DESC' : 'ASC';
+
+    const conditions: string[] = ['pm.deleted_at IS NULL'];
+    const params: any[] = [];
+    let idx = 1;
+
+    conditions.push(`(pm.company_id = $${idx} OR pm.company_id IS NULL OR $${idx}::int IS NULL)`);
+    params.push(companyId); idx++;
+
+    if (search) {
+      conditions.push(`(
+        pm.code ILIKE $${idx}
+        OR pm.name ILIKE $${idx}
+        OR COALESCE(pm.name_en,'') ILIKE $${idx}
+        OR COALESCE(pm.name_ar,'') ILIKE $${idx}
+      )`);
+      params.push(`%${search}%`); idx++;
+    }
+    if (is_active !== undefined && is_active !== '') {
+      conditions.push(`pm.is_active = $${idx}`);
+      params.push(is_active === 'true'); idx++;
+    }
+    if (payment_type) {
+      conditions.push(`pm.payment_type = $${idx}`);
+      params.push(payment_type); idx++;
+    }
+    if (is_available_for_sales !== undefined && is_available_for_sales !== '') {
+      conditions.push(`pm.is_available_for_sales = $${idx}`);
+      params.push(is_available_for_sales === 'true'); idx++;
+    }
+    if (is_available_for_purchases !== undefined && is_available_for_purchases !== '') {
+      conditions.push(`pm.is_available_for_purchases = $${idx}`);
+      params.push(is_available_for_purchases === 'true'); idx++;
+    }
+
+    const where = conditions.join(' AND ');
+
+    const countQ = await pool.query(`SELECT COUNT(*)::int AS total FROM payment_methods pm WHERE ${where}`, params);
+    const total = countQ.rows[0].total;
+
+    const dataQ = await pool.query(`
+      SELECT
+        pm.id, pm.code, pm.name, pm.name_en, pm.name_ar,
+        pm.payment_type, pm.icon,
+        COALESCE(pm.requires_reference, FALSE)     AS requires_reference,
+        COALESCE(pm.requires_bank, pm.requires_bank_account, FALSE) AS requires_bank_account,
+        COALESCE(pm.requires_due_date, FALSE)      AS requires_due_date,
+        COALESCE(pm.clearing_days, pm.processing_days, 0) AS clearing_days,
+        pm.account_id, pm.gl_account_code,
+        pm.zatca_code,
+        pm.is_available_for_sales,
+        pm.is_available_for_purchases,
+        pm.sort_order,
+        pm.transaction_fee_percent,
+        pm.transaction_fee_fixed,
+        COALESCE(pm.is_default, FALSE) AS is_default,
+        pm.is_active,
+        pm.description, pm.description_en, pm.description_ar,
+        pm.created_at, pm.updated_at,
+        cu.email AS created_by_name,
+        uu.email AS updated_by_name
+      FROM payment_methods pm
+      LEFT JOIN users cu ON pm.created_by = cu.id
+      LEFT JOIN users uu ON pm.updated_by = uu.id
+      WHERE ${where}
+      ORDER BY ${sortCol} ${sortDir}, pm.code ASC
+      LIMIT $${idx} OFFSET $${idx + 1}
+    `, [...params, limitNum, offset]);
+
+    res.json({ data: dataQ.rows, total, page: pageNum, limit: limitNum });
+  } catch (error) {
+    logger.error('Error fetching payment methods list:', error);
+    res.status(500).json({ error: 'Failed to fetch payment methods' });
+  }
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// DETAIL — GET /api/payment-methods/:id
+// ════════════════════════════════════════════════════════════════════════
+router.get('/:id', requirePermission('payment_methods:view'), async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const companyId = (req as any).companyContext?.companyId;
+
+    const result = await pool.query(`
+      SELECT pm.*,
+        COALESCE(pm.name_en, pm.name) AS name_display,
+        COALESCE(pm.requires_bank, pm.requires_bank_account, FALSE) AS requires_bank_account,
+        COALESCE(pm.clearing_days, pm.processing_days, 0) AS clearing_days,
+        cu.email AS created_by_name,
+        uu.email AS updated_by_name
+      FROM payment_methods pm
+      LEFT JOIN users cu ON pm.created_by = cu.id
+      LEFT JOIN users uu ON pm.updated_by = uu.id
+      WHERE pm.id = $1 AND pm.deleted_at IS NULL
+        AND (pm.company_id = $2 OR pm.company_id IS NULL OR $2::int IS NULL)
+    `, [id, companyId]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Payment method not found' });
+    }
+    res.json(result.rows[0]);
+  } catch (error) {
+    logger.error('Error fetching payment method detail:', error);
+    res.status(500).json({ error: 'Failed to fetch payment method' });
+  }
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// CREATE — POST /api/payment-methods
+// ════════════════════════════════════════════════════════════════════════
+router.post('/', requirePermission('payment_methods:create'), async (req: Request, res: Response) => {
   const client = await pool.connect();
   try {
-    const { id: userId, companyId, roles } = req.user!;
-    const validated = paymentMethodSchema.parse(req.body);
+    const companyId = (req as any).companyContext?.companyId;
+    const userId    = (req as any).user?.id;
 
-    let targetCompanyId = validated.company_id ?? companyId ?? null;
-    if (!roles.includes('super_admin') && validated.company_id && validated.company_id !== companyId) {
-      return res.status(403).json({ success: false, error: { message: 'Cannot create payment method for another company' } });
+    const {
+      code, name, name_en, name_ar, payment_type, icon,
+      requires_reference, requires_bank_account, requires_due_date,
+      clearing_days, account_id, gl_account_code, zatca_code,
+      is_available_for_sales, is_available_for_purchases,
+      sort_order, transaction_fee_percent, transaction_fee_fixed,
+      is_default, is_active, description, description_en, description_ar,
+    } = req.body;
+
+    if (!code || !payment_type) {
+      return res.status(400).json({ error: 'code and payment_type are required' });
     }
+
+    const finalNameEn = name_en || name || code;
+    const finalName   = name || name_en || code;
 
     await client.query('BEGIN');
 
+    // Duplicate check
     const dup = await client.query(
-      `SELECT id FROM payment_methods WHERE code = $1 AND deleted_at IS NULL AND (company_id = $2 OR (company_id IS NULL AND $2 IS NULL))`,
-      [validated.code, targetCompanyId]
+      `SELECT id FROM payment_methods
+       WHERE code = $1 AND deleted_at IS NULL
+         AND (company_id = $2 OR company_id IS NULL OR $2::int IS NULL)`,
+      [code, companyId]
     );
     if (dup.rows.length > 0) {
       await client.query('ROLLBACK');
-      return res.status(400).json({ success: false, error: { message: 'Payment method code already exists' } });
+      return res.status(400).json({ error: 'Payment method code already exists' });
     }
 
-    if (validated.is_default && targetCompanyId) {
-      await client.query(`UPDATE payment_methods SET is_default = FALSE WHERE company_id = $1`, [targetCompanyId]);
+    // Clear is_default if needed
+    if (is_default) {
+      await client.query(
+        `UPDATE payment_methods SET is_default = FALSE WHERE (company_id = $1 OR company_id IS NULL OR $1::int IS NULL) AND deleted_at IS NULL`,
+        [companyId]
+      );
     }
 
-    const insert = await client.query(
-      `
-        INSERT INTO payment_methods (
-          company_id, code, name, name_ar, payment_type,
-          gl_account_code, requires_reference, requires_bank, processing_days,
-          transaction_fee_percent, transaction_fee_fixed,
-          is_default, is_active, description,
-          created_by, updated_by
-        )
-        VALUES (
-          $1, $2, $3, $4, $5,
-          $6, $7, $8, $9,
-          $10, $11,
-          $12, $13, $14,
-          $15, $16
-        )
-        RETURNING id
-      `,
-      [
-        targetCompanyId,
-        validated.code,
-        validated.name,
-        validated.name_ar ?? null,
-        validated.payment_type,
-        validated.gl_account_code ?? null,
-        validated.requires_reference,
-        validated.requires_bank,
-        validated.processing_days,
-        validated.transaction_fee_percent ?? null,
-        validated.transaction_fee_fixed ?? null,
-        validated.is_default,
-        validated.is_active,
-        validated.description ?? null,
-        userId,
-        userId,
-      ]
-    );
+    const insert = await client.query(`
+      INSERT INTO payment_methods (
+        company_id, code, name, name_en, name_ar, payment_type, icon,
+        requires_reference, requires_bank_account, requires_bank, requires_due_date,
+        clearing_days, processing_days, account_id, gl_account_code, zatca_code,
+        is_available_for_sales, is_available_for_purchases,
+        sort_order, transaction_fee_percent, transaction_fee_fixed,
+        is_default, is_active, description, description_en, description_ar,
+        created_by, updated_by
+      ) VALUES (
+        $1,$2,$3,$4,$5,$6,$7,
+        $8,$9,$9,$10,
+        $11,$11,$12,$13,$14,
+        $15,$16,
+        $17,$18,$19,
+        $20,$21,$22,$23,$24,
+        $25,$26
+      ) RETURNING id
+    `, [
+      companyId, code, finalName, finalNameEn, name_ar || null, payment_type, icon || null,
+      requires_reference ?? false, requires_bank_account ?? false, requires_due_date ?? false,
+      clearing_days ?? 0, account_id || null, gl_account_code || null, zatca_code || null,
+      is_available_for_sales ?? true, is_available_for_purchases ?? true,
+      sort_order ?? 0, transaction_fee_percent || null, transaction_fee_fixed || null,
+      is_default ?? false, is_active ?? true, description || null, description_en || null, description_ar || null,
+      userId, userId,
+    ]);
 
     await client.query('COMMIT');
-
-    return res.status(201).json({ success: true, data: { id: insert.rows[0].id } });
-  } catch (error: any) {
+    res.status(201).json({ data: { id: insert.rows[0].id } });
+  } catch (error) {
     await client.query('ROLLBACK');
-
-    if (error instanceof z.ZodError) {
-      return res.status(400).json({ success: false, error: { message: 'Validation failed', details: error.errors } });
-    }
-
-    console.error('Error creating payment method:', error);
-    return res.status(500).json({ success: false, error: { message: 'Failed to create payment method' } });
+    logger.error('Error creating payment method:', error);
+    res.status(500).json({ error: 'Failed to create payment method' });
   } finally {
     client.release();
   }
 });
 
-/**
- * PUT /api/payment-methods/:id
- */
-router.put('/:id', authenticate, requirePermission('master:payment_methods:edit'), async (req: Request, res: Response) => {
-  const client = await pool.connect();
+// ════════════════════════════════════════════════════════════════════════
+// UPDATE — PUT /api/payment-methods/:id
+// ════════════════════════════════════════════════════════════════════════
+router.put('/:id', requirePermission('payment_methods:edit'), async (req: Request, res: Response) => {
   try {
-    const { id: userId, companyId, roles } = req.user!;
     const { id } = req.params;
-    const validated = paymentMethodSchema.partial().parse(req.body);
+    const companyId = (req as any).companyContext?.companyId;
+    const userId    = (req as any).user?.id;
 
-    let targetCompanyId = validated.company_id ?? companyId ?? null;
-    if (!roles.includes('super_admin') && validated.company_id && validated.company_id !== companyId) {
-      return res.status(403).json({ success: false, error: { message: 'Cannot update payment method for another company' } });
-    }
-
-    await client.query('BEGIN');
-
-    const existing = await client.query(
-      `SELECT id, company_id, is_default FROM payment_methods WHERE id = $1 AND deleted_at IS NULL`,
-      [id]
+    const existing = await pool.query(
+      `SELECT * FROM payment_methods WHERE id = $1 AND deleted_at IS NULL
+         AND (company_id = $2 OR company_id IS NULL OR $2::int IS NULL)`,
+      [id, companyId]
     );
     if (existing.rows.length === 0) {
-      await client.query('ROLLBACK');
-      return res.status(404).json({ success: false, error: { message: 'Payment method not found' } });
+      return res.status(404).json({ error: 'Payment method not found' });
     }
 
-    const existingCompanyId = existing.rows[0].company_id;
-    if (!roles.includes('super_admin') && companyId && existingCompanyId && existingCompanyId !== companyId) {
-      await client.query('ROLLBACK');
-      return res.status(403).json({ success: false, error: { message: 'Forbidden' } });
+    // Protect global system records from modification
+    if (existing.rows[0].is_system && existing.rows[0].is_global) {
+      return res.status(400).json({ error: 'System payment methods cannot be modified. Clone to your company scope first.' });
     }
 
-    if (validated.is_default && targetCompanyId) {
-      await client.query(`UPDATE payment_methods SET is_default = FALSE WHERE company_id = $1`, [targetCompanyId]);
+    const allowedFields = [
+      'name', 'name_en', 'name_ar', 'payment_type', 'icon',
+      'requires_reference', 'requires_bank_account', 'requires_due_date',
+      'clearing_days', 'account_id', 'gl_account_code', 'zatca_code',
+      'is_available_for_sales', 'is_available_for_purchases',
+      'sort_order', 'transaction_fee_percent', 'transaction_fee_fixed',
+      'is_default', 'is_active', 'description', 'description_en', 'description_ar',
+    ];
+
+    const setClauses: string[] = [];
+    const params: any[] = [];
+    let idx = 1;
+
+    for (const field of allowedFields) {
+      if (req.body[field] !== undefined) {
+        if (field === 'requires_bank_account') {
+          // Sync both columns
+          setClauses.push(`requires_bank_account = $${idx}, requires_bank = $${idx}`);
+        } else if (field === 'clearing_days') {
+          setClauses.push(`clearing_days = $${idx}, processing_days = $${idx}`);
+        } else {
+          setClauses.push(`${field} = $${idx}`);
+        }
+        params.push(req.body[field]);
+        idx++;
+      }
     }
 
-    const update = await client.query(
-      `
-        UPDATE payment_methods
-        SET
-          code = COALESCE($1, code),
-          name = COALESCE($2, name),
-          name_ar = COALESCE($3, name_ar),
-          payment_type = COALESCE($4, payment_type),
-          gl_account_code = COALESCE($5, gl_account_code),
-          requires_reference = COALESCE($6, requires_reference),
-          requires_bank = COALESCE($7, requires_bank),
-          processing_days = COALESCE($8, processing_days),
-          transaction_fee_percent = COALESCE($9, transaction_fee_percent),
-          transaction_fee_fixed = COALESCE($10, transaction_fee_fixed),
-          is_default = COALESCE($11, is_default),
-          is_active = COALESCE($12, is_active),
-          description = COALESCE($13, description),
-          updated_by = $14,
-          updated_at = NOW()
-        WHERE id = $15 AND deleted_at IS NULL
-        RETURNING id
-      `,
-      [
-        validated.code ?? null,
-        validated.name ?? null,
-        validated.name_ar ?? null,
-        validated.payment_type ?? null,
-        validated.gl_account_code ?? null,
-        validated.requires_reference ?? null,
-        validated.requires_bank ?? null,
-        validated.processing_days ?? null,
-        validated.transaction_fee_percent ?? null,
-        validated.transaction_fee_fixed ?? null,
-        validated.is_default ?? null,
-        validated.is_active ?? null,
-        validated.description ?? null,
-        userId,
-        id,
-      ]
+    // Sync name ↔ name_en
+    if (req.body.name_en && !req.body.name) {
+      setClauses.push(`name = $${idx}`);
+      params.push(req.body.name_en); idx++;
+    }
+    if (req.body.name && !req.body.name_en) {
+      setClauses.push(`name_en = $${idx}`);
+      params.push(req.body.name); idx++;
+    }
+
+    if (setClauses.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    // Handle is_default
+    if (req.body.is_default === true) {
+      await pool.query(
+        `UPDATE payment_methods SET is_default = FALSE WHERE (company_id = $1 OR company_id IS NULL OR $1::int IS NULL) AND deleted_at IS NULL AND id != $2`,
+        [companyId, id]
+      );
+    }
+
+    setClauses.push(`updated_by = $${idx}`);
+    params.push(userId); idx++;
+    setClauses.push(`updated_at = NOW()`);
+
+    params.push(id); // For WHERE clause
+
+    await pool.query(
+      `UPDATE payment_methods SET ${setClauses.join(', ')} WHERE id = $${idx} AND deleted_at IS NULL`,
+      params
     );
 
-    await client.query('COMMIT');
-
-    return res.json({ success: true, data: { id: update.rows[0].id } });
-  } catch (error: any) {
-    await client.query('ROLLBACK');
-
-    if (error instanceof z.ZodError) {
-      return res.status(400).json({ success: false, error: { message: 'Validation failed', details: error.errors } });
-    }
-
-    console.error('Error updating payment method:', error);
-    return res.status(500).json({ success: false, error: { message: 'Failed to update payment method' } });
-  } finally {
-    client.release();
+    res.json({ message: 'Payment method updated successfully' });
+  } catch (error) {
+    logger.error('Error updating payment method:', error);
+    res.status(500).json({ error: 'Failed to update payment method' });
   }
 });
 
-/**
- * DELETE /api/payment-methods/:id (soft delete)
- */
-router.delete('/:id', authenticate, requirePermission('master:payment_methods:delete'), async (req: Request, res: Response) => {
+// ════════════════════════════════════════════════════════════════════════
+// DELETE — DELETE /api/payment-methods/:id
+// ════════════════════════════════════════════════════════════════════════
+router.delete('/:id', requirePermission('payment_methods:delete'), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const companyId = (req as any).companyContext?.companyId;
+    const userId    = (req as any).user?.id;
 
-    const existing = await pool.query(`SELECT id, is_default FROM payment_methods WHERE id = $1 AND deleted_at IS NULL`, [id]);
+    const existing = await pool.query(
+      `SELECT id, is_default, is_system, is_global FROM payment_methods WHERE id = $1 AND deleted_at IS NULL
+         AND (company_id = $2 OR company_id IS NULL OR $2::int IS NULL)`,
+      [id, companyId]
+    );
     if (existing.rows.length === 0) {
-      return res.status(404).json({ success: false, error: { message: 'Payment method not found' } });
+      return res.status(404).json({ error: 'Payment method not found' });
     }
-
+    // Protect global system records from deletion
+    if (existing.rows[0].is_system && existing.rows[0].is_global) {
+      return res.status(400).json({ error: 'System payment methods cannot be deleted. Clone to your company scope first.' });
+    }
     if (existing.rows[0].is_default) {
-      return res.status(400).json({ success: false, error: { message: 'Default payment method cannot be deleted' } });
+      return res.status(400).json({ error: 'Default payment method cannot be deleted' });
     }
 
     await pool.query(
-      `UPDATE payment_methods SET deleted_at = NOW(), is_active = FALSE, updated_at = NOW() WHERE id = $1`,
-      [id]
+      `UPDATE payment_methods SET deleted_at = NOW(), deleted_by = $1, updated_by = $1, is_active = FALSE WHERE id = $2`,
+      [userId, id]
     );
-
-    return res.json({ success: true });
+    res.json({ message: 'Payment method deleted successfully' });
   } catch (error) {
-    if (isMissingTableError(error)) {
-      return res.json({ success: true });
-    }
-
-    console.error('Error deleting payment method:', error);
-    return res.status(500).json({ success: false, error: { message: 'Failed to delete payment method' } });
+    logger.error('Error deleting payment method:', error);
+    res.status(500).json({ error: 'Failed to delete payment method' });
   }
 });
 

@@ -1,21 +1,38 @@
 /**
  * useCompany Hook
- * Manages company selection and context
+ * Manages company selection, context switching, and permission reload
+ * 
+ * Critical: When switching company, this hook:
+ *   1. Calls backend POST /api/company-context/switch
+ *   2. Updates local company store
+ *   3. Triggers permission/menu reload via AuthContext.refreshUser()
+ *   4. Clears branch selection
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { companyStore, Company } from '../lib/companyStore';
+import { branchStore } from '../lib/branchStore';
 import apiClient from '../lib/apiClient';
 import { useAuth } from '../contexts/AuthContext';
 import { authService } from '../lib/authService';
 
+interface SwitchResult {
+  success: boolean;
+  company_id: number;
+  company_name: string;
+  permissions: string[];
+  roles: string[];
+  enabled_modules: string[];
+}
+
 export function useCompany() {
-  const { isAuthenticated, loading: authLoading } = useAuth();
+  const { isAuthenticated, loading: authLoading, refreshUser } = useAuth();
   const [activeCompanyId, setActiveCompanyId] = useState<number | null>(
     companyStore.getActiveCompanyId()
   );
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
+  const [switching, setSwitching] = useState(false);
 
   // Subscribe to company changes
   useEffect(() => {
@@ -65,9 +82,48 @@ export function useCompany() {
     }
   };
 
-  const selectCompany = (companyId: number) => {
-    companyStore.setActiveCompany(companyId);
-  };
+  /**
+   * Switch company with full backend context reload.
+   * This is the SECURE way to switch companies — calls backend to:
+   *   1. Validate user has access to the target company
+   *   2. Update user's default company in DB
+   *   3. Invalidate permission caches
+   *   4. Return fresh permissions + roles + modules
+   */
+  const selectCompany = useCallback(async (companyId: number) => {
+    // Skip if already on this company
+    if (companyId === activeCompanyId) return;
+
+    setSwitching(true);
+    try {
+      // Call backend switch endpoint
+      const response = await apiClient.post<{ success: boolean; data: SwitchResult }>(
+        '/api/company-context/switch',
+        { company_id: companyId }
+      );
+
+      if (response.success) {
+        // Update local store
+        companyStore.setActiveCompany(companyId);
+        
+        // Clear branch selection
+        branchStore.clear();
+        
+        // Reload user profile (permissions, enabled_modules, company context)
+        // This triggers re-render of sidebar, permission checks, etc.
+        if (refreshUser) {
+          await refreshUser();
+        }
+      }
+    } catch (error: any) {
+      console.error('Failed to switch company:', error);
+      // Fallback: still set locally but warn
+      companyStore.setActiveCompany(companyId);
+      branchStore.clear();
+    } finally {
+      setSwitching(false);
+    }
+  }, [activeCompanyId, refreshUser]);
 
   const clearCompany = () => {
     companyStore.clear();
@@ -80,8 +136,10 @@ export function useCompany() {
     activeCompany,
     companies,
     loading,
+    switching,
     selectCompany,
     clearCompany,
     hasCompany: activeCompanyId !== null,
+    reloadCompanies: loadCompanies,
   };
 }

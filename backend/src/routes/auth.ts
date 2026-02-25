@@ -7,9 +7,10 @@ import { AuthService } from '../services/authService';
 import { NotificationService } from '../services/notificationService';
 import { sendSuccess, sendError } from '../utils/response';
 import { logger } from '../utils/logger';
+import { auditLog } from '../middleware/auditLog';
+import { PolicyService } from '../services/policyService';
 
 const router = Router();
-const LOCK_DURATION_MINUTES = parseInt(process.env.LOCK_DURATION_MINUTES || '30');
 
 // Extended Request type with user
 interface AuthRequest extends Request {
@@ -26,7 +27,15 @@ interface AuthRequest extends Request {
   };
 }
 
-router.post('/register', async (req, res) => {
+router.post('/register', authenticate, auditLog, async (req: AuthRequest, res) => {
+  // Registration is restricted to authenticated platform admins only
+  const userRoles = (req as any).user?.roles || [];
+  const isSuperAdmin = !((req as any).user?.tenant_id) && 
+    userRoles.some((r: string) => ['super_admin', 'system_admin'].includes(r));
+  if (!isSuperAdmin) {
+    return sendError(res, 'FORBIDDEN', 'Only platform administrators can register new users', 403);
+  }
+
   const { email, password, full_name, role } = req.body;
   
   if (!email || !password) {
@@ -68,19 +77,40 @@ router.post('/register', async (req, res) => {
   }
 });
 
-router.post('/login', authRateLimiter, async (req, res) => {
-  const { email, password } = req.body;
+router.post('/login', authRateLimiter, auditLog, async (req, res) => {
+  const { email, password, tenant_id, tenant_code } = req.body;
   
   if (!email || !password) {
     return sendError(res, 'VALIDATION_ERROR', 'Email and password are required', 400);
   }
 
   try {
+    // Resolve tenant_code to tenant_id if provided
+    let resolvedTenantId = tenant_id ? Number(tenant_id) : undefined;
+    if (!resolvedTenantId && tenant_code) {
+      const tenantResult = await pool.query(
+        'SELECT id, status FROM tenants WHERE tenant_code = $1 AND deleted_at IS NULL',
+        [tenant_code.toUpperCase()]
+      );
+      if (tenantResult.rowCount === 0) {
+        return sendError(res, 'INVALID_TENANT', 'Company not found. Please check the company code.', 400);
+      }
+      const tenant = tenantResult.rows[0];
+      if (tenant.status === 'locked') {
+        return sendError(res, 'TENANT_LOCKED', 'This company account is locked. Contact platform support.', 403);
+      }
+      if (tenant.status === 'terminated') {
+        return sendError(res, 'TENANT_TERMINATED', 'This company account has been terminated.', 403);
+      }
+      resolvedTenantId = tenant.id;
+    }
+
     const result = await AuthService.login(
       email, 
       password, 
       req.ip || 'unknown', 
-      req.get('user-agent') || 'unknown'
+      req.get('user-agent') || 'unknown',
+      resolvedTenantId
     );
 
     // Check if user must change password before granting access
@@ -97,9 +127,41 @@ router.post('/login', authRateLimiter, async (req, res) => {
   } catch (error: any) {
     logger.error('Login failed', error, { email });
 
+    // Handle MFA required - password was correct but MFA verification needed
+    if (error.message === 'MFA_REQUIRED') {
+      return res.status(403).json({
+        error: {
+          code: 'MFA_REQUIRED',
+          message: 'Two-factor authentication required',
+          mfa_token: error.mfa_token,
+          mfa_setup_required: false
+        }
+      });
+    }
+
+    // Handle MFA setup required - MFA is enforced but not yet configured
+    if (error.message === 'MFA_SETUP_REQUIRED') {
+      return res.status(403).json({
+        error: {
+          code: 'MFA_SETUP_REQUIRED',
+          message: 'You must set up two-factor authentication before accessing the system',
+          mfa_token: error.mfa_token,
+          mfa_setup_required: true
+        }
+      });
+    }
+
     // Handle specific errors
     if (error.message === 'INVALID_CREDENTIALS') {
       return sendError(res, 'INVALID_CREDENTIALS', 'Invalid email or password', 401);
+    }
+
+    if (error.message === 'TENANT_LOGIN_REQUIRED') {
+      return sendError(res, 'TENANT_LOGIN_REQUIRED', 'Please select a company to login', 400);
+    }
+
+    if (error.message === 'TENANT_ACCESS_DENIED') {
+      return sendError(res, 'TENANT_ACCESS_DENIED', 'You do not have access to this company. Contact your administrator.', 403);
     }
 
     if (error.message === 'ACCOUNT_DISABLED') {
@@ -107,14 +169,15 @@ router.post('/login', authRateLimiter, async (req, res) => {
     }
 
     if (error.message === 'ACCOUNT_LOCKED' || error.message === 'ACCOUNT_LOCKED_BY_FAILED_ATTEMPTS') {
-      return sendError(res, 'ACCOUNT_LOCKED', `Account locked due to multiple failed login attempts. Try again in ${LOCK_DURATION_MINUTES} minutes.`, 403);
+      const lockMinutes = await PolicyService.lockoutDurationMinutes();
+      return sendError(res, 'ACCOUNT_LOCKED', `Account locked due to multiple failed login attempts. Try again in ${lockMinutes} minutes.`, 403);
     }
 
     return sendError(res, 'SERVER_ERROR', 'Login failed', 500);
   }
 });
 
-router.post('/refresh', async (req, res) => {
+router.post('/refresh', auditLog, async (req, res) => {
   const { refreshToken } = req.body;
   
   if (!refreshToken) {
@@ -149,7 +212,7 @@ router.post('/refresh', async (req, res) => {
   }
 });
 
-router.post('/logout', async (req, res) => {
+router.post('/logout', auditLog, async (req, res) => {
   const { refreshToken } = req.body;
   
   if (!refreshToken) {
@@ -175,7 +238,7 @@ router.post('/logout', async (req, res) => {
  * Change password (both forced and voluntary)
  * Rate limited: 5 attempts per hour
  */
-router.post('/change-password', authenticate, settingsRateLimiter, async (req: AuthRequest, res: Response) => {
+router.post('/change-password', authenticate, settingsRateLimiter, auditLog, async (req: AuthRequest, res: Response) => {
   try {
     const { current_password, new_password, confirm_password } = req.body;
     const userId = req.user!.id;
@@ -189,17 +252,10 @@ router.post('/change-password', authenticate, settingsRateLimiter, async (req: A
       return sendError(res, 'VALIDATION_ERROR', 'New passwords do not match', 400);
     }
 
-    if (new_password.length < 8) {
-      return sendError(res, 'VALIDATION_ERROR', 'New password must be at least 8 characters', 400);
-    }
-
-    // Password strength check (basic)
-    const hasUpperCase = /[A-Z]/.test(new_password);
-    const hasLowerCase = /[a-z]/.test(new_password);
-    const hasNumber = /[0-9]/.test(new_password);
-
-    if (!hasUpperCase || !hasLowerCase || !hasNumber) {
-      return sendError(res, 'VALIDATION_ERROR', 'Password must contain uppercase, lowercase, and numbers', 400);
+    // Policy-driven password validation
+    const pwErrors = await PolicyService.validatePassword(new_password);
+    if (pwErrors.length > 0) {
+      return sendError(res, 'VALIDATION_ERROR', pwErrors.join('. '), 400);
     }
 
     // Change password
@@ -256,7 +312,7 @@ router.get('/me', authenticate, async (req: AuthRequest, res: Response) => {
  * PATCH /api/auth/me/language
  * Update user language preference
  */
-router.patch('/me/language', authenticate, async (req: AuthRequest, res: Response) => {
+router.patch('/me/language', authenticate, auditLog, async (req: AuthRequest, res: Response) => {
   try {
     const { language } = req.body;
     const userId = req.user!.id;
@@ -290,7 +346,7 @@ router.patch('/me/language', authenticate, async (req: AuthRequest, res: Respons
  * Only allows registered emails to request password reset
  * Rate limited to prevent abuse
  */
-router.post('/request-password-reset', authRateLimiter, async (req: Request, res: Response) => {
+router.post('/request-password-reset', authRateLimiter, auditLog, async (req: Request, res: Response) => {
   try {
     const { email, reason } = req.body;
 

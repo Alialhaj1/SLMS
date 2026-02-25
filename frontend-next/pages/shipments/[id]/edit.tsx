@@ -257,7 +257,7 @@ export default withPermission(MenuPermissions.Logistics.Shipments.Edit, function
     try {
       const [typesRes, projectsRes, portsRes, vendorsRes, countriesRes, statusesRes, stagesRes] = await Promise.all([
         apiClient.get<{ success: boolean; data: any[] }>('/api/logistics-shipment-types?limit=100'),
-        apiClient.get<{ success: boolean; data: any[] }>('/api/projects?limit=500'),
+        apiClient.get<{ success: boolean; data: any[] }>('/projects?limit=500'),
         apiClient.get<{ success: boolean; data: any[] }>('/api/ports?limit=500'),
         apiClient.get<{ success: boolean; data: any[] }>('/api/vendors?limit=500'),
         apiClient.get<{ success: boolean; data: any[] }>('/api/master/countries?limit=300'),

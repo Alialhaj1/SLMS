@@ -52,7 +52,7 @@ router.get(
   requireCompany,
   async (req: Request, res: Response) => {
     try {
-      const companyId = req.company?.id;
+      const companyId = req.companyId || req.companyContext?.companyId;
       if (!companyId) {
         return res.status(400).json({ error: 'Company context required' });
       }
@@ -119,7 +119,7 @@ router.get(
   requireCompany,
   async (req: Request, res: Response) => {
     try {
-      const companyId = req.company?.id;
+      const companyId = req.companyId || req.companyContext?.companyId;
       const { account_id } = req.params;
 
       if (!companyId) {
@@ -212,7 +212,7 @@ router.get(
   requireCompany,
   async (req: Request, res: Response) => {
     try {
-      const companyId = req.company?.id;
+      const companyId = req.companyId || req.companyContext?.companyId;
       if (!companyId) {
         return res.status(400).json({ error: 'Company context required' });
       }

@@ -6,6 +6,7 @@
 import { Router, Request, Response } from 'express';
 import { authenticate } from '../middleware/auth';
 import { requirePermission } from '../middleware/rbac';
+import { getIsolatedTenantId } from '../middleware/tenantIsolation';
 import { UploadService } from '../services/uploadService';
 import pool from '../db';
 
@@ -273,10 +274,15 @@ router.post(
         return res.status(400).json({ success: false, error: 'No image provided' });
       }
 
-      // Check target user exists
+      // Tenant isolation: verify target user is in same tenant
+      const tenantId = getIsolatedTenantId(req as any);
+      const tenantFilter = tenantId ? 'AND u.tenant_id = $2' : '';
+      const tenantParams = tenantId ? [targetUserId, tenantId] : [targetUserId];
+
+      // Check target user exists (tenant-scoped)
       const userCheck = await pool.query(
-        'SELECT id, profile_image FROM users WHERE id = $1 AND deleted_at IS NULL',
-        [targetUserId]
+        `SELECT u.id, u.profile_image FROM users u WHERE u.id = $1 AND u.deleted_at IS NULL ${tenantFilter}`,
+        tenantParams
       );
       
       if (userCheck.rows.length === 0) {
@@ -341,10 +347,15 @@ router.delete(
         return res.status(400).json({ success: false, error: 'Invalid user id' });
       }
 
-      // Get current image
+      // Tenant isolation: verify target user is in same tenant
+      const tenantId = getIsolatedTenantId(req as any);
+      const tenantFilter = tenantId ? 'AND u.tenant_id = $2' : '';
+      const tenantParams = tenantId ? [targetUserId, tenantId] : [targetUserId];
+
+      // Get current image (tenant-scoped)
       const result = await pool.query(
-        'SELECT profile_image FROM users WHERE id = $1 AND deleted_at IS NULL',
-        [targetUserId]
+        `SELECT u.profile_image FROM users u WHERE u.id = $1 AND u.deleted_at IS NULL ${tenantFilter}`,
+        tenantParams
       );
 
       if (result.rows.length === 0) {
@@ -403,10 +414,15 @@ router.post(
         return res.status(400).json({ success: false, error: 'No image provided' });
       }
 
-      // Check target user exists
+      // Tenant isolation: verify target user is in same tenant
+      const tenantId = getIsolatedTenantId(req as any);
+      const tenantFilter = tenantId ? 'AND u.tenant_id = $2' : '';
+      const tenantParams = tenantId ? [targetUserId, tenantId] : [targetUserId];
+
+      // Check target user exists (tenant-scoped)
       const userCheck = await pool.query(
-        'SELECT id, cover_image FROM users WHERE id = $1 AND deleted_at IS NULL',
-        [targetUserId]
+        `SELECT u.id, u.cover_image FROM users u WHERE u.id = $1 AND u.deleted_at IS NULL ${tenantFilter}`,
+        tenantParams
       );
       
       if (userCheck.rows.length === 0) {
@@ -471,10 +487,15 @@ router.delete(
         return res.status(400).json({ success: false, error: 'Invalid user id' });
       }
 
-      // Get current image
+      // Tenant isolation: verify target user is in same tenant
+      const tenantId = getIsolatedTenantId(req as any);
+      const tenantFilter = tenantId ? 'AND u.tenant_id = $2' : '';
+      const tenantParams = tenantId ? [targetUserId, tenantId] : [targetUserId];
+
+      // Get current image (tenant-scoped)
       const result = await pool.query(
-        'SELECT cover_image FROM users WHERE id = $1 AND deleted_at IS NULL',
-        [targetUserId]
+        `SELECT u.cover_image FROM users u WHERE u.id = $1 AND u.deleted_at IS NULL ${tenantFilter}`,
+        tenantParams
       );
 
       if (result.rows.length === 0) {

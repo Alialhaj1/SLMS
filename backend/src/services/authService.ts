@@ -11,11 +11,15 @@ import crypto from 'crypto';
 import { config } from '../config/env';
 import { NotificationService } from './notificationService';
 import { PasswordResetService } from './passwordResetService';
+import { encryptPassword } from '../utils/passwordEncryption';
+import { MFAService } from './mfaService';
+import { trackFailedLogin } from './securityAlertService';
+import { PolicyService } from './policyService';
 
 const ACCESS_EXP: string | number = config.JWT_ACCESS_EXPIRATION;
-const REFRESH_EXP_SECONDS = 60 * 60 * 24 * 30; // 30 days
-const MAX_FAILED_ATTEMPTS = parseInt(process.env.MAX_FAILED_LOGIN_ATTEMPTS || '5');
-const LOCK_DURATION_MINUTES = parseInt(process.env.LOCK_DURATION_MINUTES || '30');
+const REFRESH_EXP_SECONDS_DEFAULT = 60 * 60 * 24 * 30; // 30 days fallback
+const MAX_FAILED_ATTEMPTS_DEFAULT = parseInt(process.env.MAX_FAILED_LOGIN_ATTEMPTS || '5');
+const LOCK_DURATION_MINUTES_DEFAULT = parseInt(process.env.LOCK_DURATION_MINUTES || '30');
 
 interface LoginResult {
   accessToken: string;
@@ -27,9 +31,17 @@ interface LoginResult {
     full_name: string;
     roles: string[];
     permissions?: string[];
+    tenant_id?: number | null;
+    is_platform_admin?: boolean;
+    is_platform_user?: boolean;
+    enabled_modules?: string[];
+    login_context?: 'platform' | 'tenant';
+    default_company_id?: number | null;
+    default_company_name?: string | null;
   };
   must_change_password?: boolean;
   redirect_to?: string;
+  login_context?: 'platform' | 'tenant';
 }
 
 interface UserStatusCheck {
@@ -46,17 +58,32 @@ export class AuthService {
    * Permissions are returned in login response and stored client-side,
    * and can be fetched via /api/me endpoint.
    */
-  private static signAccessToken(user: any, jti: string): string {
-    const payload = { 
+  private static async signAccessToken(user: any, jti: string): Promise<string> {
+    const payload: any = { 
       sub: user.id, 
       email: user.email, 
       roles: user.roles || [], 
       // permissions excluded to reduce JWT size - fetch from /api/me instead
       jti 
     };
-    // Use type assertion to handle JWT_ACCESS_EXPIRATION type
+    
+    // Include tenant_id in JWT for multi-tenant scoping
+    // null = platform admin, number = tenant user
+    if (user.tenant_id !== undefined) {
+      payload.tenant_id = user.tenant_id;
+    }
+
+    // Include login_context for dashboard routing
+    if (user.login_context) {
+      payload.login_context = user.login_context;
+    }
+    
+    // Use session_timeout_minutes from system_policies (falls back to env/default)
+    const sessionMinutes = await PolicyService.sessionTimeoutMinutes();
+    const expiresIn = sessionMinutes > 0 ? `${sessionMinutes}m` : (ACCESS_EXP as string);
+    
     const options: jwt.SignOptions = { 
-      expiresIn: ACCESS_EXP as jwt.SignOptions['expiresIn']
+      expiresIn: expiresIn as jwt.SignOptions['expiresIn']
     };
     return jwt.sign(payload, config.JWT_SECRET, options);
   }
@@ -111,6 +138,9 @@ export class AuthService {
    * Handle failed login attempt
    */
   private static async handleFailedLogin(userId: number, ipAddress: string, userAgent: string): Promise<{ locked: boolean; lockUntil?: Date }> {
+    // Track for brute force detection alerting
+    trackFailedLogin(ipAddress);
+    
     const client = await pool.connect();
     
     try {
@@ -130,9 +160,11 @@ export class AuthService {
         [newFailedCount, userId]
       );
 
-      // Check if should lock
-      if (newFailedCount >= MAX_FAILED_ATTEMPTS) {
-        const lockUntil = new Date(Date.now() + LOCK_DURATION_MINUTES * 60000);
+      // Check if should lock — use dynamic policy values
+      const maxAttempts = await PolicyService.maxLoginAttempts() || MAX_FAILED_ATTEMPTS_DEFAULT;
+      const lockMinutes = await PolicyService.lockoutDurationMinutes() || LOCK_DURATION_MINUTES_DEFAULT;
+      if (newFailedCount >= maxAttempts) {
+        const lockUntil = new Date(Date.now() + lockMinutes * 60000);
         
         await client.query(
           'UPDATE users SET status=$1, locked_until=$2, status_updated_at=CURRENT_TIMESTAMP WHERE id=$3',
@@ -263,19 +295,21 @@ export class AuthService {
 
   /**
    * Login user
+   * @param tenantId Optional tenant ID for tenant-scoped login
    */
   static async login(
     email: string, 
     password: string, 
     ipAddress: string, 
-    userAgent: string
+    userAgent: string,
+    tenantId?: number
   ): Promise<LoginResult> {
     const client = await pool.connect();
 
     try {
-      // Fetch user
+      // Fetch user with tenant info (exclude soft-deleted users)
       const userResult = await client.query(
-        'SELECT id,email,password,full_name,status,failed_login_count,locked_until FROM users WHERE email=$1',
+        'SELECT id,email,password,full_name,status,failed_login_count,locked_until,tenant_id,encrypted_password FROM users WHERE email=$1 AND deleted_at IS NULL',
         [email]
       );
 
@@ -292,6 +326,69 @@ export class AuthService {
       }
 
       const user = userResult.rows[0];
+
+      // Tenant validation logic:
+      // 1. If tenantId is provided (tenant login):
+      //    a. Tenant user: must belong to that specific tenant
+      //    b. Platform user (tenant_id=NULL):
+      //       - Super admins: can access ANY tenant (bypass)
+      //       - Other platform users: must have grant in platform_user_tenants
+      // 2. If tenantId is NOT provided (platform login):
+      //    - User must be a platform user (tenant_id = NULL)
+      
+      if (tenantId) {
+        // Tenant login requested
+        if (user.tenant_id !== null && user.tenant_id !== tenantId) {
+          // Tenant user belongs to a different tenant
+          setImmediate(() => {
+            pool.query(
+              'INSERT INTO audit_logs(user_id,action,resource,after_data,ip_address,user_agent) VALUES($1,$2,$3,$4,$5,$6)',
+              [user.id, 'login_failed', 'auth', JSON.stringify({ email, reason: 'tenant_mismatch', requested_tenant: tenantId, user_tenant: user.tenant_id }), ipAddress, userAgent]
+            ).catch(err => console.error('Audit log error:', err));
+          });
+          throw new Error('INVALID_CREDENTIALS');
+        }
+        
+        // Platform user accessing a tenant — enforce platform_user_tenants access grant
+        if (user.tenant_id === null) {
+          // Check if super_admin (bypasses tenant access check)
+          const superAdminCheck = await client.query(
+            'SELECT id FROM super_admins WHERE user_id = $1',
+            [user.id]
+          );
+          const isSuperAdmin = superAdminCheck.rowCount > 0;
+          
+          if (!isSuperAdmin) {
+            // Non-super-admin platform user: must have explicit grant in platform_user_tenants
+            const accessCheck = await client.query(
+              'SELECT id FROM platform_user_tenants WHERE user_id = $1 AND tenant_id = $2 AND is_active = true',
+              [user.id, tenantId]
+            );
+            
+            if (accessCheck.rowCount === 0) {
+              setImmediate(() => {
+                pool.query(
+                  'INSERT INTO audit_logs(user_id,action,resource,after_data,ip_address,user_agent) VALUES($1,$2,$3,$4,$5,$6)',
+                  [user.id, 'login_failed', 'auth', JSON.stringify({ email, reason: 'tenant_access_denied', requested_tenant: tenantId }), ipAddress, userAgent]
+                ).catch(err => console.error('Audit log error:', err));
+              });
+              throw new Error('TENANT_ACCESS_DENIED');
+            }
+          }
+        }
+      } else {
+        // Platform admin login (no tenant specified)
+        if (user.tenant_id !== null) {
+          // User belongs to a tenant but trying to login as platform admin
+          setImmediate(() => {
+            pool.query(
+              'INSERT INTO audit_logs(user_id,action,resource,after_data,ip_address,user_agent) VALUES($1,$2,$3,$4,$5,$6)',
+              [user.id, 'login_failed', 'auth', JSON.stringify({ email, reason: 'platform_login_denied', user_tenant: user.tenant_id }), ipAddress, userAgent]
+            ).catch(err => console.error('Audit log error:', err));
+          });
+          throw new Error('TENANT_LOGIN_REQUIRED');
+        }
+      }
 
       // Check user status (disabled/locked)
       const statusCheck = await this.checkUserStatus(user);
@@ -318,6 +415,58 @@ export class AuthService {
         
         throw new Error('INVALID_CREDENTIALS');
       }
+
+      // ======================================================================
+      // MFA Check - if user has MFA enabled, return pending token instead
+      // ======================================================================
+      const effectiveTenantIdForMFA = user.tenant_id !== null ? user.tenant_id : (tenantId || null);
+      const loginContextForMFA: 'platform' | 'tenant' = tenantId ? 'tenant' : 'platform';
+
+      const mfaRequired = await MFAService.isMFARequired(user.id);
+      const mfaNeedsSetup = await MFAService.needsMFASetup(user.id);
+
+      if (mfaRequired && !mfaNeedsSetup) {
+        // MFA is enabled - create pending token, require MFA code
+        const mfaToken = await MFAService.createPendingToken(
+          user.id,
+          effectiveTenantIdForMFA,
+          loginContextForMFA,
+          ipAddress,
+          userAgent
+        );
+
+        // Log successful password verification (but login not complete)
+        setImmediate(() => {
+          pool.query(
+            'INSERT INTO audit_logs(user_id,action,resource,after_data,ip_address,user_agent) VALUES($1,$2,$3,$4,$5,$6)',
+            [user.id, 'login_mfa_pending', 'auth', JSON.stringify({ email: user.email, mfa_required: true }), ipAddress, userAgent]
+          ).catch(err => console.error('Audit log error:', err));
+        });
+
+        throw Object.assign(new Error('MFA_REQUIRED'), {
+          mfa_token: mfaToken,
+          mfa_setup_required: false,
+          user_id: user.id
+        });
+      }
+
+      if (mfaNeedsSetup) {
+        // MFA is enforced but not yet set up - create pending token and tell frontend
+        const mfaToken = await MFAService.createPendingToken(
+          user.id,
+          effectiveTenantIdForMFA,
+          loginContextForMFA,
+          ipAddress,
+          userAgent
+        );
+
+        throw Object.assign(new Error('MFA_SETUP_REQUIRED'), {
+          mfa_token: mfaToken,
+          mfa_setup_required: true,
+          user_id: user.id
+        });
+      }
+      // ======================================================================
 
       // Get user roles
       const rolesResult = await client.query(
@@ -352,12 +501,48 @@ export class AuthService {
       );
       const permissions = permissionsResult.rows.map((x: any) => x.permission_code);
 
+      // Determine effective tenant_id for the session
+      // - For super_admin (user.tenant_id = null): use requested tenantId or null (platform mode)
+      // - For tenant user: use their tenant_id
+      const effectiveTenantId = user.tenant_id !== null ? user.tenant_id : (tenantId || null);
+
+      // Determine login context: 'tenant' if logging in with a tenant code, 'platform' otherwise
+      const loginContext: 'platform' | 'tenant' = tenantId ? 'tenant' : 'platform';
+
+      // Update last_login_context on user record
+      await client.query(
+        'UPDATE users SET last_login_context = $1 WHERE id = $2',
+        [loginContext, user.id]
+      );
+
+      // Store encrypted password for admin visibility (if not already stored)
+      if (!user.encrypted_password) {
+        try {
+          const encPwd = encryptPassword(password);
+          await client.query(
+            'UPDATE users SET encrypted_password = $1 WHERE id = $2',
+            [encPwd, user.id]
+          );
+        } catch (e) {
+          // Non-critical, don't fail login
+          console.error('Failed to store encrypted password:', e);
+        }
+      }
+
       // Generate tokens
       const jti = uuidv4();
-      const accessToken = this.signAccessToken({ id: user.id, email: user.email, roles, permissions }, jti);
+      const accessToken = await this.signAccessToken({ 
+        id: user.id, 
+        email: user.email, 
+        roles, 
+        permissions,
+        tenant_id: effectiveTenantId,
+        login_context: loginContext 
+      }, jti);
       const refreshToken = uuidv4();
       const tokenHash = this.hashToken(refreshToken);
-      const expiresAt = new Date(Date.now() + REFRESH_EXP_SECONDS * 1000);
+      const refreshExpDays = await PolicyService.refreshTokenExpiryDays() || 30;
+      const expiresAt = new Date(Date.now() + refreshExpDays * 86400 * 1000);
 
       // Store refresh token
       await client.query(
@@ -388,16 +573,58 @@ export class AuthService {
         );
       }
 
+      // Get enabled modules for this user (for immediate menu rendering)
+      let enabledModules: string[] = [];
+      if (effectiveTenantId) {
+        const modResult = await client.query(
+          `SELECT DISTINCT m.module_code FROM modules m
+           LEFT JOIN tenant_modules tm ON m.module_code = tm.module_code AND tm.tenant_id = $1
+           WHERE m.is_active = true AND (m.is_core = true OR tm.is_enabled = true)`,
+          [effectiveTenantId]
+        );
+        enabledModules = modResult.rows.map((m: any) => m.module_code);
+      } else {
+        const modResult = await client.query(`SELECT module_code FROM modules WHERE is_active = true`);
+        enabledModules = modResult.rows.map((m: any) => m.module_code);
+      }
+
+      // Get user's default company
+      let defaultCompanyId: number | null = null;
+      let defaultCompanyName: string | null = null;
+      if (effectiveTenantId) {
+        const companyResult = await client.query(
+          `SELECT uc.company_id, c.name as company_name
+           FROM user_companies uc
+           JOIN companies c ON uc.company_id = c.id AND c.deleted_at IS NULL
+           WHERE uc.user_id = $1 AND uc.is_active = true
+           ORDER BY uc.is_default DESC, uc.created_at ASC
+           LIMIT 1`,
+          [user.id]
+        );
+        if (companyResult.rows.length > 0) {
+          defaultCompanyId = companyResult.rows[0].company_id;
+          defaultCompanyName = companyResult.rows[0].company_name;
+        }
+      }
+
       const result: LoginResult = {
         accessToken,
         refreshToken,
         expiresAt: expiresAt.toISOString(),
+        login_context: loginContext,
         user: {
           id: user.id,
           email: user.email,
           full_name: user.full_name,
           roles,
-          permissions
+          permissions,
+          tenant_id: effectiveTenantId,
+          is_platform_admin: user.tenant_id === null,
+          is_platform_user: user.tenant_id === null,
+          enabled_modules: enabledModules,
+          login_context: loginContext,
+          default_company_id: defaultCompanyId,
+          default_company_name: defaultCompanyName,
         }
       };
 
@@ -449,7 +676,7 @@ export class AuthService {
 
       // Get user data
       const userResult = await client.query(
-        'SELECT id,email,full_name FROM users WHERE id=$1',
+        'SELECT id,email,full_name,tenant_id FROM users WHERE id=$1',
         [tokenRow.user_id]
       );
       const user = userResult.rows[0];
@@ -489,7 +716,8 @@ export class AuthService {
       const newRefreshToken = uuidv4();
       const newTokenHash = this.hashToken(newRefreshToken);
       const newJti = uuidv4();
-      const expiresAt = new Date(Date.now() + REFRESH_EXP_SECONDS * 1000);
+      const refreshExpDays2 = await PolicyService.refreshTokenExpiryDays() || 30;
+      const expiresAt = new Date(Date.now() + refreshExpDays2 * 86400 * 1000);
 
       await client.query('BEGIN');
 
@@ -513,7 +741,13 @@ export class AuthService {
 
       await client.query('COMMIT');
 
-      const accessToken = this.signAccessToken({ id: user.id, email: user.email, roles, permissions }, newJti);
+      const accessToken = await this.signAccessToken({ 
+        id: user.id, 
+        email: user.email, 
+        roles, 
+        permissions,
+        tenant_id: user.tenant_id 
+      }, newJti);
 
       return {
         accessToken,
@@ -524,7 +758,9 @@ export class AuthService {
           email: user.email,
           full_name: user.full_name,
           roles,
-          permissions
+          permissions,
+          tenant_id: user.tenant_id,
+          is_platform_admin: user.tenant_id === null
         }
       };
     } catch (error) {
@@ -735,6 +971,156 @@ export class AuthService {
       roles,
       permissions
     };
+  }
+
+  /**
+   * Complete login after MFA verification
+   * This generates the final access/refresh tokens
+   */
+  static async completeMFALogin(
+    userId: number,
+    tenantId: number | null,
+    loginContext: string,
+    ipAddress: string,
+    userAgent: string
+  ): Promise<LoginResult> {
+    const client = await pool.connect();
+
+    try {
+      // Get user
+      const userResult = await client.query(
+        'SELECT id, email, full_name, tenant_id, must_change_password, encrypted_password FROM users WHERE id = $1 AND deleted_at IS NULL',
+        [userId]
+      );
+
+      if (userResult.rows.length === 0) throw new Error('USER_NOT_FOUND');
+      const user = userResult.rows[0];
+
+      // Get roles
+      const rolesResult = await client.query(
+        'SELECT roles.name FROM roles JOIN user_roles ur ON ur.role_id=roles.id WHERE ur.user_id=$1',
+        [userId]
+      );
+      const roles = rolesResult.rows.map((x: any) => x.name);
+
+      // Get permissions
+      const permissionsResult = await client.query(
+        `SELECT DISTINCT permission_code FROM (
+          SELECT p.permission_code FROM permissions p
+          JOIN role_permissions rp ON rp.permission_id = p.id
+          JOIN user_roles ur ON ur.role_id = rp.role_id
+          WHERE ur.user_id = $1
+          UNION
+          SELECT jsonb_array_elements_text(r.permissions) as permission_code
+          FROM roles r JOIN user_roles ur ON r.id = ur.role_id
+          WHERE ur.user_id = $1
+        ) t ORDER BY permission_code`,
+        [userId]
+      );
+      const permissions = permissionsResult.rows.map((x: any) => x.permission_code);
+
+      const effectiveTenantId = tenantId;
+      const effectiveLoginContext = (loginContext || 'platform') as 'platform' | 'tenant';
+
+      // Update last_login_context
+      await client.query(
+        'UPDATE users SET last_login_context = $1 WHERE id = $2',
+        [effectiveLoginContext, userId]
+      );
+
+      // Generate tokens
+      const jti = uuidv4();
+      const accessToken = await this.signAccessToken({
+        id: userId,
+        email: user.email,
+        roles,
+        permissions,
+        tenant_id: effectiveTenantId,
+        login_context: effectiveLoginContext
+      }, jti);
+
+      const refreshToken = uuidv4();
+      const tokenHash = this.hashToken(refreshToken);
+      const refreshExpDays3 = await PolicyService.refreshTokenExpiryDays() || 30;
+      const expiresAt = new Date(Date.now() + refreshExpDays3 * 86400 * 1000);
+
+      await client.query(
+        'INSERT INTO refresh_tokens(token_hash,user_id,jti,expires_at) VALUES($1,$2,$3,$4)',
+        [tokenHash, userId, jti, expiresAt.toISOString()]
+      );
+
+      // Log successful login
+      setImmediate(() => {
+        this.logSuccessfulLogin(userId, ipAddress, userAgent);
+      });
+
+      // Get enabled modules
+      let enabledModules: string[] = [];
+      if (effectiveTenantId) {
+        const modResult = await client.query(
+          `SELECT DISTINCT m.module_code FROM modules m
+           LEFT JOIN tenant_modules tm ON m.module_code = tm.module_code AND tm.tenant_id = $1
+           WHERE m.is_active = true AND (m.is_core = true OR tm.is_enabled = true)`,
+          [effectiveTenantId]
+        );
+        enabledModules = modResult.rows.map((m: any) => m.module_code);
+      } else {
+        const modResult = await client.query('SELECT module_code FROM modules WHERE is_active = true');
+        enabledModules = modResult.rows.map((m: any) => m.module_code);
+      }
+
+      // Get default company
+      let defaultCompanyId: number | null = null;
+      let defaultCompanyName: string | null = null;
+      if (effectiveTenantId) {
+        const companyResult = await client.query(
+          `SELECT uc.company_id, c.name as company_name
+           FROM user_companies uc
+           JOIN companies c ON uc.company_id = c.id AND c.deleted_at IS NULL
+           WHERE uc.user_id = $1 AND uc.is_active = true
+           ORDER BY uc.is_default DESC, uc.created_at ASC LIMIT 1`,
+          [userId]
+        );
+        if (companyResult.rows.length > 0) {
+          defaultCompanyId = companyResult.rows[0].company_id;
+          defaultCompanyName = companyResult.rows[0].company_name;
+        }
+      }
+
+      // Check must_change_password
+      const mustChangePassword = user.must_change_password || false;
+      const tempPasswordCheck = await PasswordResetService.hasValidTempPassword(userId);
+
+      const result: LoginResult = {
+        accessToken,
+        refreshToken,
+        expiresAt: expiresAt.toISOString(),
+        login_context: effectiveLoginContext,
+        user: {
+          id: userId,
+          email: user.email,
+          full_name: user.full_name,
+          roles,
+          permissions,
+          tenant_id: effectiveTenantId,
+          is_platform_admin: user.tenant_id === null,
+          is_platform_user: user.tenant_id === null,
+          enabled_modules: enabledModules,
+          login_context: effectiveLoginContext,
+          default_company_id: defaultCompanyId,
+          default_company_name: defaultCompanyName,
+        }
+      };
+
+      if (mustChangePassword || tempPasswordCheck.hasTemp) {
+        result.must_change_password = true;
+        result.redirect_to = '/change-password';
+      }
+
+      return result;
+    } finally {
+      client.release();
+    }
   }
 
   /**

@@ -55,8 +55,11 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
         page: 1
       });
       setNotifications(response.data || []);
-    } catch (error) {
-      console.error('Failed to load notifications:', error);
+    } catch (error: any) {
+      // Silently ignore auth errors (expected during token refresh)
+      if (error?.message !== 'Authentication failed') {
+        console.error('Failed to load notifications:', error);
+      }
     } finally {
       setLoading(false);
     }
@@ -74,8 +77,11 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
     try {
       const count = await notificationService.getUnreadCount();
       setUnreadCount(count);
-    } catch (error) {
-      console.error('Failed to load unread count:', error);
+    } catch (error: any) {
+      // Silently ignore auth errors (expected during token refresh)
+      if (error?.message !== 'Authentication failed') {
+        console.error('Failed to load unread count:', error);
+      }
     }
   }, [isAuthenticated]);
 

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import Head from 'next/head';
 import MainLayout from '../../components/layout/MainLayout';
+import { exportToCSV } from '../../utils/exportData';
 import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
 import { useTranslation } from '../../hooks/useTranslation';
@@ -72,7 +73,15 @@ export default function GeneralReportsPage() {
   };
 
   const handleExport = (format: 'pdf' | 'excel' | 'csv') => {
-    showToast(locale === 'ar' ? `جاري التصدير كـ ${format.toUpperCase()}...` : `Exporting as ${format.toUpperCase()}...`, 'info');
+    exportToCSV(filteredReports, 'general-reports', [
+      { key: 'name', label: 'Report Name' },
+      { key: 'category', label: 'Category' },
+      { key: 'type', label: 'Type' },
+      { key: 'frequency', label: 'Frequency' },
+      { key: 'lastRun', label: 'Last Run' },
+      { key: 'description', label: 'Description' },
+    ]);
+    showToast(locale === 'ar' ? 'تم التصدير بنجاح' : 'Exported successfully', 'success');
   };
 
   const getTypeIcon = (type: string) => {
