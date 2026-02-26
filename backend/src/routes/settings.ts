@@ -72,6 +72,41 @@ router.get(
 );
 
 /**
+ * GET /api/settings/policies
+ * Get system policies for feature flags and access control.
+ * Returns policies from system_policies table in key-value format.
+ */
+router.get('/policies', authenticate, async (req: Request, res: Response) => {
+  try {
+    // Check if system_policies table exists
+    const tableCheck = await pool.query(
+      `SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_name = 'system_policies'
+      ) AS exists`
+    );
+
+    if (!tableCheck.rows[0]?.exists) {
+      // Table doesn't exist yet - return empty policies
+      return res.json({ success: true, data: [] });
+    }
+
+    const result = await pool.query(
+      `SELECT policy_key as key, policy_value as value, scope, is_active
+       FROM system_policies
+       WHERE is_active = true AND deleted_at IS NULL
+       ORDER BY policy_key`
+    );
+
+    res.json({ success: true, data: result.rows });
+  } catch (error: any) {
+    console.error('Failed to fetch policies:', error);
+    // Fail gracefully - return empty policies
+    res.json({ success: true, data: [] });
+  }
+});
+
+/**
  * GET /api/settings/public
  * Get public settings (no auth required)
  */

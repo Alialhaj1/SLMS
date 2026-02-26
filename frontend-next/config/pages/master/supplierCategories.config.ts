@@ -1,0 +1,86 @@
+/**
+ * Supplier Categories Master Data — Page Configuration
+ * Auto-generated governance config for Supplier Categories CRUD.
+ */
+import type { PageConfig, ColumnMeta, ActionMeta, PageSection } from '@/lib/governance/types';
+
+// ─── Entity Type ──────────────────────────────────────────────────────────────
+
+export interface SupplierCategory {
+  id: number;
+  code?: string;
+  name_en: string;
+  name_ar?: string;
+  description?: string;
+  is_active: boolean;
+}
+
+export type { SupplierCategory as SupplierCategoryType };
+
+// ─── Columns ──────────────────────────────────────────────────────────────────
+
+const columns: ColumnMeta<SupplierCategory>[] = [
+  { key: 'code',        label: 'Code',        sortable: true,  width: 100 },
+  { key: 'name_en',     label: 'Name (EN)',   sortable: true               },
+  { key: 'name_ar',     label: 'Name (AR)',   sortable: true               },
+  { key: 'description', label: 'Description', sortable: false              },
+  { key: 'is_active',   label: 'Active',      sortable: true,  width: 90, format: 'boolean', align: 'center' },
+];
+
+// ─── Form Sections ────────────────────────────────────────────────────────────
+
+const formSections: PageSection[] = [
+  {
+    key: 'identity',
+    label: 'Identity',
+    fields: [
+      { key: 'code',        label: 'Code',           type: 'code',     required: 'optional',    placeholder: 'Category code', autoUppercase: true, colSpan: 4 },
+      { key: 'name_en',     label: 'Name (English)',  type: 'text',     required: 'required',    placeholder: 'Supplier category name in English' },
+      { key: 'name_ar',     label: 'Name (Arabic)',   type: 'text',     required: 'recommended', placeholder: 'اسم فئة المورد بالعربية' },
+      { key: 'description', label: 'Description',     type: 'textarea', required: 'optional',    placeholder: 'Brief description of this supplier category', colSpan: 'full' as any },
+    ],
+  },
+  {
+    key: 'settings',
+    label: 'Settings',
+    fields: [
+      { key: 'is_active', label: 'Active', type: 'toggle', required: 'optional', defaultValue: true },
+    ],
+  },
+];
+
+// ─── Actions ──────────────────────────────────────────────────────────────────
+
+const actions: ActionMeta[] = [
+  { key: 'create', label: 'Create New',  icon: 'PlusIcon',           variant: 'primary',   permission: 'master:supplier_categories:create', position: ['toolbar'] },
+  { key: 'edit',   label: 'Edit',        icon: 'PencilSquareIcon',   variant: 'secondary', permission: 'master:supplier_categories:edit',   position: ['row'] },
+  { key: 'delete', label: 'Delete',      icon: 'TrashIcon',          variant: 'danger',    permission: 'master:supplier_categories:delete', position: ['row', 'bulk'], requireConfirmation: true, isDangerous: true },
+  { key: 'export', label: 'Export',      icon: 'ArrowDownTrayIcon',  variant: 'secondary', permission: 'master:supplier_categories:view',   position: ['toolbar'] },
+];
+
+// ─── Page Config ──────────────────────────────────────────────────────────────
+
+export const supplierCategoriesConfig: PageConfig<SupplierCategory> = {
+  title: 'Supplier Categories',
+  titleKey: 'pages.master.supplierCategories.title',
+  subtitle: 'Manage supplier category classifications',
+  breadcrumbs: [
+    { label: 'Home', href: '/' },
+    { label: 'Master Data', href: '/master' },
+    { label: 'Supplier Categories' },
+  ],
+  apiEndpoint: '/api/master/supplier-categories',
+  resourceName: 'supplier_categories',
+  permissionPrefix: 'master:supplier_categories',
+  columns,
+  formSections,
+  actions,
+  auditEnabled: true,
+  exportEnabled: true,
+  exportFilename: 'supplier_categories',
+  defaultSortField: 'name_en',
+  defaultSortOrder: 'asc',
+  defaultPageSize: 25,
+  pageSizeOptions: [10, 25, 50, 100],
+  bulkOperationsEnabled: true,
+};
