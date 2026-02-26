@@ -1101,6 +1101,7 @@
     "inventory.valuationMethods": "طرق التقييم",
     "inventory.itemCategories": "فئات الأصناف",
     "inventory.inventoryCounting": "جرد المخزون",
+    "inventory.transfers": "تحويلات المخزون",
     "inventory.reorderRules": "قواعد إعادة الطلب",
     "advancedWarehouses": "إدارة المستودعات المتقدمة",
     "advancedWarehouses.inventoryBalances": "أرصدة المخزون",
