@@ -6,6 +6,34 @@ import { loadCompanyContext } from '../middleware/companyContext';
 import { getPendingApprovalsCount } from '../utils/approvalHelpers';
 
 const router = Router();
+
+/**
+ * GET /api/approvals/badge-count
+ * Get count of pending approvals for current user (for sidebar badge)
+ * NOTE: Defined BEFORE router.use(loadCompanyContext) so it doesn't require company context.
+ *       Returns 0 when no company is available (platform admin, no company selected yet).
+ */
+router.get('/badge-count', authenticate, async (req: Request, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const companyId = req.user!.companyId;
+    const userRoles = req.user!.roles || [];
+
+    if (!companyId) {
+      return res.json({ count: 0 });
+    }
+
+    const count = await getPendingApprovalsCount(userId, companyId, userRoles);
+
+    res.json({ count });
+
+  } catch (error) {
+    console.error('Error fetching badge count:', error);
+    res.json({ count: 0 }); // Return 0 on error (don't block UI)
+  }
+});
+
+// All other approval routes require company context
 router.use(authenticate, loadCompanyContext);
 
 /**
@@ -23,12 +51,13 @@ router.get('/pending', authenticate, requirePermission('approvals:view'), async 
       (typeof r === 'string' ? r : (r?.name ?? r?.role_name ?? r?.role ?? '')).toLowerCase()
     );
 
-    // Check if user is super_admin (can approve anything)
+    // Check if user is super_admin (can approve anything within their company)
     const isSuperAdmin = roleNames.some(r => r.includes('super') && r.includes('admin'));
 
-    // Company filter - super_admin can see all, others see only their company
-    const companyFilter = isSuperAdmin ? '' : (companyId ? 'AND ar.company_id = $1' : 'AND 1=0');
-    const params = isSuperAdmin ? [] : (companyId ? [companyId] : []);
+    // Company filter - always filter by company to enforce tenant isolation
+    // super_admin can see all approvals within their company, not across tenants
+    const companyFilter = companyId ? 'AND ar.company_id = $1' : 'AND 1=0';
+    const params = companyId ? [companyId] : [];
 
     // Build dynamic WHERE clause for role filtering
     let roleFilter = '';
@@ -85,30 +114,6 @@ router.get('/pending', authenticate, requirePermission('approvals:view'), async 
   } catch (error) {
     console.error('Error fetching pending approvals:', error);
     res.status(500).json({ error: 'Failed to fetch pending approvals' });
-  }
-});
-
-/**
- * GET /api/approvals/badge-count
- * Get count of pending approvals for current user (for badge)
- */
-router.get('/badge-count', authenticate, async (req: Request, res: Response) => {
-  try {
-    const userId = req.user!.id;
-    const companyId = req.user!.companyId;
-    const userRoles = req.user!.roles || [];
-
-    if (!companyId) {
-      return res.json({ count: 0 });
-    }
-
-    const count = await getPendingApprovalsCount(userId, companyId, userRoles);
-
-    res.json({ count });
-
-  } catch (error) {
-    console.error('Error fetching badge count:', error);
-    res.json({ count: 0 }); // Return 0 on error (don't block UI)
   }
 });
 

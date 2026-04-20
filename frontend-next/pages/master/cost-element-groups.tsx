@@ -4,6 +4,7 @@ import MainLayout from '@/components/layout/MainLayout';
 import { useAuth } from '@/hooks/useAuth';
 import { useLocale } from '@/contexts/LocaleContext';
 import { useToast } from '@/contexts/ToastContext';
+import { usePermissions } from '@/hooks/usePermissions';
 import { PlusIcon, MagnifyingGlassIcon, PencilIcon, TrashIcon } from '@heroicons/react/24/outline';
 
 interface CostElementGroup {
@@ -19,6 +20,8 @@ export default function CostElementGroupsPage() {
   const { user } = useAuth();
   const { locale } = useLocale();
   const { showToast } = useToast();
+  const { hasPermission } = usePermissions();
+  const canManage = hasPermission('master:cost_elements:manage');
   const [items, setItems] = useState<CostElementGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -34,7 +37,8 @@ export default function CostElementGroupsPage() {
       });
       if (!res.ok) throw new Error('Failed to fetch');
       const json = await res.json();
-      setItems(json.data || []);
+      const raw = json.data;
+      setItems(Array.isArray(raw) ? raw : raw?.data || []);
     } catch {
       showToast('error', locale === 'ar' ? 'فشل تحميل البيانات' : 'Failed to load data');
     } finally {
@@ -43,8 +47,8 @@ export default function CostElementGroupsPage() {
   };
 
   const filtered = items.filter(i =>
-    i.name.toLowerCase().includes(search.toLowerCase()) ||
-    i.code.toLowerCase().includes(search.toLowerCase())
+    (i.name || i.name_en || '').toLowerCase().includes(search.toLowerCase()) ||
+    (i.code || '').toLowerCase().includes(search.toLowerCase())
   );
 
   const statusBadge = (s: string) => {
@@ -109,8 +113,12 @@ export default function CostElementGroupsPage() {
                     <td className="px-4 py-3">{statusBadge(item.status)}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
+                        {canManage && (
                         <button className="p-1 text-gray-400 hover:text-blue-600"><PencilIcon className="h-4 w-4" /></button>
+                        )}
+                        {canManage && (
                         <button className="p-1 text-gray-400 hover:text-red-600"><TrashIcon className="h-4 w-4" /></button>
+                        )}
                       </div>
                     </td>
                   </tr>

@@ -39,8 +39,9 @@ export function useMenuSearch(menu: ProcessedMenuItem[]): UseMenuSearchReturn {
     
     const searchItems = (items: ProcessedMenuItem[], parentLabel?: string) => {
       for (const item of items) {
+        const label = typeof item.label === 'string' ? item.label : String(item.label || '');
         // البحث في الاسم
-        const matchesLabel = item.label.toLowerCase().includes(term);
+        const matchesLabel = label.toLowerCase().includes(term);
         // البحث في المسار
         const matchesPath = item.path?.toLowerCase().includes(term);
         // البحث في المفتاح
@@ -56,7 +57,7 @@ export function useMenuSearch(menu: ProcessedMenuItem[]): UseMenuSearchReturn {
         
         // البحث في الأطفال
         if (item.children) {
-          searchItems(item.children, item.label);
+          searchItems(item.children, label);
         }
       }
     };
@@ -65,8 +66,8 @@ export function useMenuSearch(menu: ProcessedMenuItem[]): UseMenuSearchReturn {
     
     // ترتيب النتائج: الأهم أولاً
     return results.sort((a, b) => {
-      const aLabel = a.label.toLowerCase();
-      const bLabel = b.label.toLowerCase();
+      const aLabel = (typeof a.label === 'string' ? a.label : String(a.label || '')).toLowerCase();
+      const bLabel = (typeof b.label === 'string' ? b.label : String(b.label || '')).toLowerCase();
       
       // الأولوية للنتائج التي تبدأ بنص البحث
       const aStartsWith = aLabel.startsWith(term);

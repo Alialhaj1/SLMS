@@ -40,7 +40,7 @@ function WarehousesPage() {
 
       const endpoints = [
         { url: `${apiUrl}/api/master/companies?limit=500`,                    setter: setCompaniesRef,      fmt: (c: any) => ({ value: c.id, label: `${c.name} (${c.code})` }) },
-        { url: `${apiUrl}/api/master/branches?limit=500`,                     setter: setBranchesRef,       fmt: (c: any) => ({ value: c.id, label: `${c.name_en || c.name}${c.code ? ' (' + c.code + ')' : ''}` }) },
+        { url: `${apiUrl}/api/branches?limit=500`,                           setter: setBranchesRef,       fmt: (c: any) => ({ value: c.id, label: `${c.name_en || c.name}${c.code ? ' (' + c.code + ')' : ''}` }) },
         { url: `${apiUrl}/api/master/warehouse-types?limit=500`,              setter: setWarehouseTypesRef,  fmt: (c: any) => ({ value: c.id, label: `${c.name_en || c.name}` }) },
         { url: `${apiUrl}/api/master/countries?limit=500&is_active=true`,     setter: setCountriesRef,      fmt: (c: any) => ({ value: c.id, label: `${c.flag || c.flag_emoji || ''} ${c.name} (${c.code})`.trim() }) },
         { url: `${apiUrl}/api/master/cities?limit=1000&is_active=true`,       setter: setCitiesRef,         fmt: (c: any) => ({ value: c.id, label: `${c.name}${c.code ? ' (' + c.code + ')' : ''}` }) },

@@ -33,7 +33,15 @@ router.get('/stats', requirePermission('payment_methods:view'), async (req: Requ
         COUNT(*) FILTER (WHERE payment_type = 'digital_wallet')::int               AS digital_wallet,
         COUNT(*) FILTER (WHERE payment_type = 'letter_of_credit')::int             AS letter_of_credit,
         COUNT(*) FILTER (WHERE is_available_for_sales = true)::int                 AS for_sales,
-        COUNT(*) FILTER (WHERE is_available_for_purchases = true)::int             AS for_purchases
+        COUNT(*) FILTER (WHERE is_available_for_purchases = true)::int             AS for_purchases,
+        COUNT(*) FILTER (WHERE payment_behavior = 'cash')::int                     AS beh_cash,
+        COUNT(*) FILTER (WHERE payment_behavior = 'bank')::int                     AS beh_bank,
+        COUNT(*) FILTER (WHERE payment_behavior = 'check')::int                    AS beh_check,
+        COUNT(*) FILTER (WHERE payment_behavior = 'credit')::int                   AS beh_credit,
+        COUNT(*) FILTER (WHERE payment_behavior = 'digital')::int                  AS beh_digital,
+        COUNT(*) FILTER (WHERE payment_behavior = 'lc')::int                       AS beh_lc,
+        COUNT(*) FILTER (WHERE payment_behavior = 'sadad')::int                    AS beh_sadad,
+        COUNT(*) FILTER (WHERE payment_behavior = 'offset')::int                   AS beh_offset
       FROM payment_methods
       WHERE deleted_at IS NULL
         AND (company_id = $1 OR company_id IS NULL OR $1::int IS NULL)
@@ -59,6 +67,19 @@ router.get('/filters', requirePermission('payment_methods:view'), async (_req: R
         { id: 'debit_card',       name_en: 'Debit Card',        name_ar: 'بطاقة خصم' },
         { id: 'digital_wallet',   name_en: 'Digital Wallet',    name_ar: 'محفظة رقمية' },
         { id: 'letter_of_credit', name_en: 'Letter of Credit',  name_ar: 'خطاب اعتماد' },
+      ],
+      payment_behavior: [
+        { id: 'cash',    name_en: 'Cash',             name_ar: 'نقدي' },
+        { id: 'bank',    name_en: 'Bank Transfer',    name_ar: 'تحويل بنكي' },
+        { id: 'check',   name_en: 'Cheque',           name_ar: 'شيك' },
+        { id: 'credit',  name_en: 'Card Payment',     name_ar: 'بطاقة' },
+        { id: 'digital', name_en: 'Digital Wallet',   name_ar: 'محفظة رقمية' },
+        { id: 'lc',      name_en: 'Letter of Credit', name_ar: 'اعتماد مستندي' },
+        { id: 'sadad',   name_en: 'SADAD',            name_ar: 'سداد' },
+        { id: 'offset',  name_en: 'Offset / Netting', name_ar: 'مقاصة' },
+        { id: 'barter',  name_en: 'Barter',           name_ar: 'مقايضة' },
+        { id: 'bg',      name_en: 'Bank Guarantee',   name_ar: 'ضمان بنكي' },
+        { id: 'crypto',  name_en: 'Cryptocurrency',   name_ar: 'عملة رقمية' },
       ],
     });
   } catch (error) {
@@ -124,6 +145,11 @@ router.get('/', requirePermission('payment_methods:view'), async (req: Request, 
       conditions.push(`pm.is_available_for_purchases = $${idx}`);
       params.push(is_available_for_purchases === 'true'); idx++;
     }
+    const { payment_behavior: pb } = req.query as Record<string, string>;
+    if (pb) {
+      conditions.push(`pm.payment_behavior = $${idx}`);
+      params.push(pb); idx++;
+    }
 
     const where = conditions.join(' AND ');
 
@@ -133,13 +159,15 @@ router.get('/', requirePermission('payment_methods:view'), async (req: Request, 
     const dataQ = await pool.query(`
       SELECT
         pm.id, pm.code, pm.name, pm.name_en, pm.name_ar,
-        pm.payment_type, pm.icon,
+        pm.payment_type, pm.payment_behavior, pm.icon,
         COALESCE(pm.requires_reference, FALSE)     AS requires_reference,
         COALESCE(pm.requires_bank, pm.requires_bank_account, FALSE) AS requires_bank_account,
         COALESCE(pm.requires_due_date, FALSE)      AS requires_due_date,
+        COALESCE(pm.requires_cheque_number, FALSE)  AS requires_cheque_number,
         COALESCE(pm.clearing_days, pm.processing_days, 0) AS clearing_days,
-        pm.account_id, pm.gl_account_code,
-        pm.zatca_code,
+        pm.account_id, pm.gl_account_id, pm.gl_account_code,
+        pm.default_debit_account_id, pm.default_credit_account_id,
+        pm.zatca_code, pm.zatca_payment_code,
         pm.is_available_for_sales,
         pm.is_available_for_purchases,
         pm.sort_order,
@@ -178,10 +206,17 @@ router.get('/:id', requirePermission('payment_methods:view'), async (req: Reques
       SELECT pm.*,
         COALESCE(pm.name_en, pm.name) AS name_display,
         COALESCE(pm.requires_bank, pm.requires_bank_account, FALSE) AS requires_bank_account,
+        COALESCE(pm.requires_cheque_number, FALSE) AS requires_cheque_number,
         COALESCE(pm.clearing_days, pm.processing_days, 0) AS clearing_days,
+        da.code AS debit_account_code, da.name AS debit_account_name,
+        ca.code AS credit_account_code, ca.name AS credit_account_name,
+        ga.code AS gl_account_code_resolved, ga.name AS gl_account_name,
         cu.email AS created_by_name,
         uu.email AS updated_by_name
       FROM payment_methods pm
+      LEFT JOIN accounts da ON pm.default_debit_account_id = da.id
+      LEFT JOIN accounts ca ON pm.default_credit_account_id = ca.id
+      LEFT JOIN accounts ga ON pm.gl_account_id = ga.id
       LEFT JOIN users cu ON pm.created_by = cu.id
       LEFT JOIN users uu ON pm.updated_by = uu.id
       WHERE pm.id = $1 AND pm.deleted_at IS NULL
@@ -208,12 +243,15 @@ router.post('/', requirePermission('payment_methods:create'), async (req: Reques
     const userId    = (req as any).user?.id;
 
     const {
-      code, name, name_en, name_ar, payment_type, icon,
-      requires_reference, requires_bank_account, requires_due_date,
-      clearing_days, account_id, gl_account_code, zatca_code,
+      code, name, name_en, name_ar, payment_type, payment_behavior, icon,
+      requires_reference, requires_bank_account, requires_due_date, requires_cheque_number,
+      clearing_days, account_id, gl_account_id, gl_account_code, zatca_code, zatca_payment_code,
+      default_debit_account_id, default_credit_account_id,
       is_available_for_sales, is_available_for_purchases,
+      is_available_for_expenses, is_available_for_receipts, is_available_for_payments,
       sort_order, transaction_fee_percent, transaction_fee_fixed,
       is_default, is_active, description, description_en, description_ar,
+      min_amount, max_amount, default_payment_terms,
     } = req.body;
 
     if (!code || !payment_type) {
@@ -247,28 +285,40 @@ router.post('/', requirePermission('payment_methods:create'), async (req: Reques
 
     const insert = await client.query(`
       INSERT INTO payment_methods (
-        company_id, code, name, name_en, name_ar, payment_type, icon,
-        requires_reference, requires_bank_account, requires_bank, requires_due_date,
-        clearing_days, processing_days, account_id, gl_account_code, zatca_code,
+        company_id, code, name, name_en, name_ar, payment_type, payment_behavior, icon,
+        requires_reference, requires_bank_account, requires_bank, requires_due_date, requires_cheque_number,
+        clearing_days, processing_days, account_id, gl_account_id, gl_account_code,
+        default_debit_account_id, default_credit_account_id,
+        zatca_code, zatca_payment_code,
         is_available_for_sales, is_available_for_purchases,
+        is_available_for_expenses, is_available_for_receipts, is_available_for_payments,
         sort_order, transaction_fee_percent, transaction_fee_fixed,
+        min_amount, max_amount, default_payment_terms,
         is_default, is_active, description, description_en, description_ar,
         created_by, updated_by
       ) VALUES (
-        $1,$2,$3,$4,$5,$6,$7,
-        $8,$9,$9,$10,
-        $11,$11,$12,$13,$14,
-        $15,$16,
-        $17,$18,$19,
-        $20,$21,$22,$23,$24,
-        $25,$26
+        $1,$2,$3,$4,$5,$6,$7,$8,
+        $9,$10,$10,$11,$12,
+        $13,$13,$14,$15,$16,
+        $17,$18,
+        $19,$20,
+        $21,$22,
+        $23,$24,$25,
+        $26,$27,$28,
+        $29,$30,$31,
+        $32,$33,$34,$35,$36,
+        $37,$38
       ) RETURNING id
     `, [
-      companyId, code, finalName, finalNameEn, name_ar || null, payment_type, icon || null,
-      requires_reference ?? false, requires_bank_account ?? false, requires_due_date ?? false,
-      clearing_days ?? 0, account_id || null, gl_account_code || null, zatca_code || null,
+      companyId, code, finalName, finalNameEn, name_ar || null, payment_type, payment_behavior || payment_type, icon || null,
+      requires_reference ?? false, requires_bank_account ?? false, requires_due_date ?? false, requires_cheque_number ?? false,
+      clearing_days ?? 0, account_id || null, gl_account_id || null, gl_account_code || null,
+      default_debit_account_id || null, default_credit_account_id || null,
+      zatca_code || null, zatca_payment_code || null,
       is_available_for_sales ?? true, is_available_for_purchases ?? true,
+      is_available_for_expenses ?? true, is_available_for_receipts ?? true, is_available_for_payments ?? true,
       sort_order ?? 0, transaction_fee_percent || null, transaction_fee_fixed || null,
+      min_amount ?? 0, max_amount || null, default_payment_terms || null,
       is_default ?? false, is_active ?? true, description || null, description_en || null, description_ar || null,
       userId, userId,
     ]);
@@ -308,11 +358,14 @@ router.put('/:id', requirePermission('payment_methods:edit'), async (req: Reques
     }
 
     const allowedFields = [
-      'name', 'name_en', 'name_ar', 'payment_type', 'icon',
-      'requires_reference', 'requires_bank_account', 'requires_due_date',
-      'clearing_days', 'account_id', 'gl_account_code', 'zatca_code',
+      'name', 'name_en', 'name_ar', 'payment_type', 'payment_behavior', 'icon',
+      'requires_reference', 'requires_bank_account', 'requires_due_date', 'requires_cheque_number',
+      'clearing_days', 'account_id', 'gl_account_id', 'gl_account_code', 'zatca_code', 'zatca_payment_code',
+      'default_debit_account_id', 'default_credit_account_id',
       'is_available_for_sales', 'is_available_for_purchases',
+      'is_available_for_expenses', 'is_available_for_receipts', 'is_available_for_payments',
       'sort_order', 'transaction_fee_percent', 'transaction_fee_fixed',
+      'min_amount', 'max_amount', 'default_payment_terms',
       'is_default', 'is_active', 'description', 'description_en', 'description_ar',
     ];
 

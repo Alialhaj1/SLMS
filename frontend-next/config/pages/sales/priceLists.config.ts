@@ -29,7 +29,7 @@ const priceListsConfig: PageConfig = {
   columns: [
     { key: 'code', label: 'Code', type: 'text', sortable: true, filterable: true, width: 120 },
     { key: 'name_en', label: 'Name (EN)', type: 'text', sortable: true, filterable: true, width: 200 },
-    { key: 'currency_id', label: 'Currency', type: 'lookup', sortable: true, filterable: true, width: 140, lookup: { endpoint: '/api/master/currencies', labelKey: 'name_en', valueKey: 'id' } },
+    { key: 'currency_id', label: 'Currency', type: 'lookup', sortable: true, filterable: true, width: 140, lookup: { endpoint: '/api/finance/currencies?is_active=true', labelKey: 'name_en', valueKey: 'id' } },
     { key: 'valid_from', label: 'Valid From', type: 'date', sortable: true, filterable: true, width: 130 },
     { key: 'valid_to', label: 'Valid To', type: 'date', sortable: true, filterable: true, width: 130 },
     { key: 'is_default', label: 'Default', type: 'boolean', sortable: true, filterable: true, width: 100 },
@@ -52,7 +52,7 @@ const priceListsConfig: PageConfig = {
         { key: 'code', label: 'Code', type: 'code', required: true, placeholder: 'e.g. PL-001' },
         { key: 'name_en', label: 'Name (EN)', type: 'text', required: true, placeholder: 'Price list name in English' },
         { key: 'name_ar', label: 'Name (AR)', type: 'text', placeholder: 'Price list name in Arabic' },
-        { key: 'currency_id', label: 'Currency', type: 'searchable-select', endpoint: '/api/master/currencies', labelKey: 'name_en', valueKey: 'id' },
+        { key: 'currency_id', label: 'Currency', type: 'searchable-select', endpoint: '/api/finance/currencies?is_active=true', labelKey: 'name_en', valueKey: 'id' },
         { key: 'description', label: 'Description', type: 'textarea', placeholder: 'Price list description' },
         { key: 'is_active', label: 'Active', type: 'toggle', defaultValue: true },
       ],

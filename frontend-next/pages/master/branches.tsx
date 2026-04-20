@@ -50,7 +50,7 @@ function BranchesPage() {
         { url: `${apiUrl}/api/master/countries?limit=500&is_active=true`, setter: setCountriesRef, fmt: (c: any) => ({ value: c.id, label: `${c.flag || ''} ${c.name} (${c.code})`.trim() }) },
         { url: `${apiUrl}/api/master/cities?limit=1000&is_active=true`, setter: setCitiesRef, fmt: (c: any) => ({ value: c.id, label: `${c.name}${c.code ? ' (' + c.code + ')' : ''}` }) },
         { url: `${apiUrl}/api/master/regions?limit=500&is_active=true`, setter: setRegionsRef, fmt: (c: any) => ({ value: c.id, label: c.name }) },
-        { url: `${apiUrl}/api/master/currencies?limit=500&is_active=true`, setter: setCurrenciesRef, fmt: (c: any) => ({ value: c.id, label: `${c.code} — ${c.name}` }) },
+        { url: `${apiUrl}/api/finance/currencies?is_active=true`, setter: setCurrenciesRef, fmt: (c: any) => ({ value: c.id, label: `${c.code} — ${c.name}` }) },
         { url: `${apiUrl}/api/master/timezones?limit=500&is_active=true`, setter: setTimezonesRef, fmt: (c: any) => ({ value: c.id, label: `${c.identifier || c.name}` }) },
         { url: `${apiUrl}/api/master/languages?limit=500&is_active=true`, setter: setLanguagesRef, fmt: (c: any) => ({ value: c.id, label: `${c.name}${c.native_name ? ' / ' + c.native_name : ''}` }) },
         { url: `${apiUrl}/api/branches?limit=500&is_active=true`, setter: setBranchesRef, fmt: (c: any) => ({ value: c.id, label: `${c.code} — ${c.name}` }) },
@@ -61,7 +61,8 @@ function BranchesPage() {
       for (let i = 0; i < responses.length; i++) {
         if (responses[i].ok) {
           const json = await responses[i].json();
-          const items = json.data || json || [];
+          const raw = json.data || json;
+          const items = Array.isArray(raw) ? raw : (Array.isArray(raw?.data) ? raw.data : []);
           endpoints[i].setter(items.map(endpoints[i].fmt));
         }
       }

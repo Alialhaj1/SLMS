@@ -263,7 +263,7 @@ function VendorEditPage() {
         fetch('/api/procurement/vendors/vendor-categories', { headers }).catch(() => null),
         fetch('/api/procurement/vendors/classifications', { headers }).catch(() => null),
         fetch('/api/procurement/vendors/vendor-statuses', { headers }).catch(() => null),
-        fetch('/api/master/currencies', { headers }).catch(() => null),
+        fetch('/api/finance/currencies?is_active=true', { headers }).catch(() => null),
         fetch('/api/master/countries', { headers }).catch(() => null),
         fetch('/api/procurement/vendors/payment-terms', { headers }).catch(() => null),
         fetch('/api/master/banks', { headers }).catch(() => null),

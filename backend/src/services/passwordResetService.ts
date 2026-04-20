@@ -7,6 +7,7 @@
 import pool from '../db';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
+import { config } from '../config/env';
 
 // =============================================
 // Types & Interfaces
@@ -317,7 +318,7 @@ export class PasswordResetService {
       
       // Generate temporary password
       const tempPassword = this.generateTempPassword();
-      const tempPasswordHash = await bcrypt.hash(tempPassword.plainText, 10);
+      const tempPasswordHash = await bcrypt.hash(tempPassword.plainText, config.BCRYPT_ROUNDS);
       const expiresAt = new Date(Date.now() + expiresInHours * 60 * 60 * 1000);
       
       // Update request

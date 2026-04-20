@@ -25,9 +25,8 @@ import {
 } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
 
-// Normalize API_URL: strip trailing slashes and /api suffix to avoid /api/api/... duplication
-const rawApiUrl = (process.env.NEXT_PUBLIC_API_URL || '') + '/api';
-const API_URL = rawApiUrl.replace(/\/$/, '').replace(/\/api$/, '');
+// Normalize API_URL: strip trailing /api so fetch URLs like /api/exchange-rates work correctly
+const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api').replace(/\/api\/?$/, '');
 
 // ==================================================
 // Types
@@ -66,6 +65,8 @@ interface ExchangeRate {
   created_by_email: string;
   created_at: string;
   updated_at: string | null;
+  rate_vs_base: string | number | null;
+  company_base_currency: string | null;
 }
 
 interface FormData {
@@ -146,6 +147,7 @@ export default function ExchangeRatesPage() {
   // State
   const [rates, setRates] = useState<ExchangeRate[]>([]);
   const [currencies, setCurrencies] = useState<Currency[]>([]);
+  const [baseCurrency, setBaseCurrency] = useState<string>('SAR');
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -182,7 +184,7 @@ export default function ExchangeRatesPage() {
 
   const fetchCurrencies = useCallback(async () => {
     try {
-      const res = await fetch(`${API_URL}/api/currencies`, {
+      const res = await fetch(`${API_URL}/api/finance/currencies?is_active=true`, {
         headers: getAuthHeaders(),
       });
       if (!res.ok) throw new Error('Failed to fetch currencies');
@@ -224,6 +226,7 @@ export default function ExchangeRatesPage() {
       const data = await res.json();
       setRates(data.data || []);
       setTotal(data.pagination?.total || 0);
+      if (data.meta?.base_currency) setBaseCurrency(data.meta.base_currency);
     } catch (error) {
       console.error('Error fetching exchange rates:', error);
       showToast(locale === 'ar' ? 'فشل تحميل أسعار الصرف' : 'Failed to load exchange rates', 'error');
@@ -232,12 +235,33 @@ export default function ExchangeRatesPage() {
     }
   }, [page, limit, filters, locale, showToast]);
 
+  // Fetch ALL non-1.0 rates to power the Quick Rates summary (independent of current page)
+  const [quickRates, setQuickRates] = useState<ExchangeRate[]>([]);
+  const fetchQuickRates = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/exchange-rates?limit=100`, {
+        headers: getAuthHeaders(),
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      const allRates: ExchangeRate[] = data.data || [];
+      if (data.meta?.base_currency) setBaseCurrency(data.meta.base_currency);
+      // Only keep rates that have a meaningful rate_vs_base (not 1.0 and not null)
+      setQuickRates(allRates.filter(r => 
+        r.rate_vs_base != null && 
+        parseFloat(String(r.rate_vs_base)) !== 1.0 &&
+        parseFloat(String(r.rate_vs_base)) > 0
+      ));
+    } catch {/* silent */}
+  }, []);
+
   useEffect(() => {
     if (canView) {
       fetchCurrencies();
       fetchRates();
+      fetchQuickRates();
     }
-  }, [canView, fetchCurrencies, fetchRates]);
+  }, [canView, fetchCurrencies, fetchRates, fetchQuickRates]);
 
   // ==================================================
   // Form Validation
@@ -384,7 +408,7 @@ export default function ExchangeRatesPage() {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({
-          base_currency_code: 'USD',
+          base_currency_code: baseCurrency,
         }),
       });
 
@@ -402,6 +426,7 @@ export default function ExchangeRatesPage() {
         'success'
       );
       fetchRates();
+      fetchQuickRates();
     } catch (error: any) {
       console.error('Error syncing exchange rates:', error);
       showToast(error.message || (locale === 'ar' ? 'فشل المزامنة' : 'Failed to sync'), 'error');
@@ -598,6 +623,43 @@ export default function ExchangeRatesPage() {
           </div>
         </div>
 
+        {/* Quick Rates Summary — key currencies vs base */}
+        {(() => {
+          const keyCurrencies = ['USD', 'EUR', 'GBP', 'AED', 'KWD', 'CNY', 'JPY', 'EGP'];
+          const keyRates = keyCurrencies
+            .filter(code => code !== baseCurrency)
+            .map(code => {
+              // Search quickRates for this currency (either direction)
+              const match = quickRates.find(r =>
+                (r.from_currency_code === code || r.to_currency_code === code) &&
+                r.rate_vs_base != null
+              );
+              const rateVal = match?.rate_vs_base != null ? parseFloat(String(match.rate_vs_base)) : null;
+              return { code, rate: rateVal };
+            })
+            .filter(x => x.rate !== null && x.rate > 0 && x.rate !== 1.0);
+
+          if (keyRates.length === 0) return null;
+          return (
+            <div className="bg-indigo-50 dark:bg-indigo-900/20 rounded-xl border border-indigo-200 dark:border-indigo-800 p-4">
+              <p className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 mb-3 uppercase tracking-wide">
+                {locale === 'ar' ? `أسعار الصرف الرئيسية مقابل ${baseCurrency}` : `Key Exchange Rates vs ${baseCurrency}`}
+              </p>
+              <div className="flex flex-wrap gap-3">
+                {keyRates.map(({ code, rate }) => (
+                  <div key={code} className="bg-white dark:bg-gray-800 rounded-lg px-3 py-2 shadow-sm border border-indigo-100 dark:border-indigo-700 flex items-center gap-2">
+                    <span className="font-bold text-gray-700 dark:text-gray-300 text-sm">{code}</span>
+                    <ArrowsRightLeftIcon className="h-3 w-3 text-indigo-400" />
+                    <span className="font-mono font-semibold text-indigo-600 dark:text-indigo-400 text-sm">
+                      {formatRate(rate!)} <span className="text-xs text-gray-400">{baseCurrency}</span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
+
         {/* Filters Section */}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
           <div className="p-4 border-b border-gray-200 dark:border-gray-700">
@@ -726,7 +788,10 @@ export default function ExchangeRatesPage() {
                       {locale === 'ar' ? 'الزوج' : 'Pair'}
                     </th>
                     <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
-                      {locale === 'ar' ? 'السعر' : 'Rate'}
+                      {locale === 'ar' ? 'السعر المخزّن' : 'Stored Rate'}
+                    </th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-indigo-600 dark:text-indigo-400 uppercase">
+                      {locale === 'ar' ? `السعر مقابل ${baseCurrency}` : `Rate vs ${baseCurrency}`}
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
                       {locale === 'ar' ? 'التاريخ' : 'Date'}
@@ -746,7 +811,13 @@ export default function ExchangeRatesPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                  {rates.map((rate) => (
+                  {rates.map((rate) => {
+                    const rateVsBase = rate.rate_vs_base != null ? parseFloat(String(rate.rate_vs_base)) : null;
+                    // Determine the "foreign" currency (the non-base one in this pair)
+                    const foreignCode = rate.to_currency_code === baseCurrency
+                      ? rate.from_currency_code
+                      : rate.to_currency_code;
+                    return (
                     <tr key={rate.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
@@ -766,6 +837,22 @@ export default function ExchangeRatesPage() {
                       </td>
                       <td className="px-4 py-3 text-right font-mono font-medium text-gray-900 dark:text-white">
                         {formatRate(rate.rate)}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        {rateVsBase != null ? (
+                          <div>
+                            <span className="font-mono font-semibold text-indigo-600 dark:text-indigo-400">
+                              {formatRate(rateVsBase)}
+                            </span>
+                            <div className="text-xs text-gray-400 mt-0.5">
+                              {locale === 'ar'
+                                ? `1 ${foreignCode} = ${formatRate(rateVsBase)} ${baseCurrency}`
+                                : `1 ${foreignCode} = ${formatRate(rateVsBase)} ${baseCurrency}`}
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-gray-400 text-xs">—</span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-gray-500 dark:text-gray-400">
                         {formatDate(rate.rate_date)}
@@ -818,7 +905,8 @@ export default function ExchangeRatesPage() {
                         </div>
                       </td>
                     </tr>
-                  ))}
+                  );
+                  })}
                 </tbody>
               </table>
             )}

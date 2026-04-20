@@ -61,10 +61,10 @@ export default function BackupPage() {
         body: JSON.stringify({ type: 'full' }),
       });
       if (!res.ok) throw new Error('Failed');
-      showToast('success', 'Backup started');
+      showToast('success', t('adminBackup.started'));
       fetchData();
     } catch {
-      showToast('error', 'Failed to create backup');
+      showToast('error', t('adminBackup.createFailed'));
     } finally {
       setCreating(false);
     }
@@ -79,9 +79,9 @@ export default function BackupPage() {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error('Failed');
-      showToast('success', 'Restore initiated');
+      showToast('success', t('adminBackup.restoreInitiated'));
     } catch {
-      showToast('error', 'Failed to restore backup');
+      showToast('error', t('adminBackup.restoreFailed'));
     } finally {
       setRestoring(null);
     }
@@ -94,13 +94,15 @@ export default function BackupPage() {
 
   const formatDuration = (s: number) => s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`;
 
+  const statusLabels: Record<string, string> = { completed: t('adminBackup.completed'), failed: t('adminBackup.failed'), running: t('adminBackup.running') };
+
   const statusBadge = (s: string) => {
     const map: Record<string, string> = {
       completed: 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-400',
       failed: 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-400',
       running: 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-400',
     };
-    return <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${map[s] || 'bg-gray-100 text-gray-500'}`}>{s}</span>;
+    return <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${map[s] || 'bg-gray-100 text-gray-500'}`}>{statusLabels[s] || s}</span>;
   };
 
   const SkeletonRow = () => (
@@ -113,19 +115,19 @@ export default function BackupPage() {
 
   return (
     <MainLayout>
-      <Head><title>{t('backup.title') || 'System Backup'} - SLMS</title></Head>
+      <Head><title>{t('adminBackup.title')} - SLMS</title></Head>
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
               <ServerStackIcon className="w-7 h-7 text-blue-500" />
-              {t('backup.title') || 'System Backup'}
+              {t('adminBackup.title')}
             </h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('backup.subtitle') || 'Manage database backups, restore points, and exports'}</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('adminBackup.subtitle')}</p>
           </div>
           <button onClick={handleCreateBackup} disabled={creating} className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium transition-colors disabled:opacity-50">
             {creating ? <ArrowPathIcon className="w-4 h-4 animate-spin" /> : <ServerStackIcon className="w-4 h-4" />}
-            {creating ? 'Creating...' : 'Create Backup'}
+            {creating ? t('adminBackup.creating') : t('adminBackup.createBackup')}
           </button>
         </div>
 
@@ -133,16 +135,16 @@ export default function BackupPage() {
         {settings && !loading && (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4">
-              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase mb-1">Auto Backup</p>
-              <p className="text-lg font-bold text-gray-900 dark:text-white">{settings.auto_backup ? 'Enabled' : 'Disabled'}</p>
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase mb-1">{t('adminBackup.autoBackup')}</p>
+              <p className="text-lg font-bold text-gray-900 dark:text-white">{settings.auto_backup ? t('adminBackup.enabled') : t('adminBackup.disabled')}</p>
             </div>
             <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4">
-              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase mb-1">Retention</p>
-              <p className="text-lg font-bold text-gray-900 dark:text-white">{settings.retention_days} days</p>
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase mb-1">{t('adminBackup.retention')}</p>
+              <p className="text-lg font-bold text-gray-900 dark:text-white">{settings.retention_days} {t('adminBackup.days')}</p>
             </div>
             <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4">
-              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase mb-1">Last Backup</p>
-              <p className="text-lg font-bold text-gray-900 dark:text-white">{settings.last_backup ? new Date(settings.last_backup).toLocaleDateString() : 'Never'}</p>
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase mb-1">{t('adminBackup.lastBackup')}</p>
+              <p className="text-lg font-bold text-gray-900 dark:text-white">{settings.last_backup ? new Date(settings.last_backup).toLocaleDateString() : t('adminBackup.never')}</p>
             </div>
           </div>
         )}
@@ -152,8 +154,8 @@ export default function BackupPage() {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 dark:bg-slate-900/50">
               <tr>
-                {['Date', 'Size', 'Status', 'Duration', 'Actions'].map((h) => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{h}</th>
+                {(['date', 'size', 'status', 'duration', 'actions'] as const).map((h) => (
+                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t(`adminBackup.${h}`)}</th>
                 ))}
               </tr>
             </thead>
@@ -161,22 +163,22 @@ export default function BackupPage() {
               {loading ? Array.from({ length: 4 }).map((_, i) => <SkeletonRow key={i} />) : backups.length === 0 ? (
                 <tr><td colSpan={5} className="px-4 py-12 text-center">
                   <ClockIcon className="w-10 h-10 mx-auto mb-2 text-gray-300 dark:text-slate-600" />
-                  <p className="text-gray-400 dark:text-gray-500">No backups found</p>
+                  <p className="text-gray-400 dark:text-gray-500">{t('adminBackup.noBackups')}</p>
                 </td></tr>
               ) : backups.map((b) => (
                 <tr key={b.id} className="hover:bg-gray-50 dark:hover:bg-slate-700/30 transition-colors">
                   <td className="px-4 py-3 text-gray-900 dark:text-white">{new Date(b.date).toLocaleString()}</td>
-                  <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{b.size_mb.toFixed(1)} MB</td>
+                  <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{Number(b.size_mb).toFixed(1)} MB</td>
                   <td className="px-4 py-3">{statusBadge(b.status)}</td>
                   <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{formatDuration(b.duration_seconds)}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
                       {b.status === 'completed' && (
                         <>
-                          <button onClick={() => handleRestore(b.id)} disabled={restoring === b.id} className="text-blue-600 hover:text-blue-700 disabled:opacity-50" title="Restore">
+                          <button onClick={() => handleRestore(b.id)} disabled={restoring === b.id} className="text-blue-600 hover:text-blue-700 disabled:opacity-50" title={t('adminBackup.restore')}>
                             <ArrowPathIcon className="w-4 h-4" />
                           </button>
-                          <button onClick={() => handleExport(b.id)} className="text-green-600 hover:text-green-700" title="Export">
+                          <button onClick={() => handleExport(b.id)} className="text-green-600 hover:text-green-700" title={t('adminBackup.export')}>
                             <ArrowDownTrayIcon className="w-4 h-4" />
                           </button>
                         </>

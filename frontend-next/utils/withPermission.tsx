@@ -58,40 +58,33 @@ export function withPermission<P extends object>(
     const { can, loading: permissionsLoading } = usePermissions();
     const { t } = useTranslation();
 
-    // Wait for both auth loading AND the fresh profile from API
-    // This prevents redirects based on stale cached user data
-    const isLoading = authLoading || permissionsLoading || !profileReady;
     const hasPermission = can(permission);
+    // Don't gate on permissionsLoading if the permission is already granted
+    const isLoading = authLoading || !profileReady || (permissionsLoading && !hasPermission);
 
     useEffect(() => {
-      // انتظر تحميل البيانات
       if (isLoading) return;
 
-      // إذا لم يكن مسجل دخول، اذهب لصفحة تسجيل الدخول
       if (!isAuthenticated || !user) {
         console.warn(`[Route Guard] Not authenticated - redirecting to login from ${router.pathname}`);
         router.replace('/');
         return;
       }
 
-      // إذا لم يكن لديه صلاحية، اذهب لـ 403
       if (!hasPermission) {
         console.warn(`[Route Guard] Access denied to ${router.pathname} - Missing permission: ${permission}`);
         router.replace('/403');
       }
     }, [isAuthenticated, user, hasPermission, isLoading, router]);
 
-    // Loading state
     if (isLoading) {
       return <PermissionCheckingScreen />;
     }
 
-    // Not authenticated - show loading (سيتم التوجيه لـ login)
     if (!isAuthenticated || !user) {
       return <PermissionCheckingScreen />;
     }
 
-    // No permission - show loading (سيتم التوجيه لـ 403)
     if (!hasPermission) {
       return <PermissionCheckingScreen />;
     }
@@ -221,6 +214,55 @@ export function withAllPermissions<P extends object>(
   PermissionGuard.displayName = `withAllPermissions(${permissions.join('&')})(${componentName})`;
 
   return PermissionGuard;
+}
+
+/**
+ * حارس صفحات المنصة فقط - يمنع وصول مستخدمي المستأجرين
+ * 
+ * @example
+ * export default withPlatformGuard(
+ *   withPermission('system_policies:view', BrandingSettingsPage)
+ * );
+ */
+export function withPlatformGuard<P extends object>(
+  Component: ComponentType<P>
+): ComponentType<P> {
+  const PlatformGuard = (props: P) => {
+    const router = useRouter();
+    const { user, loading: authLoading, isAuthenticated, profileReady } = useAuth();
+
+    const isLoading = authLoading || !profileReady;
+    const isPlatformUser = !user?.tenant_id;
+
+    useEffect(() => {
+      if (isLoading) return;
+
+      if (!isAuthenticated || !user) {
+        router.replace('/');
+        return;
+      }
+
+      if (!isPlatformUser) {
+        console.warn(`[Platform Guard] Tenant user blocked from platform page: ${router.pathname}`);
+        router.replace('/403');
+      }
+    }, [isAuthenticated, user, isPlatformUser, isLoading, router]);
+
+    if (isLoading || !isAuthenticated || !user) {
+      return <PermissionCheckingScreen />;
+    }
+
+    if (!isPlatformUser) {
+      return <PermissionCheckingScreen />;
+    }
+
+    return <Component {...props} />;
+  };
+
+  const componentName = Component.displayName || Component.name || 'Component';
+  PlatformGuard.displayName = `withPlatformGuard(${componentName})`;
+
+  return PlatformGuard;
 }
 
 export default withPermission;

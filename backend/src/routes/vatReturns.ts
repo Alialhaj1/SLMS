@@ -9,15 +9,17 @@ import { Router, Request, Response } from 'express';
 import pool from '../db';
 import { authenticate } from '../middleware/auth';
 import { requireAnyPermission } from '../middleware/rbac';
+import { loadCompanyContext } from '../middleware/companyContext';
 
 const router = Router();
 
 router.use(authenticate);
+router.use(loadCompanyContext);
 
 // ── LIST ──────────────────────────────────────────────────────────────
 router.get('/', requireAnyPermission(['vat_returns:view']), async (req: Request, res: Response) => {
   try {
-    const companyId = (req as any).user?.companyId;
+    const companyId = req.companyId;
     const { status, year, page = '1', limit = '20' } = req.query;
 
     let query = `
@@ -32,7 +34,13 @@ router.get('/', requireAnyPermission(['vat_returns:view']), async (req: Request,
     const params: any[] = [];
     let paramIdx = 0;
 
-    if (companyId) { params.push(companyId); query += ` AND vr.company_id = $${++paramIdx}`; }
+    // Company filter is mandatory for tenant isolation
+    if (companyId) {
+      params.push(companyId);
+      query += ` AND vr.company_id = $${++paramIdx}`;
+    } else {
+      return res.json({ data: [], total: 0 });
+    }
     if (status) { params.push(status); query += ` AND vr.status = $${++paramIdx}`; }
     if (year) {
       params.push(`${year}-01-01`);

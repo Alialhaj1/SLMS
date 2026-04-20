@@ -35,9 +35,10 @@ export default function PasswordResets() {
       });
       if (!res.ok) throw new Error('Failed to fetch');
       const data = await res.json();
-      setRequests(data.data ?? []);
+      const items = Array.isArray(data.data?.data) ? data.data.data : Array.isArray(data.data) ? data.data : [];
+      setRequests(items);
     } catch {
-      showToast('error', 'Failed to load password reset requests');
+      showToast('error', t('adminPasswordResets.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -51,10 +52,10 @@ export default function PasswordResets() {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error('Failed');
-      showToast('success', `Request ${action === 'approve' ? 'approved' : 'denied'}`);
+      showToast('success', action === 'approve' ? t('adminPasswordResets.requestApproved') : t('adminPasswordResets.requestDenied'));
       fetchRequests();
     } catch {
-      showToast('error', `Failed to ${action} request`);
+      showToast('error', t('adminPasswordResets.actionFailed'));
     }
   };
 
@@ -64,20 +65,20 @@ export default function PasswordResets() {
       approved: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
       denied: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
     };
-    return <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded-full capitalize ${map[status]}`}>{status}</span>;
+    return <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded-full capitalize ${map[status]}`}>{t(`adminPasswordResets.${status}`)}</span>;
   };
 
   return (
     <MainLayout>
       <Head>
-        <title>Password Reset Requests - SLMS</title>
+        <title>{t('adminPasswordResets.title')} - SLMS</title>
       </Head>
 
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Password Reset Requests</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('adminPasswordResets.title')}</h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Review and manage password reset requests from users.
+            {t('adminPasswordResets.subtitle')}
           </p>
         </div>
 
@@ -85,7 +86,7 @@ export default function PasswordResets() {
           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
             <thead className="bg-gray-50 dark:bg-gray-900">
               <tr>
-                {['User', 'Email', 'Requested At', 'Status', 'IP Address', 'Actions'].map((h) => (
+                {[t('adminPasswordResets.user'), t('adminPasswordResets.email'), t('adminPasswordResets.requestedAt'), t('adminPasswordResets.status'), t('adminPasswordResets.ipAddress'), t('adminPasswordResets.actions')].map((h) => (
                   <th key={h} className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{h}</th>
                 ))}
               </tr>
@@ -103,7 +104,7 @@ export default function PasswordResets() {
                 <tr>
                   <td colSpan={6} className="px-6 py-12 text-center">
                     <KeyIcon className="mx-auto h-10 w-10 text-gray-300 dark:text-gray-600" />
-                    <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">No password reset requests.</p>
+                    <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">{t('adminPasswordResets.noRequests')}</p>
                   </td>
                 </tr>
               ) : (
@@ -122,14 +123,14 @@ export default function PasswordResets() {
                             className="inline-flex items-center gap-1 text-xs px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700"
                             aria-label="Approve"
                           >
-                            <CheckIcon className="h-3 w-3" /> Approve
+                            <CheckIcon className="h-3 w-3" /> {t('adminPasswordResets.approve')}
                           </button>
                           <button
                             onClick={() => handleAction(req.id, 'deny')}
                             className="inline-flex items-center gap-1 text-xs px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700"
                             aria-label="Deny"
                           >
-                            <XMarkIcon className="h-3 w-3" /> Deny
+                            <XMarkIcon className="h-3 w-3" /> {t('adminPasswordResets.deny')}
                           </button>
                         </div>
                       ) : (

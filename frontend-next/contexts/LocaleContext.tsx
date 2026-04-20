@@ -1,12 +1,22 @@
 /**
- * Locale Context with RTL/LTR Support
- * Manages language preference and text direction
+ * Enhanced Locale Context with JSON-based I18n Support
+ * Manages language preference, text direction, and translations
  */
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import apiClient from '../lib/apiClient';
 import { companyStore } from '../lib/companyStore';
-import { translations } from '../locales/translations';
+import { 
+  loadAllTranslations,
+  createTranslationFunction,
+  getValidationMessage,
+  getTooltip,
+  formatNumber,
+  formatCurrency,
+  formatDate,
+  pluralize,
+  type TranslationContext
+} from '../lib/i18n';
 
 export type Locale = 'en' | 'ar';
 
@@ -15,7 +25,14 @@ interface LocaleContextType {
   setLocale: (locale: Locale) => void;
   dir: 'ltr' | 'rtl';
   isRTL: boolean;
-  t: (key: string) => string;
+  loading: boolean;
+  t: (key: string, values?: Record<string, string | number>) => string;
+  tv: (field: string, rule: string, values?: Record<string, string | number>) => string; // validation
+  tt: (key: string) => string; // tooltip
+  tn: (number: number) => string; // number formatting
+  tc: (amount: number, currency?: string) => string; // currency formatting
+  td: (date: Date | string) => string; // date formatting
+  tp: (count: number, singular: string, plural: string, dual?: string) => string; // pluralization
 }
 
 const LocaleContext = createContext<LocaleContextType | undefined>(undefined);
@@ -23,6 +40,14 @@ const LocaleContext = createContext<LocaleContextType | undefined>(undefined);
 export const LocaleProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [locale, setLocaleState] = useState<Locale>('en');
   const [mounted, setMounted] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [translations, setTranslations] = useState<Record<string, any>>({});
+
+  // Create translation context
+  const translationContext: TranslationContext = {
+    translations,
+    locale
+  };
 
   // Detect browser language
   const detectBrowserLanguage = (): Locale => {
@@ -39,7 +64,22 @@ export const LocaleProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return 'en';
   };
 
-  // Initialize locale on mount
+  // Load translations for current locale
+  const loadTranslations = useCallback(async (targetLocale: Locale) => {
+    setLoading(true);
+    try {
+      const newTranslations = await loadAllTranslations(targetLocale);
+      setTranslations(newTranslations);
+    } catch (error) {
+      console.error(`Failed to load translations for ${targetLocale}:`, error);
+      // Fallback to empty translations
+      setTranslations({});
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Initialize locale and translations on mount
   useEffect(() => {
     setMounted(true);
     
@@ -52,6 +92,7 @@ export const LocaleProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       if (savedLocale && (savedLocale === 'en' || savedLocale === 'ar')) {
         setLocaleState(savedLocale);
         updateHtmlAttributes(savedLocale);
+        await loadTranslations(savedLocale);
         return;
       }
 
@@ -69,6 +110,7 @@ export const LocaleProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             setLocaleState(defaultLang);
             localStorage.setItem('locale', defaultLang);
             updateHtmlAttributes(defaultLang);
+            await loadTranslations(defaultLang);
             return;
           }
         } catch {
@@ -81,10 +123,11 @@ export const LocaleProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setLocaleState(detectedLocale);
       localStorage.setItem('locale', detectedLocale);
       updateHtmlAttributes(detectedLocale);
+      await loadTranslations(detectedLocale);
     };
 
     bootstrap();
-  }, []);
+  }, [loadTranslations]);
 
   // Update HTML attributes for RTL/LTR
   const updateHtmlAttributes = (newLocale: Locale) => {
@@ -101,27 +144,31 @@ export const LocaleProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     document.body.classList.add(dir);
   };
 
-  const setLocale = (newLocale: Locale) => {
+  const setLocale = async (newLocale: Locale) => {
+    if (newLocale === locale) return; // Avoid unnecessary updates
+    
     setLocaleState(newLocale);
     localStorage.setItem('locale', newLocale);
     updateHtmlAttributes(newLocale);
+    await loadTranslations(newLocale);
   };
 
-  // Translation function with nested key support
-  const t = (key: string): string => {
-    const keys = key.split('.');
-    let value: any = translations[locale];
-    
-    for (const k of keys) {
-      if (value && typeof value === 'object' && k in value) {
-        value = value[k];
-      } else {
-        return key; // Return key if translation not found
-      }
-    }
-    
-    return typeof value === 'string' ? value : key;
-  };
+  // Translation functions
+  const t = createTranslationFunction(translationContext);
+  
+  const tv = (field: string, rule: string, values?: Record<string, string | number>) =>
+    getValidationMessage(translationContext, field, rule, values);
+  
+  const tt = (key: string) => getTooltip(translationContext, key);
+  
+  const tn = (number: number) => formatNumber(locale, number);
+  
+  const tc = (amount: number, currency?: string) => formatCurrency(locale, amount, currency);
+  
+  const td = (date: Date | string) => formatDate(locale, date);
+  
+  const tp = (count: number, singular: string, plural: string, dual?: string) =>
+    pluralize(locale, count, singular, plural, dual);
 
   const dir = locale === 'ar' ? 'rtl' : 'ltr';
   const isRTL = locale === 'ar';
@@ -132,7 +179,20 @@ export const LocaleProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }
 
   return (
-    <LocaleContext.Provider value={{ locale, setLocale, dir, isRTL, t }}>
+    <LocaleContext.Provider value={{ 
+      locale, 
+      setLocale, 
+      dir, 
+      isRTL, 
+      loading,
+      t, 
+      tv, 
+      tt, 
+      tn, 
+      tc, 
+      td, 
+      tp 
+    }}>
       {children}
     </LocaleContext.Provider>
   );
@@ -144,11 +204,105 @@ export const useLocale = () => {
     // Return default values for SSR compatibility
     return {
       locale: 'en' as Locale,
-      setLocale: () => {},
+      setLocale: async () => {},
       dir: 'ltr' as const,
       isRTL: false,
+      loading: false,
       t: (key: string) => key,
+      tv: (field: string, rule: string) => `${field}: ${rule}`,
+      tt: (key: string) => '',
+      tn: (number: number) => number.toString(),
+      tc: (amount: number, currency?: string) => `${currency || 'SAR'} ${amount}`,
+      td: (date: Date | string) => new Date(date).toLocaleDateString(),
+      tp: (count: number, singular: string, plural: string) => count === 1 ? singular : plural,
     };
   }
   return context;
+};
+
+/**
+ * Hook for validation messages with better ergonomics
+ */
+export const useValidation = () => {
+  const { tv } = useLocale();
+  
+  return {
+    /**
+     * Get validation message for a field
+     * @param field Field name
+     * @param rule Validation rule (required, email, minLength, etc.)
+     * @param values Optional values for placeholders
+     */
+    getMessage: tv,
+    
+    /**
+     * Common validation messages
+     */
+    required: (field: string) => tv(field, 'required'),
+    email: (field: string = 'email') => tv(field, 'invalid'),
+    minLength: (field: string, min: number) => tv(field, 'minLength', { min }),
+    maxLength: (field: string, max: number) => tv(field, 'maxLength', { max }),
+    positive: (field: string) => tv(field, 'positive'),
+    invalid: (field: string) => tv(field, 'invalid'),
+  };
+};
+
+/**
+ * Hook for formatting utilities
+ */
+export const useFormatter = () => {
+  const { tn, tc, td, tp, locale } = useLocale();
+  
+  return {
+    number: tn,
+    currency: tc,
+    date: td,
+    pluralize: tp,
+    locale,
+    
+    /**
+     * Format percentage
+     */
+    percentage: (value: number) => `${tn(value)}%`,
+    
+    /**
+     * Format file size
+     */
+    fileSize: (bytes: number) => {
+      const sizes = locale === 'ar' 
+        ? ['بايت', 'كيلوبايت', 'ميجابايت', 'جيجابايت']
+        : ['B', 'KB', 'MB', 'GB'];
+      
+      if (bytes === 0) return `0 ${sizes[0]}`;
+      
+      const i = Math.floor(Math.log(bytes) / Math.log(1024));
+      const size = (bytes / Math.pow(1024, i)).toFixed(1);
+      
+      return `${tn(parseFloat(size))} ${sizes[i]}`;
+    },
+    
+    /**
+     * Format relative time (e.g., "2 days ago")
+     */
+    relativeTime: (date: Date | string) => {
+      const now = new Date();
+      const targetDate = new Date(date);
+      const diffMs = now.getTime() - targetDate.getTime();
+      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+      
+      if (locale === 'ar') {
+        if (diffDays === 0) return 'اليوم';
+        if (diffDays === 1) return 'أمس';
+        if (diffDays < 7) return `منذ ${tn(diffDays)} أيام`;
+        if (diffDays < 30) return `منذ ${tn(Math.floor(diffDays / 7))} أسابيع`;
+        return td(date);
+      } else {
+        if (diffDays === 0) return 'Today';
+        if (diffDays === 1) return 'Yesterday';
+        if (diffDays < 7) return `${tn(diffDays)} days ago`;
+        if (diffDays < 30) return `${tn(Math.floor(diffDays / 7))} weeks ago`;
+        return td(date);
+      }
+    }
+  };
 };

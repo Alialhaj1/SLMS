@@ -137,14 +137,15 @@ export function usePurchaseOrderForm(params: {
       itemsJson,
       uomsJson,
       taxRatesJson,
+      itemUomConversionsJson,
     ] = await Promise.all([
-      // Vendors endpoint is paginated; default limit is small (e.g. 20). Fetch a larger page for better dropdown UX.
-      apiClient.get(`/api/procurement/vendors?page=1&limit=500`),
-      apiClient.get(`/api/procurement/purchase-orders/order-types`),
+      // Vendors endpoint is paginated; fetch all for dropdown UX.
+      apiClient.get(`/api/procurement/vendors?page=1&limit=2000`),
+      apiClient.get(`/api/master/purchase-order-types?limit=100`),
       apiClient.get(`/api/procurement/purchase-orders/order-statuses`),
       apiClient.get(`/master/warehouses`),
-      apiClient.get(`/master/currencies`),
-      apiClient.get(`/procurement/vendors/payment-terms`),
+      apiClient.get(`/master/currencies?limit=500`),
+      apiClient.get(`/api/master/vendor-payment-terms?limit=100`),
       apiClient.get(`/payment-methods?limit=100`),
       apiClient.get(`/projects?limit=500`),
       apiClient.get(`/procurement/vendors/delivery-terms`),
@@ -153,20 +154,23 @@ export function usePurchaseOrderForm(params: {
       apiClient.get(`/countries?limit=1000`),
       apiClient.get(`/cities?limit=10000`),
       apiClient.get(`/ports?limit=1000&country_id=1`),
-      apiClient.get(`/api/master/items/for-invoice?is_active=true&limit=5000`),
+      apiClient.get(`/api/master/items?is_active=true&is_purchasable=true&limit=5000`),
       apiClient.get(`/api/unit-types?is_active=true`),
       // Keep consistent with master/tax-rates UI
       apiClient.get(`/api/tax-rates?is_active=true`),
+      apiClient.get(`/api/master/items/uom-conversions`),
     ]);
 
     setVendors(((vendorsJson as any)?.data || []) as VendorRef[]);
-    setOrderTypes(((typesJson as any)?.data || []) as PurchaseOrderReferenceOption[]);
+    // master/purchase-order-types returns nested { data: { data: [...] } }
+    const typesRaw = (typesJson as any)?.data;
+    setOrderTypes((Array.isArray(typesRaw) ? typesRaw : typesRaw?.data || []) as PurchaseOrderReferenceOption[]);
     setOrderStatuses(((statusesJson as any)?.data || []) as PurchaseOrderReferenceOption[]);
     setWarehouses(((warehousesJson as any)?.data || []) as PurchaseOrderReferenceOption[]);
     setCurrencies(((currenciesJson as any)?.data || []) as PurchaseOrderReferenceOption[]);
-    setPaymentTerms(
-      (((paymentTermsJson as any)?.data || (paymentTermsJson as any)?.data?.data || []) as PurchaseOrderReferenceOption[])
-    );
+    // master/vendor-payment-terms returns nested { data: { data: [...] } }
+    const ptRaw = (paymentTermsJson as any)?.data;
+    setPaymentTerms((Array.isArray(ptRaw) ? ptRaw : ptRaw?.data || []) as PurchaseOrderReferenceOption[]);
     setPaymentMethods(((paymentMethodsJson as any)?.data || []) as PurchaseOrderReferenceOption[]);
     setProjects(((projectsJson as any)?.data || []) as PurchaseOrderReferenceOption[]);
     setDeliveryTerms(
@@ -179,7 +183,55 @@ export function usePurchaseOrderForm(params: {
     setCities(((citiesJson as any)?.data || []) as any[]);
     setPorts(((portsJson as any)?.data || []) as any[]);
 
-    setItemOptions(((itemsJson as any)?.data || []) as PurchaseOrderItemRef[]);
+    // Build UOM conversions map from item_uom_conversions endpoint
+    const rawConversions = ((itemUomConversionsJson as any)?.data || []) as any[];
+    const conversionsByItem: Record<number, PurchaseOrderItemRef['uoms']> = {};
+    for (const c of rawConversions) {
+      const itemId = Number(c.item_id);
+      if (!conversionsByItem[itemId]) conversionsByItem[itemId] = [];
+      conversionsByItem[itemId]!.push({
+        uom_id: Number(c.uom_id),
+        uom_code: c.uom_code || '',
+        uom_name: c.uom_name || c.uom_name_ar || '',
+        name: c.uom_name || c.uom_name_ar || '',
+        name_ar: c.uom_name_ar || '',
+        code: c.uom_code || '',
+        conversion_factor: Number(c.conversion_factor) || 1,
+        is_base_uom: !!c.is_base_uom,
+        is_active: true,
+      });
+    }
+
+    // master/items returns flat UOM fields; merge with item_uom_conversions
+    const rawItems = ((itemsJson as any)?.data || []) as any[];
+    setItemOptions(rawItems.map((it: any) => {
+      // Prefer item_uom_conversions if available for this item
+      let uoms: PurchaseOrderItemRef['uoms'] = conversionsByItem[it.id] || [];
+      // Fallback to flat fields if no conversions found
+      if (uoms.length === 0) {
+        if (it.base_uom_id) {
+          uoms.push({ uom_id: it.base_uom_id, uom_code: it.base_uom_code || '', uom_name: it.base_uom_name || it.base_uom_name_ar || '', is_base_uom: true, is_active: true });
+        }
+        if (it.purchase_uom_id && it.purchase_uom_id !== it.base_uom_id) {
+          uoms.push({ uom_id: it.purchase_uom_id, uom_code: it.purchase_uom_code || '', uom_name: it.purchase_uom_name || '', is_base_uom: false, is_active: true });
+        }
+        if (it.sales_uom_id && it.sales_uom_id !== it.base_uom_id && it.sales_uom_id !== it.purchase_uom_id) {
+          uoms.push({ uom_id: it.sales_uom_id, uom_code: it.sales_uom_code || '', uom_name: it.sales_uom_name || '', is_base_uom: false, is_active: true });
+        }
+      }
+      return {
+        id: it.id,
+        code: it.code,
+        name: it.name || it.name_ar,
+        name_ar: it.name_ar,
+        base_uom_id: it.purchase_uom_id || it.base_uom_id,
+        base_uom_code: it.purchase_uom_code || it.base_uom_code,
+        purchase_price: it.purchase_price || it.last_purchase_cost || it.standard_cost || 0,
+        tax_rate_id: it.tax_type_id,
+        default_tax_rate: it.tax_rate ? Number(it.tax_rate) : 0,
+        uoms,
+      } as PurchaseOrderItemRef;
+    }));
     setUomOptions(((uomsJson as any)?.data || []) as UnitOfMeasureRef[]);
 
     const taxRates = (((taxRatesJson as any)?.data || []) as any[]).filter(Boolean);

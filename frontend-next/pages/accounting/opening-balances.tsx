@@ -8,6 +8,7 @@ import Modal from '../../components/ui/Modal';
 import { useTranslation } from '../../hooks/useTranslation';
 import { useToast } from '../../contexts/ToastContext';
 import apiClient from '../../lib/apiClient';
+import { useCurrencies } from '../../hooks/useReferenceData';
 import withPermission from '../../utils/withPermission';
 import { MenuPermissions } from '../../config/menu.permissions';
 import { usePermissions } from '../../hooks/usePermissions';
@@ -40,6 +41,7 @@ interface OpeningBalanceLine {
 function OpeningBalancesPage() {
   const { locale } = useTranslation();
   const { showToast } = useToast();
+  const { currencies: currencyList } = useCurrencies();
   const { hasPermission } = usePermissions();
 
   const [loading, setLoading] = useState(true);
@@ -91,7 +93,7 @@ function OpeningBalancesPage() {
       setLines(mapped);
     } catch (e: any) {
       setLines([]);
-      showToast(e?.message || (locale === 'ar' ? 'فشل التحميل' : 'Failed to load'), 'error');
+      showToast({ type: 'error', message: e?.message || (locale === 'ar' ? 'فشل التحميل' : 'Failed to load') });
     } finally {
       setLoading(false);
     }
@@ -147,19 +149,19 @@ function OpeningBalancesPage() {
     const credit = Number(formData.credit || 0);
 
     if (!formData.batchNo.trim()) {
-      showToast(locale === 'ar' ? 'رقم الدفعة مطلوب' : 'Batch no is required', 'error');
+      showToast({ type: 'error', message: locale === 'ar' ? 'رقم الدفعة مطلوب' : 'Batch no is required' });
       return;
     }
     if (!/^\d{4}-\d{2}$/.test(formData.period.trim())) {
-      showToast(locale === 'ar' ? 'الفترة يجب أن تكون YYYY-MM' : 'Period must be YYYY-MM', 'error');
+      showToast({ type: 'error', message: locale === 'ar' ? 'الفترة يجب أن تكون YYYY-MM' : 'Period must be YYYY-MM' });
       return;
     }
     if (!formData.accountCode.trim()) {
-      showToast(locale === 'ar' ? 'كود الحساب مطلوب' : 'Account code is required', 'error');
+      showToast({ type: 'error', message: locale === 'ar' ? 'كود الحساب مطلوب' : 'Account code is required' });
       return;
     }
     if (!(Number.isFinite(debit) && debit >= 0) || !(Number.isFinite(credit) && credit >= 0)) {
-      showToast(locale === 'ar' ? 'قيم المدين/الدائن غير صحيحة' : 'Invalid debit/credit', 'error');
+      showToast({ type: 'error', message: locale === 'ar' ? 'قيم المدين/الدائن غير صحيحة' : 'Invalid debit/credit' });
       return;
     }
 
@@ -174,12 +176,12 @@ function OpeningBalancesPage() {
         currency_code: formData.currency,
         description: null,
       });
-      showToast(locale === 'ar' ? 'تمت الإضافة' : 'Added', 'success');
+      showToast({ type: 'success', message: locale === 'ar' ? 'تمت الإضافة' : 'Added' });
       setCreateOpen(false);
       setFormData({ batchNo: '', period: '', accountCode: '', accountName: '', accountNameAr: '', debit: '', credit: '', currency: 'SAR' });
       fetchLines();
     } catch (e: any) {
-      showToast(e?.message || (locale === 'ar' ? 'فشل الإضافة' : 'Failed to add'), 'error');
+      showToast({ type: 'error', message: e?.message || (locale === 'ar' ? 'فشل الإضافة' : 'Failed to add') });
     } finally {
       setBusy(false);
     }
@@ -189,10 +191,10 @@ function OpeningBalancesPage() {
     setBusy(true);
     try {
       await apiClient.post(`/api/opening-balances/batches/${batchId}/post`, {});
-      showToast(locale === 'ar' ? 'تم الترحيل' : 'Posted', 'success');
+      showToast({ type: 'success', message: locale === 'ar' ? 'تم الترحيل' : 'Posted' });
       fetchLines();
     } catch (e: any) {
-      showToast(e?.message || (locale === 'ar' ? 'فشل الترحيل' : 'Failed to post'), 'error');
+      showToast({ type: 'error', message: e?.message || (locale === 'ar' ? 'فشل الترحيل' : 'Failed to post') });
     } finally {
       setBusy(false);
     }
@@ -202,10 +204,10 @@ function OpeningBalancesPage() {
     setBusy(true);
     try {
       await apiClient.post(`/api/opening-balances/batches/${batchId}/reverse`, {});
-      showToast(locale === 'ar' ? 'تم العكس' : 'Reversed', 'success');
+      showToast({ type: 'success', message: locale === 'ar' ? 'تم العكس' : 'Reversed' });
       fetchLines();
     } catch (e: any) {
-      showToast(e?.message || (locale === 'ar' ? 'فشل العكس' : 'Failed to reverse'), 'error');
+      showToast({ type: 'error', message: e?.message || (locale === 'ar' ? 'فشل العكس' : 'Failed to reverse') });
     } finally {
       setBusy(false);
     }
@@ -275,18 +277,18 @@ function OpeningBalancesPage() {
               </select>
             </div>
             <Button variant="secondary" onClick={() => {
-              exportToCSV(filtered, 'opening-balances', [
-                { key: 'batchNo', label: 'Batch No' },
-                { key: 'period', label: 'Period' },
-                { key: 'accountCode', label: 'Account Code' },
-                { key: 'accountName', label: 'Account Name' },
-                { key: 'debit', label: 'Debit' },
-                { key: 'credit', label: 'Credit' },
-                { key: 'currency', label: 'Currency' },
-                { key: 'status', label: 'Status' },
-              ]);
-              showToast(locale === 'ar' ? 'تم التصدير بنجاح' : 'Exported successfully', 'success');
-            }>
+              exportToCSV(filtered, [
+                { key: 'batchNo', header: 'Batch No' },
+                { key: 'period', header: 'Period' },
+                { key: 'accountCode', header: 'Account Code' },
+                { key: 'accountName', header: 'Account Name' },
+                { key: 'debit', header: 'Debit' },
+                { key: 'credit', header: 'Credit' },
+                { key: 'currency', header: 'Currency' },
+                { key: 'status', header: 'Status' },
+              ], 'opening-balances');
+              showToast({ type: 'success', message: locale === 'ar' ? 'تم التصدير بنجاح' : 'Exported successfully' });
+            }}>
               <ArrowDownTrayIcon className="h-4 w-4" />
               {locale === 'ar' ? 'تصدير' : 'Export'}
             </Button>
@@ -380,8 +382,9 @@ function OpeningBalancesPage() {
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{locale === 'ar' ? 'العملة' : 'Currency'}</label>
               <select value={formData.currency} onChange={(e) => setFormData({ ...formData, currency: e.target.value as any })} className="input">
-                <option value="SAR">SAR</option>
-                <option value="USD">USD</option>
+                {currencyList.map(c => (
+                  <option key={c.code} value={c.code}>{c.code}</option>
+                ))}
               </select>
             </div>
           </div>

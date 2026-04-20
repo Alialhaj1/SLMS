@@ -5,7 +5,8 @@
  * Supports Arabic and English with RTL/LTR.
  */
 
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { ChevronDownIcon, MagnifyingGlassIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
 
@@ -50,18 +51,54 @@ export default function SearchableSelect({
   const [search, setSearch] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
+
+  // Recalculate dropdown position when open
+  const updateDropdownPosition = useCallback(() => {
+    if (!containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const dropUp = spaceBelow < 400 && rect.top > 400;
+    setDropdownStyle({
+      position: 'fixed',
+      left: rect.left,
+      width: rect.width,
+      zIndex: 99999,
+      ...(dropUp
+        ? { bottom: window.innerHeight - rect.top + 4 }
+        : { top: rect.bottom + 4 }),
+    });
+  }, []);
+
+  useEffect(() => {
+    if (isOpen) updateDropdownPosition();
+  }, [isOpen, updateDropdownPosition]);
 
   // Close on outside click
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      if (
+        containerRef.current && !containerRef.current.contains(e.target as Node) &&
+        dropdownRef.current && !dropdownRef.current.contains(e.target as Node)
+      ) {
         setIsOpen(false);
         setSearch('');
       }
     };
+    const handleScroll = (e: Event) => {
+      if (dropdownRef.current?.contains(e.target as Node)) {
+        return;
+      }
+      if (isOpen) { setIsOpen(false); setSearch(''); }
+    };
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+    if (isOpen) window.addEventListener('scroll', handleScroll, true);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      window.removeEventListener('scroll', handleScroll, true);
+    };
+  }, [isOpen]);
 
   // Focus search input when opened
   useEffect(() => {
@@ -70,17 +107,29 @@ export default function SearchableSelect({
     }
   }, [isOpen]);
 
-  // Filter options based on search
+  // Filter options based on search — limit to MAX_DISPLAY for performance
+  const MAX_DISPLAY = 100;
   const filteredOptions = useMemo(() => {
-    if (!search.trim()) return options;
-    const lowerSearch = search.toLowerCase();
-    return options.filter((opt) => {
-      const label = (locale === 'ar' && opt.labelAr ? opt.labelAr : opt.label).toLowerCase();
-      const code = (opt.code || '').toLowerCase();
-      const extra = (opt.searchText || '').toLowerCase();
-      return label.includes(lowerSearch) || code.includes(lowerSearch) || extra.includes(lowerSearch);
-    });
+    let filtered: SelectOption[];
+    if (!search.trim()) {
+      filtered = options;
+    } else {
+      const lowerSearch = search.toLowerCase();
+      filtered = options.filter((opt) => {
+        const label = (locale === 'ar' && opt.labelAr ? opt.labelAr : opt.label).toLowerCase();
+        const code = (opt.code || '').toLowerCase();
+        const extra = (opt.searchText || '').toLowerCase();
+        return label.includes(lowerSearch) || code.includes(lowerSearch) || extra.includes(lowerSearch);
+      });
+    }
+    return filtered;
   }, [options, search, locale]);
+
+  const displayedOptions = useMemo(() => {
+    return filteredOptions.length > MAX_DISPLAY ? filteredOptions.slice(0, MAX_DISPLAY) : filteredOptions;
+  }, [filteredOptions]);
+
+  const hasMore = filteredOptions.length > MAX_DISPLAY;
 
   // Get selected option label
   const selectedOption = options.find((o) => String(o.value) === String(value));
@@ -150,9 +199,9 @@ export default function SearchableSelect({
       {/* Hidden input for form submission */}
       <input type="hidden" name={name} value={value} />
 
-      {/* Dropdown */}
-      {isOpen && (
-        <div className="absolute z-50 mt-1 w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg max-h-72 overflow-hidden">
+      {/* Dropdown - rendered via portal to avoid overflow clipping */}
+      {isOpen && typeof document !== 'undefined' && createPortal(
+        <div ref={dropdownRef} style={dropdownStyle} className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-xl max-h-[400px] overflow-hidden">
           {/* Search input */}
           <div className="p-2 border-b border-slate-200 dark:border-slate-700">
             <div className="relative">
@@ -170,40 +219,50 @@ export default function SearchableSelect({
           </div>
 
           {/* Options list */}
-          <div className="max-h-56 overflow-y-auto">
+          <div className="max-h-[340px] overflow-y-auto">
             {filteredOptions.length === 0 ? (
               <div className="px-4 py-3 text-sm text-slate-500 text-center">
                 {locale === 'ar' ? 'لا توجد نتائج' : 'No results found'}
               </div>
             ) : (
-              filteredOptions.map((opt) => {
-                const isSelected = String(opt.value) === String(value);
-                const optLabel = locale === 'ar' && opt.labelAr ? opt.labelAr : opt.label;
-                return (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    onClick={() => handleSelect(opt.value)}
-                    className={clsx(
-                      'w-full px-4 py-2.5 text-left text-sm flex items-center gap-2 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors',
-                      isSelected && 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400'
-                    )}
-                  >
-                    {opt.code && (
-                      <span className="font-mono text-xs text-slate-500 dark:text-slate-400 min-w-[60px]">
-                        {opt.code}
-                      </span>
-                    )}
-                    <span className="flex-1 truncate">{optLabel}</span>
-                    {isSelected && (
-                      <span className="text-indigo-600 dark:text-indigo-400">✓</span>
-                    )}
-                  </button>
-                );
-              })
+              <>
+                {displayedOptions.map((opt) => {
+                  const isSelected = String(opt.value) === String(value);
+                  const optLabel = locale === 'ar' && opt.labelAr ? opt.labelAr : opt.label;
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => handleSelect(opt.value)}
+                      className={clsx(
+                        'w-full px-4 py-2.5 text-left text-sm flex items-center gap-2 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors',
+                        isSelected && 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400'
+                      )}
+                    >
+                      {opt.code && (
+                        <span className="font-mono text-xs text-slate-500 dark:text-slate-400 min-w-[60px]">
+                          {opt.code}
+                        </span>
+                      )}
+                      <span className="flex-1 truncate">{optLabel}</span>
+                      {isSelected && (
+                        <span className="text-indigo-600 dark:text-indigo-400">✓</span>
+                      )}
+                    </button>
+                  );
+                })}
+                {hasMore && (
+                  <div className="px-4 py-2.5 text-xs text-center text-slate-400 dark:text-slate-500 border-t border-slate-100 dark:border-slate-700">
+                    {locale === 'ar'
+                      ? `يتم عرض ${MAX_DISPLAY} من ${filteredOptions.length} — اكتب للبحث وتصفية النتائج`
+                      : `Showing ${MAX_DISPLAY} of ${filteredOptions.length} — type to search and filter`}
+                  </div>
+                )}
+              </>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Error message */}

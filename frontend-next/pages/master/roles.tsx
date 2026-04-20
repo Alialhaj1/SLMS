@@ -55,7 +55,7 @@ interface RoleTemplate {
   permission_count: number;
 }
 
-const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || '') + '/api';
+const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api').replace(/\/api\/?$/, '') + '/api';
 
 function RolesPage() {
   const { hasPermission } = usePermissions();

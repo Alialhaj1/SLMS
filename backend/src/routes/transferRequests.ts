@@ -10,6 +10,7 @@ import pool from '../db';
 import { authenticate } from '../middleware/auth';
 import { requirePermission, requireAnyPermission } from '../middleware/rbac';
 import { loadCompanyContext } from '../middleware/companyContext';
+import { recordApprovalHistory, notifyOnAction } from '../services/approvalService';
 
 const router = express.Router();
 router.use(authenticate, loadCompanyContext);
@@ -35,6 +36,7 @@ router.get(
         shipment_id,
         vendor_id,
         is_printed,
+        deleted_only,
         date_from,
         date_to,
         search,
@@ -44,7 +46,7 @@ router.get(
 
       const offset = (parseInt(page as string) - 1) * parseInt(limit as string);
 
-      let whereConditions = ['tr.deleted_at IS NULL'];
+      let whereConditions = deleted_only === 'true' ? ['tr.deleted_at IS NOT NULL'] : ['tr.deleted_at IS NULL'];
       const queryParams: any[] = [];
       let paramIndex = 1;
 
@@ -232,9 +234,12 @@ router.get(
           rs.name_ar as status_name_ar,
           rs.color as status_color,
           rs.icon as status_icon,
+          rs.code as status_code,
           rs.allows_edit,
           rs.allows_delete,
           rs.allows_print,
+          rs.allows_submit,
+          rs.allows_approve,
           et.name as expense_type_name,
           et.name_ar as expense_type_name_ar,
           p.name as project_name,
@@ -252,10 +257,10 @@ router.get(
           u.full_name as requested_by_name,
           er.request_number as expense_request_number,
           er.total_amount as expense_total_amount,
-          ba.account_number as bank_account_number,
-          b.name as bank_name,
-          b.swift_code as swift_code,
-          ba.iban as iban,
+          COALESCE(ba.account_number, tr.beneficiary_account) as bank_account_number,
+          COALESCE(b.name, tr.beneficiary_bank) as bank_name,
+          COALESCE(b.swift_code, tr.swift_code) as swift_code,
+          COALESCE(ba.iban, tr.beneficiary_iban) as iban,
           -- Vendor payment info if linked
           vp.payment_number as vendor_payment_number,
           vp.payment_amount as vendor_payment_amount,
@@ -301,12 +306,12 @@ router.get(
             )
           END as calculated_total,
           COALESCE(tr.transfer_type, 'expense') as transfer_type,
-          -- Vendor bank info (for beneficiary details)
-          vba.account_number as vendor_bank_account,
-          vba.iban as vendor_iban,
-          vba.swift_code as vendor_swift,
-          COALESCE(vba.bank_name, vbank.name) as vendor_bank_name,
-          v.name as beneficiary_name
+          -- Vendor bank info (for beneficiary details) - from vendor_bank_accounts, then vendor legacy fields
+          COALESCE(vba.account_number, v.bank_account_number) as vendor_bank_account,
+          COALESCE(vba.iban, v.bank_iban) as vendor_iban,
+          COALESCE(vba.swift_code, v.bank_swift) as vendor_swift,
+          COALESCE(vba.bank_name, vbank.name, vlegacy_bank.name) as vendor_bank_name,
+          COALESCE(tr.beneficiary_name, v.name) as beneficiary_name
         FROM transfer_requests tr
         LEFT JOIN request_statuses rs ON tr.status_id = rs.id
         LEFT JOIN request_expense_types et ON tr.expense_type_id = et.id
@@ -333,6 +338,8 @@ router.get(
           LIMIT 1
         ) vba ON true
         LEFT JOIN banks vbank ON vba.bank_id = vbank.id
+        -- Vendor legacy bank (from vendors.bank_id)
+        LEFT JOIN banks vlegacy_bank ON v.bank_id = vlegacy_bank.id
         WHERE ${whereConditions.join(' AND ')}
       `;
 
@@ -348,8 +355,13 @@ router.get(
           rah.*,
           u.email as performed_by_email,
           u.full_name as performed_by_name,
+          u.signature_image_url as performer_signature_url,
+          u.signature_title_en as performer_title_en,
+          u.signature_title_ar as performer_title_ar,
           ps.name as previous_status_name,
-          ns.name as new_status_name
+          ps.name_ar as previous_status_name_ar,
+          ns.name as new_status_name,
+          ns.name_ar as new_status_name_ar
         FROM request_approval_history rah
         LEFT JOIN users u ON rah.performed_by = u.id
         LEFT JOIN request_statuses ps ON rah.previous_status_id = ps.id
@@ -369,6 +381,188 @@ router.get(
     } catch (error: any) {
       console.error('Error fetching transfer request:', error);
       res.status(500).json({ error: 'Failed to fetch transfer request' });
+    }
+  }
+);
+
+/**
+ * POST /api/transfer-requests/from-vendor-payment
+ * Create a transfer request directly from a vendor payment (pre-filled with payment data)
+ */
+router.post(
+  '/from-vendor-payment',
+  authenticate,
+  loadCompanyContext,
+  requirePermission('transfer_requests:create'),
+  async (req, res) => {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      const userId = req.user!.id;
+      const companyId = req.companyId;
+
+      const {
+        vendor_payment_id,
+        project_id,
+        shipment_id,
+        beneficiary_name,
+        beneficiary_account,
+        beneficiary_bank,
+        beneficiary_iban,
+        swift_code,
+        transfer_method,
+        expected_transfer_date,
+        notes
+      } = req.body;
+
+      if (!vendor_payment_id) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'vendor_payment_id is required' });
+      }
+
+      // Get payment details
+      const paymentResult = await client.query(
+        `SELECT vp.*, v.name as vendor_name, c.code as currency_code
+         FROM vendor_payments vp
+         JOIN vendors v ON vp.vendor_id = v.id
+         JOIN currencies c ON vp.currency_id = c.id
+         WHERE vp.id = $1 AND vp.company_id = $2 AND vp.deleted_at IS NULL`,
+        [vendor_payment_id, companyId]
+      );
+
+      if (paymentResult.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: 'Payment not found' });
+      }
+
+      const payment = paymentResult.rows[0];
+
+      // Check if transfer request already exists for this payment
+      const existingTR = await client.query(
+        'SELECT id, request_number FROM transfer_requests WHERE source_vendor_payment_id = $1 AND deleted_at IS NULL',
+        [vendor_payment_id]
+      );
+      if (existingTR.rows.length > 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({
+          error: 'Transfer request already exists for this payment',
+          transfer_request_id: existingTR.rows[0].id,
+          request_number: existingTR.rows[0].request_number
+        });
+      }
+
+      // Resolve project_id
+      const resolvedProjectId = project_id || payment.project_id;
+      if (!resolvedProjectId) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Project is required for transfer request', code: 'PROJECT_REQUIRED' });
+      }
+
+      // Resolve shipment_id (optional for vendor_payment type)
+      const resolvedShipmentId = shipment_id || payment.shipment_id || null;
+
+      // Get vendor bank details if not provided
+      let resolvedBeneficiaryName = beneficiary_name || payment.vendor_name;
+      let resolvedBeneficiaryAccount = beneficiary_account || null;
+      let resolvedBeneficiaryBank = beneficiary_bank || null;
+      let resolvedBeneficiaryIban = beneficiary_iban || null;
+      let resolvedSwiftCode = swift_code || null;
+
+      if (!beneficiary_account) {
+        const vendorBankResult = await client.query(
+          `SELECT account_name, account_number, iban, swift_code, bank_name
+           FROM vendor_bank_accounts
+           WHERE vendor_id = $1 AND is_active = true AND deleted_at IS NULL
+           ORDER BY is_default DESC LIMIT 1`,
+          [payment.vendor_id]
+        );
+        if (vendorBankResult.rows.length > 0) {
+          const vb = vendorBankResult.rows[0];
+          resolvedBeneficiaryName = resolvedBeneficiaryName || vb.account_name;
+          resolvedBeneficiaryAccount = vb.account_number;
+          resolvedBeneficiaryBank = vb.bank_name;
+          resolvedBeneficiaryIban = vb.iban;
+          resolvedSwiftCode = vb.swift_code;
+        } else {
+          // Fallback: check vendor's legacy bank fields
+          const vendorLegacyBank = await client.query(
+            `SELECT v.bank_account_name, v.bank_account_number, v.bank_iban, v.bank_swift, b.name as bank_name, b.swift_code as bank_swift_code
+             FROM vendors v
+             LEFT JOIN banks b ON v.bank_id = b.id
+             WHERE v.id = $1`,
+            [payment.vendor_id]
+          );
+          if (vendorLegacyBank.rows.length > 0) {
+            const vl = vendorLegacyBank.rows[0];
+            if (vl.bank_account_number || vl.bank_iban) {
+              resolvedBeneficiaryName = resolvedBeneficiaryName || vl.bank_account_name;
+              resolvedBeneficiaryAccount = vl.bank_account_number || null;
+              resolvedBeneficiaryBank = vl.bank_name || null;
+              resolvedBeneficiaryIban = vl.bank_iban || null;
+              resolvedSwiftCode = vl.bank_swift || vl.bank_swift_code || null;
+            }
+          }
+        }
+      }
+
+      // Get DRAFT status
+      const statusResult = await client.query(`SELECT id FROM request_statuses WHERE UPPER(code) = 'DRAFT' LIMIT 1`);
+      if (!statusResult.rows[0]) {
+        await client.query('ROLLBACK');
+        return res.status(500).json({ error: 'DRAFT status not found in request_statuses' });
+      }
+      const draftStatusId = statusResult.rows[0].id;
+
+      // Determine transfer_method (map payment methods to TR allowed values)
+      const methodMap: Record<string, string> = {
+        bank_transfer: 'bank_transfer',
+        wire_transfer: 'bank_transfer',
+        check: 'cheque',
+        cheque: 'cheque',
+        cash: 'cash',
+        online: 'online'
+      };
+      const resolvedMethod = methodMap[transfer_method || payment.payment_method] || 'bank_transfer';
+
+      // Create transfer request
+      const result = await client.query(
+        `INSERT INTO transfer_requests (
+           company_id, requested_by, source_vendor_payment_id,
+           project_id, shipment_id, vendor_id,
+           currency_id, transfer_amount, transfer_amount_local,
+           transfer_method, status_id,
+           beneficiary_name, beneficiary_account, beneficiary_iban, swift_code, beneficiary_bank,
+           notes, transfer_type, created_by, updated_by,
+           expected_transfer_date, created_at, updated_at
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+         RETURNING id, request_number`,
+        [
+          companyId, userId, vendor_payment_id,
+          resolvedProjectId, resolvedShipmentId, payment.vendor_id,
+          payment.currency_id, payment.payment_amount, payment.base_amount || payment.payment_amount,
+          resolvedMethod, draftStatusId,
+          resolvedBeneficiaryName, resolvedBeneficiaryAccount, resolvedBeneficiaryIban, resolvedSwiftCode, resolvedBeneficiaryBank,
+          notes || payment.notes || `Transfer for payment ${payment.payment_number}`,
+          'vendor_payment', userId, userId,
+          expected_transfer_date || null
+        ]
+      );
+
+      await client.query('COMMIT');
+
+      res.status(201).json({
+        id: result.rows[0].id,
+        request_number: result.rows[0].request_number,
+        message: 'Transfer request created successfully'
+      });
+
+    } catch (error: any) {
+      await client.query('ROLLBACK');
+      console.error('Error creating transfer request from vendor payment:', error);
+      res.status(500).json({ error: 'Failed to create transfer request' });
+    } finally {
+      client.release();
     }
   }
 );
@@ -765,6 +959,49 @@ router.post(
       const statusResult = await client.query(statusQuery);
       const draftStatusId = statusResult.rows[0]?.id || 1;
 
+      // Resolve beneficiary bank data from vendor if not provided
+      let resolvedBeneficiaryName2 = beneficiary_name || vendorPayment.vendor_name;
+      let resolvedBeneficiaryAccount2 = beneficiary_account || null;
+      let resolvedBeneficiaryBank2 = beneficiary_bank || null;
+      let resolvedBeneficiaryIban2 = beneficiary_iban || null;
+      let resolvedSwiftCode2 = swift_code || null;
+
+      if (!beneficiary_account) {
+        // Try vendor_bank_accounts first
+        const vbaResult = await client.query(
+          `SELECT account_name, account_number, iban, swift_code, bank_name
+           FROM vendor_bank_accounts
+           WHERE vendor_id = $1 AND is_active = true AND deleted_at IS NULL
+           ORDER BY is_default DESC LIMIT 1`,
+          [vendorPayment.vendor_id]
+        );
+        if (vbaResult.rows.length > 0) {
+          const vb = vbaResult.rows[0];
+          resolvedBeneficiaryName2 = resolvedBeneficiaryName2 || vb.account_name;
+          resolvedBeneficiaryAccount2 = vb.account_number;
+          resolvedBeneficiaryBank2 = vb.bank_name;
+          resolvedBeneficiaryIban2 = vb.iban;
+          resolvedSwiftCode2 = vb.swift_code;
+        } else {
+          // Fallback: vendor legacy bank fields
+          const vlResult = await client.query(
+            `SELECT v.bank_account_name, v.bank_account_number, v.bank_iban, v.bank_swift, b.name as bank_name, b.swift_code as bank_swift_code
+             FROM vendors v LEFT JOIN banks b ON v.bank_id = b.id WHERE v.id = $1`,
+            [vendorPayment.vendor_id]
+          );
+          if (vlResult.rows.length > 0) {
+            const vl = vlResult.rows[0];
+            if (vl.bank_account_number || vl.bank_iban) {
+              resolvedBeneficiaryName2 = resolvedBeneficiaryName2 || vl.bank_account_name;
+              resolvedBeneficiaryAccount2 = vl.bank_account_number || null;
+              resolvedBeneficiaryBank2 = vl.bank_name || null;
+              resolvedBeneficiaryIban2 = vl.bank_iban || null;
+              resolvedSwiftCode2 = vl.bank_swift || vl.bank_swift_code || null;
+            }
+          }
+        }
+      }
+
       // Insert transfer request from vendor payment
       const insertQuery = `
         INSERT INTO transfer_requests (
@@ -795,11 +1032,11 @@ router.post(
         transfer_method || 'bank_transfer',
         expected_transfer_date,
         bank_account_id || vendorPayment.bank_account_id,
-        beneficiary_name,
-        beneficiary_account,
-        beneficiary_bank,
-        beneficiary_iban,
-        swift_code,
+        resolvedBeneficiaryName2,
+        resolvedBeneficiaryAccount2,
+        resolvedBeneficiaryBank2,
+        resolvedBeneficiaryIban2,
+        resolvedSwiftCode2,
         draftStatusId,
         notes,
         internal_notes,
@@ -883,9 +1120,26 @@ router.post(
         });
       }
 
+      const request = result.rows[0];
+
+      // Record approval history
+      const draftStatusId = (await pool.query(`SELECT id FROM request_statuses WHERE code = 'DRAFT'`)).rows[0]?.id;
+      await recordApprovalHistory({
+        requestType: 'transfer', requestId: parseInt(id), companyId: companyId!,
+        userId, action: 'submitted', previousStatusId: draftStatusId, newStatusId: submittedStatusId,
+        ipAddress: req.ip, userAgent: req.headers['user-agent'],
+      });
+
+      // Notify reviewers/approvers
+      await notifyOnAction({
+        companyId: companyId!, requestType: 'transfer', requestId: parseInt(id),
+        requestNumber: request.request_number || `TR-${id}`,
+        action: 'submitted', actorId: userId, requestedBy: request.requested_by,
+      });
+
       res.json({
         message: 'Transfer request submitted for approval',
-        data: result.rows[0]
+        data: request
       });
 
     } catch (error: any) {
@@ -896,8 +1150,65 @@ router.post(
 );
 
 /**
+ * POST /api/transfer-requests/:id/review
+ * Review transfer request (3-level: SUBMITTED → REVIEWED)
+ */
+router.post(
+  '/:id/review',
+  authenticate,
+  requireAnyPermission(['transfer_requests:review', 'transfer_requests:approve']),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { comments } = req.body;
+      const userId = req.user!.id;
+      const companyId = req.user!.companyId;
+
+      const statusResult = await pool.query(`SELECT id FROM request_statuses WHERE code = 'REVIEWED'`);
+      const reviewedStatusId = statusResult.rows[0]?.id;
+      if (!reviewedStatusId) return res.status(500).json({ error: 'REVIEWED status not found' });
+
+      const currentReq = await pool.query(
+        `SELECT tr.*, rs.code as status_code FROM transfer_requests tr
+         JOIN request_statuses rs ON tr.status_id = rs.id
+         WHERE tr.id = $1 AND tr.company_id = $2 AND tr.deleted_at IS NULL`,
+        [id, companyId]
+      );
+      if (currentReq.rows.length === 0) return res.status(404).json({ error: 'Transfer request not found' });
+      if (currentReq.rows[0].status_code !== 'SUBMITTED') {
+        return res.status(400).json({ error: 'Transfer request must be in SUBMITTED status to review' });
+      }
+
+      const previousStatusId = currentReq.rows[0].status_id;
+      const result = await pool.query(
+        `UPDATE transfer_requests SET status_id = $1, reviewed_at = NOW(), reviewed_by = $2, updated_by = $2
+         WHERE id = $3 AND company_id = $4 AND deleted_at IS NULL RETURNING *`,
+        [reviewedStatusId, userId, id, companyId]
+      );
+      const request = result.rows[0];
+
+      await recordApprovalHistory({
+        requestType: 'transfer', requestId: parseInt(id), companyId: companyId!,
+        userId, action: 'reviewed', previousStatusId, newStatusId: reviewedStatusId,
+        comments, ipAddress: req.ip, userAgent: req.headers['user-agent'],
+      });
+      await notifyOnAction({
+        companyId: companyId!, requestType: 'transfer', requestId: parseInt(id),
+        requestNumber: request.request_number || `TR-${id}`,
+        action: 'reviewed', actorId: userId, requestedBy: request.requested_by,
+      });
+
+      res.json({ message: 'Transfer request reviewed successfully', data: request });
+    } catch (error: any) {
+      console.error('Error reviewing transfer request:', error);
+      res.status(500).json({ error: 'Failed to review transfer request' });
+    }
+  }
+);
+
+/**
  * POST /api/transfer-requests/:id/approve
- * Approve transfer request
+ * Approve transfer request (accepts from SUBMITTED or REVIEWED)
  */
 router.post(
   '/:id/approve',
@@ -906,6 +1217,7 @@ router.post(
   async (req, res) => {
     try {
       const { id } = req.params;
+      const { comments } = req.body;
       const userId = req.user!.id;
       const companyId = req.user!.companyId;
 
@@ -913,30 +1225,104 @@ router.post(
       const statusResult = await pool.query(statusQuery);
       const approvedStatusId = statusResult.rows[0]?.id;
 
-      const updateQuery = `
-        UPDATE transfer_requests
-        SET status_id = $1, approved_at = NOW(), approved_by = $2, updated_by = $2
-        WHERE id = $3 AND company_id = $4 AND deleted_at IS NULL
-          AND status_id = (SELECT id FROM request_statuses WHERE code = 'SUBMITTED')
-        RETURNING *
-      `;
-
-      const result = await pool.query(updateQuery, [approvedStatusId, userId, id, companyId]);
-
-      if (result.rows.length === 0) {
-        return res.status(404).json({
-          error: 'Transfer request not found or cannot be approved'
-        });
+      const currentReq = await pool.query(
+        `SELECT tr.*, rs.code as status_code FROM transfer_requests tr
+         JOIN request_statuses rs ON tr.status_id = rs.id
+         WHERE tr.id = $1 AND tr.company_id = $2 AND tr.deleted_at IS NULL`,
+        [id, companyId]
+      );
+      if (currentReq.rows.length === 0) return res.status(404).json({ error: 'Transfer request not found' });
+      const currentStatus = currentReq.rows[0].status_code;
+      if (currentStatus !== 'SUBMITTED' && currentStatus !== 'REVIEWED') {
+        return res.status(400).json({ error: 'Transfer request must be in SUBMITTED or REVIEWED status to approve' });
       }
+      const previousStatusId = currentReq.rows[0].status_id;
 
-      res.json({
-        message: 'Transfer request approved successfully',
-        data: result.rows[0]
+      const result = await pool.query(
+        `UPDATE transfer_requests SET status_id = $1, approved_at = NOW(), approved_by = $2, updated_by = $2
+         WHERE id = $3 AND company_id = $4 AND deleted_at IS NULL RETURNING *`,
+        [approvedStatusId, userId, id, companyId]
+      );
+      const request = result.rows[0];
+
+      await recordApprovalHistory({
+        requestType: 'transfer', requestId: parseInt(id), companyId: companyId!,
+        userId, action: 'approved', previousStatusId, newStatusId: approvedStatusId,
+        comments, ipAddress: req.ip, userAgent: req.headers['user-agent'],
+      });
+      await notifyOnAction({
+        companyId: companyId!, requestType: 'transfer', requestId: parseInt(id),
+        requestNumber: request.request_number || `TR-${id}`,
+        action: 'approved', actorId: userId, requestedBy: request.requested_by,
       });
 
+      res.json({ message: 'Transfer request approved successfully', data: request });
     } catch (error: any) {
       console.error('Error approving transfer request:', error);
       res.status(500).json({ error: 'Failed to approve transfer request' });
+    }
+  }
+);
+
+/**
+ * POST /api/transfer-requests/:id/reject
+ * Reject transfer request
+ */
+router.post(
+  '/:id/reject',
+  authenticate,
+  requirePermission('transfer_requests:approve'),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { rejection_reason, comments } = req.body;
+      const userId = req.user!.id;
+      const companyId = req.user!.companyId;
+
+      if (!rejection_reason || !rejection_reason.trim()) {
+        return res.status(400).json({ error: 'Rejection reason is required' });
+      }
+
+      const statusQuery = `SELECT id FROM request_statuses WHERE code = 'REJECTED'`;
+      const statusResult = await pool.query(statusQuery);
+      const rejectedStatusId = statusResult.rows[0]?.id;
+
+      const currentReq = await pool.query(
+        `SELECT tr.*, rs.code as status_code FROM transfer_requests tr
+         JOIN request_statuses rs ON tr.status_id = rs.id
+         WHERE tr.id = $1 AND tr.company_id = $2 AND tr.deleted_at IS NULL`,
+        [id, companyId]
+      );
+      if (currentReq.rows.length === 0) return res.status(404).json({ error: 'Transfer request not found' });
+      const currentStatus = currentReq.rows[0].status_code;
+      if (currentStatus !== 'SUBMITTED' && currentStatus !== 'REVIEWED') {
+        return res.status(400).json({ error: 'Transfer request must be in SUBMITTED or REVIEWED status to reject' });
+      }
+      const previousStatusId = currentReq.rows[0].status_id;
+
+      const result = await pool.query(
+        `UPDATE transfer_requests SET status_id = $1, rejected_at = NOW(), rejected_by = $2, rejection_reason = $3, updated_by = $2
+         WHERE id = $4 AND company_id = $5 AND deleted_at IS NULL RETURNING *`,
+        [rejectedStatusId, userId, rejection_reason.trim(), id, companyId]
+      );
+      const request = result.rows[0];
+
+      await recordApprovalHistory({
+        requestType: 'transfer', requestId: parseInt(id), companyId: companyId!,
+        userId, action: 'rejected', previousStatusId, newStatusId: rejectedStatusId,
+        comments, rejectionReason: rejection_reason.trim(),
+        ipAddress: req.ip, userAgent: req.headers['user-agent'],
+      });
+      await notifyOnAction({
+        companyId: companyId!, requestType: 'transfer', requestId: parseInt(id),
+        requestNumber: request.request_number || `TR-${id}`,
+        action: 'rejected', actorId: userId, requestedBy: request.requested_by,
+      });
+
+      res.json({ message: 'Transfer request rejected', data: request });
+    } catch (error: any) {
+      console.error('Error rejecting transfer request:', error);
+      res.status(500).json({ error: 'Failed to reject transfer request' });
     }
   }
 );

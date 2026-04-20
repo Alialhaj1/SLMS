@@ -66,6 +66,8 @@ interface DetailSidePanelProps {
   onEdit?: () => void;
   /** Delete callback (undefined = no delete permission) */
   onDelete?: () => void;
+  /** Callback when a relation is clicked — return true to prevent default navigation */
+  onRelationClick?: (rel: RelatedRecord) => boolean;
   /** Permission prefix for RBAC checks */
   permissionPrefix: string;
 }
@@ -143,6 +145,7 @@ export default function DetailSidePanel({
   loading = false,
   onEdit,
   onDelete,
+  onRelationClick,
   permissionPrefix,
 }: DetailSidePanelProps) {
   const { hasPermission } = usePermissions();
@@ -289,9 +292,12 @@ export default function DetailSidePanel({
                   <div
                     key={ri}
                     className={`flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-slate-800 rounded-lg border border-gray-100 dark:border-slate-700 ${
-                      rel.href ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors' : ''
+                      (rel.href || onRelationClick) ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors' : ''
                     }`}
-                    onClick={() => rel.href && window.open(rel.href, '_self')}
+                    onClick={() => {
+                      if (onRelationClick && onRelationClick(rel)) return;
+                      if (rel.href) window.open(rel.href, '_self');
+                    }}
                   >
                     <div className="flex items-center gap-3">
                       <span className="text-sm font-medium text-gray-900 dark:text-gray-100">

@@ -245,6 +245,62 @@ export const MenuPermissions = {
       View: 'accounting:default_accounts:view' as const,
       Manage: 'accounting:default_accounts:manage' as const,
     },
+
+    // Additional accounting sub-ledgers
+    AccruedRevenue: {
+      View: 'accounting:accrued_revenue:view' as const,
+      Create: 'accounting:accrued_revenue:create' as const,
+      Edit: 'accounting:accrued_revenue:edit' as const,
+    },
+    BankMatching: {
+      View: 'accounting:bank_matching:view' as const,
+      Manage: 'accounting:bank_matching:manage' as const,
+    },
+    BankReconciliation: {
+      View: 'accounting:bank_reconciliation:view' as const,
+      Manage: 'accounting:bank_reconciliation:manage' as const,
+    },
+    CashDeposit: {
+      View: 'accounting:cash_deposit:view' as const,
+      Create: 'accounting:cash_deposit:create' as const,
+    },
+    CashInventory: {
+      View: 'accounting:cash_inventory:view' as const,
+    },
+    CashLedger: {
+      View: 'accounting:cash_ledger:view' as const,
+      Export: 'accounting:cash_ledger:export' as const,
+    },
+    CreditNotes: {
+      View: 'accounting:credit_notes:view' as const,
+      Create: 'accounting:credit_notes:create' as const,
+      Edit: 'accounting:credit_notes:edit' as const,
+      Delete: 'accounting:credit_notes:delete' as const,
+    },
+    DebitNotes: {
+      View: 'accounting:debit_notes:view' as const,
+      Create: 'accounting:debit_notes:create' as const,
+      Edit: 'accounting:debit_notes:edit' as const,
+      Delete: 'accounting:debit_notes:delete' as const,
+    },
+    PaymentVoucher: {
+      View: 'accounting:payment_voucher:view' as const,
+      Create: 'accounting:payment_voucher:create' as const,
+      Post: 'accounting:payment_voucher:post' as const,
+    },
+    ReceiptVoucher: {
+      View: 'accounting:receipt_voucher:view' as const,
+      Create: 'accounting:receipt_voucher:create' as const,
+      Post: 'accounting:receipt_voucher:post' as const,
+    },
+    SuppliersLedger: {
+      View: 'accounting:suppliers_ledger:view' as const,
+      Export: 'accounting:suppliers_ledger:export' as const,
+    },
+    FinancialYears: {
+      View: 'accounting:financial_years:view' as const,
+      Manage: 'accounting:financial_years:manage' as const,
+    },
   },
 
   // ═══════════════════════════════════════════════════════════
@@ -971,6 +1027,150 @@ export const MenuPermissions = {
       Edit: 'master:transport_routes:edit' as const,
       Delete: 'master:transport_routes:delete' as const,
     },
+    InsuranceCompanies: {
+      View: 'master:insurance_companies:view' as const,
+      Create: 'master:insurance_companies:create' as const,
+      Edit: 'master:insurance_companies:edit' as const,
+      Delete: 'master:insurance_companies:delete' as const,
+    },
+
+    // Additional Master Data
+    VoucherTypes: {
+      View: 'master:voucher_types:view' as const,
+      Create: 'master:voucher_types:create' as const,
+      Edit: 'master:voucher_types:edit' as const,
+      Delete: 'master:voucher_types:delete' as const,
+    },
+    JournalTypes: {
+      View: 'master:journal_types:view' as const,
+      Create: 'master:journal_types:create' as const,
+      Edit: 'master:journal_types:edit' as const,
+      Delete: 'master:journal_types:delete' as const,
+    },
+    TransactionDefaults: {
+      View: 'master:transaction_defaults:view' as const,
+      Edit: 'master:transaction_defaults:edit' as const,
+    },
+    PrepaidPolicies: {
+      View: 'master:prepaid_policies:view' as const,
+      Edit: 'master:prepaid_policies:edit' as const,
+    },
+    DeferredPolicies: {
+      View: 'master:deferred_policies:view' as const,
+      Edit: 'master:deferred_policies:edit' as const,
+    },
+    ExpenseDistribution: {
+      View: 'master:expense_distribution:view' as const,
+      Edit: 'master:expense_distribution:edit' as const,
+    },
+    Laboratories: {
+      View: 'master:laboratories:view' as const,
+      Create: 'master:laboratories:create' as const,
+      Edit: 'master:laboratories:edit' as const,
+      Delete: 'master:laboratories:delete' as const,
+    },
+    EntryExitPoints: {
+      View: 'master:entry_exit_points:view' as const,
+      Create: 'master:entry_exit_points:create' as const,
+      Edit: 'master:entry_exit_points:edit' as const,
+      Delete: 'master:entry_exit_points:delete' as const,
+    },
+    Tariffs: {
+      View: 'master:tariffs:view' as const,
+      Create: 'master:tariffs:create' as const,
+      Edit: 'master:tariffs:edit' as const,
+      Delete: 'master:tariffs:delete' as const,
+    },
+    SerialNumbers: {
+      View: 'master:serial_numbers:view' as const,
+      Create: 'master:serial_numbers:create' as const,
+      Edit: 'master:serial_numbers:edit' as const,
+      Delete: 'master:serial_numbers:delete' as const,
+    },
+    StockLimits: {
+      View: 'master:stock_limits:view' as const,
+      Edit: 'master:stock_limits:edit' as const,
+    },
+    MinMaxPolicies: {
+      View: 'master:min_max_policies:view' as const,
+      Edit: 'master:min_max_policies:edit' as const,
+    },
+    ExpiryPolicies: {
+      View: 'master:expiry_policies:view' as const,
+      Edit: 'master:expiry_policies:edit' as const,
+    },
+    ValuationMethods: {
+      View: 'master:valuation_methods:view' as const,
+      Edit: 'master:valuation_methods:edit' as const,
+    },
+    InventoryCounting: {
+      View: 'master:inventory_counting:view' as const,
+      Create: 'master:inventory_counting:create' as const,
+    },
+    ShippingExpenseCategories: {
+      View: 'shipping:expense_categories:view' as const,
+      Create: 'shipping:expense_categories:create' as const,
+      Edit: 'shipping:expense_categories:edit' as const,
+      Delete: 'shipping:expense_categories:delete' as const,
+    },
+    ShippingDocumentTypes: {
+      View: 'shipping:document_types:view' as const,
+      Create: 'shipping:document_types:create' as const,
+      Edit: 'shipping:document_types:edit' as const,
+      Delete: 'shipping:document_types:delete' as const,
+    },
+    EmployeeStatus: {
+      View: 'master:employee_status:view' as const,
+      Create: 'master:employee_status:create' as const,
+      Edit: 'master:employee_status:edit' as const,
+      Delete: 'master:employee_status:delete' as const,
+    },
+    AllowanceTypes: {
+      View: 'master:allowance_types:view' as const,
+      Create: 'master:allowance_types:create' as const,
+      Edit: 'master:allowance_types:edit' as const,
+      Delete: 'master:allowance_types:delete' as const,
+    },
+    DeductionTypes: {
+      View: 'master:deduction_types:view' as const,
+      Create: 'master:deduction_types:create' as const,
+      Edit: 'master:deduction_types:edit' as const,
+      Delete: 'master:deduction_types:delete' as const,
+    },
+    AdvanceTypes: {
+      View: 'master:advance_types:view' as const,
+      Create: 'master:advance_types:create' as const,
+      Edit: 'master:advance_types:edit' as const,
+      Delete: 'master:advance_types:delete' as const,
+    },
+    HrExpenseTypes: {
+      View: 'master:hr_expense_types:view' as const,
+      Create: 'master:hr_expense_types:create' as const,
+      Edit: 'master:hr_expense_types:edit' as const,
+      Delete: 'master:hr_expense_types:delete' as const,
+    },
+    PayrollPeriods: {
+      View: 'master:payroll_periods:view' as const,
+      Edit: 'master:payroll_periods:edit' as const,
+    },
+    HrContractTypes: {
+      View: 'master:hr_contract_types:view' as const,
+      Create: 'master:hr_contract_types:create' as const,
+      Edit: 'master:hr_contract_types:edit' as const,
+      Delete: 'master:hr_contract_types:delete' as const,
+    },
+    HrContractStatus: {
+      View: 'master:hr_contract_status:view' as const,
+      Create: 'master:hr_contract_status:create' as const,
+      Edit: 'master:hr_contract_status:edit' as const,
+      Delete: 'master:hr_contract_status:delete' as const,
+    },
+    JobTitles: {
+      View: 'master:job_titles:view' as const,
+      Create: 'master:job_titles:create' as const,
+      Edit: 'master:job_titles:edit' as const,
+      Delete: 'master:job_titles:delete' as const,
+    },
   },
 
   // ═══════════════════════════════════════════════════════════
@@ -1525,6 +1725,10 @@ export const MenuPermissions = {
       View: 'audit_logs:view' as Permission,
       Export: 'audit_logs:export' as Permission,
     },
+    EntityAccess: {
+      View: 'entity_access:view' as Permission,
+      Manage: 'entity_access:manage' as Permission,
+    },
     HelpRequests: {
       View: 'help_requests:view' as Permission,
       Manage: 'help_requests:manage' as Permission,
@@ -1570,6 +1774,297 @@ export const MenuPermissions = {
   ReferenceData: {
     View: 'admin:reference_data:view' as const,
     Manage: 'admin:reference_data:manage' as const,
+  },
+
+  // ═══════════════════════════════════════════════════════════
+  // 🛒 Sales
+  // ═══════════════════════════════════════════════════════════
+  Sales: {
+    View: 'sales:view' as const,
+    Quotations: {
+      View: 'sales:quotations:view' as const,
+      Create: 'sales:quotations:create' as const,
+      Edit: 'sales:quotations:edit' as const,
+      Delete: 'sales:quotations:delete' as const,
+    },
+    CustomerContracts: {
+      View: 'sales:customer_contracts:view' as const,
+      Create: 'sales:customer_contracts:create' as const,
+      Edit: 'sales:customer_contracts:edit' as const,
+      Delete: 'sales:customer_contracts:delete' as const,
+    },
+    Orders: {
+      View: 'sales:orders:view' as const,
+      Create: 'sales:orders:create' as const,
+      Edit: 'sales:orders:edit' as const,
+      Delete: 'sales:orders:delete' as const,
+    },
+    Invoices: {
+      View: 'sales:invoices:view' as const,
+      Create: 'sales:invoices:create' as const,
+      Edit: 'sales:invoices:edit' as const,
+      Delete: 'sales:invoices:delete' as const,
+    },
+    Returns: {
+      View: 'sales:returns:view' as const,
+      Create: 'sales:returns:create' as const,
+      Edit: 'sales:returns:edit' as const,
+      Delete: 'sales:returns:delete' as const,
+    },
+    PriceLists: {
+      View: 'sales:price_lists:view' as const,
+      Create: 'sales:price_lists:create' as const,
+      Edit: 'sales:price_lists:edit' as const,
+      Delete: 'sales:price_lists:delete' as const,
+    },
+  },
+
+  // ═══════════════════════════════════════════════════════════
+  // 🤝 CRM
+  // ═══════════════════════════════════════════════════════════
+  CRM: {
+    View: 'crm:view' as const,
+    Addresses: {
+      View: 'crm:addresses:view' as const,
+      Create: 'crm:addresses:create' as const,
+      Edit: 'crm:addresses:edit' as const,
+      Delete: 'crm:addresses:delete' as const,
+    },
+    Contacts: {
+      View: 'crm:contacts:view' as const,
+      Create: 'crm:contacts:create' as const,
+      Edit: 'crm:contacts:edit' as const,
+      Delete: 'crm:contacts:delete' as const,
+    },
+    Opportunities: {
+      View: 'crm:opportunities:view' as const,
+      Create: 'crm:opportunities:create' as const,
+      Edit: 'crm:opportunities:edit' as const,
+      Delete: 'crm:opportunities:delete' as const,
+    },
+    FollowUp: {
+      View: 'crm:follow_up:view' as const,
+      Create: 'crm:follow_up:create' as const,
+      Edit: 'crm:follow_up:edit' as const,
+      Delete: 'crm:follow_up:delete' as const,
+    },
+  },
+
+  // ═══════════════════════════════════════════════════════════
+  // 🏗️ Fixed Assets
+  // ═══════════════════════════════════════════════════════════
+  Assets: {
+    View: 'assets:view' as const,
+    FixedAssets: {
+      View: 'assets:fixed_assets:view' as const,
+      Create: 'assets:fixed_assets:create' as const,
+      Edit: 'assets:fixed_assets:edit' as const,
+      Delete: 'assets:fixed_assets:delete' as const,
+    },
+    DepreciationSchedules: {
+      View: 'assets:depreciation_schedules:view' as const,
+      Manage: 'assets:depreciation_schedules:manage' as const,
+    },
+    MaintenanceContracts: {
+      View: 'assets:maintenance_contracts:view' as const,
+      Create: 'assets:maintenance_contracts:create' as const,
+      Edit: 'assets:maintenance_contracts:edit' as const,
+      Delete: 'assets:maintenance_contracts:delete' as const,
+    },
+  },
+
+  // ═══════════════════════════════════════════════════════════
+  // 🚢 Shipping
+  // ═══════════════════════════════════════════════════════════
+  Shipping: {
+    View: 'shipping:view' as const,
+    BillOfLading: {
+      View: 'shipping:bill_of_lading:view' as const,
+      Create: 'shipping:bill_of_lading:create' as const,
+      Edit: 'shipping:bill_of_lading:edit' as const,
+    },
+    Documents: {
+      View: 'shipping:documents:view' as const,
+      Create: 'shipping:documents:create' as const,
+      Edit: 'shipping:documents:edit' as const,
+      Delete: 'shipping:documents:delete' as const,
+    },
+    Schedules: {
+      View: 'shipping:schedules:view' as const,
+      Manage: 'shipping:schedules:manage' as const,
+    },
+    Contracts: {
+      View: 'shipping:contracts:view' as const,
+      Create: 'shipping:contracts:create' as const,
+      Edit: 'shipping:contracts:edit' as const,
+      Delete: 'shipping:contracts:delete' as const,
+    },
+    Insurance: {
+      View: 'shipping:insurance:view' as const,
+      Create: 'shipping:insurance:create' as const,
+      Edit: 'shipping:insurance:edit' as const,
+      Delete: 'shipping:insurance:delete' as const,
+    },
+  },
+
+  // ═══════════════════════════════════════════════════════════
+  // ✅ Compliance
+  // ═══════════════════════════════════════════════════════════
+  ComplianceModule: {
+    View: 'compliance:view' as const,
+    ConformityCertificates: {
+      View: 'compliance:conformity_certificates:view' as const,
+      Create: 'compliance:conformity_certificates:create' as const,
+      Edit: 'compliance:conformity_certificates:edit' as const,
+      Delete: 'compliance:conformity_certificates:delete' as const,
+    },
+    OriginCertificates: {
+      View: 'compliance:origin_certificates:view' as const,
+      Create: 'compliance:origin_certificates:create' as const,
+      Edit: 'compliance:origin_certificates:edit' as const,
+      Delete: 'compliance:origin_certificates:delete' as const,
+    },
+    Licenses: {
+      View: 'compliance:licenses:view' as const,
+      Create: 'compliance:licenses:create' as const,
+      Edit: 'compliance:licenses:edit' as const,
+      Delete: 'compliance:licenses:delete' as const,
+    },
+    Regulations: {
+      View: 'compliance:regulations:view' as const,
+      Create: 'compliance:regulations:create' as const,
+      Edit: 'compliance:regulations:edit' as const,
+      Delete: 'compliance:regulations:delete' as const,
+    },
+  },
+
+  // ═══════════════════════════════════════════════════════════
+  // 💲 Costs & Pricing
+  // ═══════════════════════════════════════════════════════════
+  CostsPricing: {
+    View: 'costs_pricing:view' as const,
+  },
+
+  // ═══════════════════════════════════════════════════════════
+  // 🔗 Integrations
+  // ═══════════════════════════════════════════════════════════
+  Integrations: {
+    View: 'integrations:view' as const,
+    PaymentGateways: { View: 'integrations:payment_gateways:view' as const },
+    ShippingCompanies: { View: 'integrations:shipping_companies:view' as const },
+    BankIntegration: { View: 'integrations:bank_integration:view' as const },
+  },
+
+  // ═══════════════════════════════════════════════════════════
+  // 📊 Advanced Purchasing
+  // ═══════════════════════════════════════════════════════════
+  AdvancedPurchasing: {
+    View: 'purchasing:view' as const,
+  },
+
+  // ═══════════════════════════════════════════════════════════
+  // 🛃 Advanced Customs
+  // ═══════════════════════════════════════════════════════════
+  AdvancedCustoms: {
+    View: 'customs:view' as const,
+  },
+
+  // ═══════════════════════════════════════════════════════════
+  // 🛒 E-Commerce Store
+  // ═══════════════════════════════════════════════════════════
+  Store: {
+    View: 'store_management:view' as const,
+    Settings: {
+      View: 'store_management:settings:view' as const,
+      Edit: 'store_management:settings:edit' as const,
+    },
+    Products: {
+      View: 'store_management:products:view' as const,
+      Create: 'store_management:products:create' as const,
+      Edit: 'store_management:products:edit' as const,
+      Delete: 'store_management:products:delete' as const,
+    },
+    Orders: {
+      View: 'store_management:orders:view' as const,
+      Edit: 'store_management:orders:edit' as const,
+    },
+    Customers: {
+      View: 'store_management:customers:view' as const,
+      Edit: 'store_management:customers:edit' as const,
+    },
+    Coupons: {
+      View: 'store_management:coupons:view' as const,
+      Create: 'store_management:coupons:create' as const,
+      Edit: 'store_management:coupons:edit' as const,
+      Delete: 'store_management:coupons:delete' as const,
+    },
+    Reviews: {
+      View: 'store_management:reviews:view' as const,
+      Delete: 'store_management:reviews:delete' as const,
+    },
+    Shipping: {
+      View: 'store_management:shipping:view' as const,
+      Edit: 'store_management:shipping:edit' as const,
+    },
+    Analytics: {
+      View: 'store_management:analytics:view' as const,
+    },
+  },
+
+  // 🏪 Marketplace
+  // ═══════════════════════════════════════════════════════════
+  Marketplace: {
+    View: 'marketplace:view' as const,
+    Manage: 'marketplace:manage' as const,
+    Vendors: {
+      View: 'marketplace_vendors:view' as const,
+      Create: 'marketplace_vendors:create' as const,
+      Edit: 'marketplace_vendors:edit' as const,
+    },
+    Listings: {
+      View: 'marketplace_listings:view' as const,
+      Edit: 'marketplace_listings:edit' as const,
+    },
+    Orders: {
+      View: 'marketplace_orders:view' as const,
+    },
+    Categories: {
+      View: 'marketplace_categories:view' as const,
+      Create: 'marketplace_categories:create' as const,
+    },
+    Payouts: {
+      View: 'marketplace_payouts:view' as const,
+      Edit: 'marketplace_payouts:edit' as const,
+    },
+    Disputes: {
+      View: 'marketplace_disputes:view' as const,
+      Edit: 'marketplace_disputes:edit' as const,
+    },
+  },
+
+  // 🏬 Vendor Dashboard
+  // ═══════════════════════════════════════════════════════════
+  VendorDashboard: {
+    View: 'vendor_dashboard:view' as const,
+    Listings: {
+      View: 'vendor_listings:view' as const,
+      Manage: 'vendor_listings:manage' as const,
+    },
+    Orders: {
+      View: 'vendor_orders:view' as const,
+      Manage: 'vendor_orders:manage' as const,
+    },
+    Wallet: {
+      View: 'vendor_wallet:view' as const,
+    },
+    Payouts: {
+      View: 'vendor_payouts:view' as const,
+      Request: 'vendor_payouts:request' as const,
+    },
+    Settings: {
+      View: 'vendor_settings:view' as const,
+      Edit: 'vendor_settings:edit' as const,
+    },
   },
 } as const;
 

@@ -5,6 +5,7 @@
 
 import pool from '../db';
 import bcrypt from 'bcryptjs';
+import { config } from '../config/env';
 import { softDelete, restore } from '../utils/softDelete';
 
 export interface CreateUserData {
@@ -54,17 +55,16 @@ export class UserService {
               array_agg(DISTINCT r.name) FILTER (WHERE r.name IS NOT NULL) as roles,
               (SELECT array_agg(ur2.role_id) FROM user_roles ur2 WHERE ur2.user_id = u.id) as role_ids,
               (
-                SELECT array_agg(DISTINCT perm)
+                SELECT array_agg(DISTINCT p.permission_code)
                 FROM user_roles ur2
-                JOIN roles r2 ON ur2.role_id = r2.id
-                CROSS JOIN LATERAL jsonb_array_elements_text(r2.permissions) AS perm
+                JOIN role_permissions rp ON rp.role_id = ur2.role_id
+                JOIN permissions p ON p.id = rp.permission_id
                 WHERE ur2.user_id = u.id
               ) as permissions,
               (SELECT json_agg(json_build_object(
                 'company_id', uc_d.company_id,
                 'company_name', c_d.name,
-                'role_id', uc_d.role_id,
-                'access_scope', uc_d.access_scope,
+                'access_level', uc_d.access_level,
                 'is_default', uc_d.is_default,
                 'is_active', uc_d.is_active
               ) ORDER BY uc_d.is_default DESC)
@@ -296,7 +296,7 @@ export class UserService {
       );
 
       // Hash password (used for both insert + restore)
-      const hashedPassword = await bcrypt.hash(password, 10);
+      const hashedPassword = await bcrypt.hash(password, config.BCRYPT_ROUNDS);
 
       let user: any;
       let wasRestored = false;
@@ -515,7 +515,7 @@ export class UserService {
     updatedBy: number,
     options?: { mustChangePassword?: boolean }
   ) {
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    const hashedPassword = await bcrypt.hash(newPassword, config.BCRYPT_ROUNDS);
 
     await pool.query(
       `UPDATE users

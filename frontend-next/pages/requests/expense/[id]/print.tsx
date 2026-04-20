@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Expense Request Print Page
  * Uses window.open with document.write for reliable printing
  * Supports RTL/LTR based on user language
@@ -34,6 +34,15 @@ interface ExpenseRequest {
   bl_number: string;
   requested_by_name: string;
   approved_by_name: string;
+  reviewed_by_name?: string;
+  reviewer_signature_url?: string;
+  reviewer_title_en?: string;
+  reviewer_title_ar?: string;
+  reviewed_at?: string;
+  approver_signature_url?: string;
+  approver_title_en?: string;
+  approver_title_ar?: string;
+  approved_at?: string;
   source_type?: string;
   source_invoice_number?: string;
   source_invoice_date?: string;
@@ -74,6 +83,7 @@ interface CompanyInfo {
   email: string;
   website: string;
   logo: string;
+  logo_url: string;
 }
 
 // Currency names for amount in words
@@ -285,7 +295,8 @@ export default function ExpenseRequestPrintPage() {
     const amountNum = typeof request.total_amount === 'string' ? parseFloat(request.total_amount) : request.total_amount;
     const blNumber = request.source_bl_number || request.bl_number || request.shipment_bl_number;
     const entity = getEntityInfo();
-    const logoUrl = company?.logo || '';
+    const rawLogo = company?.logo_url || company?.logo || '';
+    const logoUrl = rawLogo && rawLogo.startsWith('/') ? `${window.location.origin}${rawLogo}` : rawLogo;
     const shipmentItems = request.shipment_items || [];
     const currencyCode = request.currency_code || 'SAR';
     
@@ -547,16 +558,20 @@ export default function ExpenseRequestPrintPage() {
             <div style="border-top:1px solid #999;margin-top:30px;padding-top:5px;font-size:10px;color:#666;">${isRTL ? 'التوقيع / Signature' : 'Signature / التوقيع'}</div>
           </td>
           <td class="sig-cell" style="border-${isRTL ? 'left' : 'right'}:1px solid #999;">
-            <div style="font-weight:bold;font-size:12px;">${isRTL ? 'مراجعة المدير' : 'Manager Review'}</div>
-            <div style="font-size:10px;color:#666;margin-bottom:15px;">${isRTL ? 'Manager Review' : 'مراجعة المدير'}</div>
-            <div style="font-size:12px;">${request.approved_by_name || '-'}</div>
-            <div style="border-top:1px solid #999;margin-top:30px;padding-top:5px;font-size:10px;color:#666;">${isRTL ? 'التوقيع / Signature' : 'Signature / التوقيع'}</div>
+            <div style="font-weight:bold;font-size:12px;">${isRTL ? 'المراجع' : 'Reviewer'}</div>
+            <div style="font-size:10px;color:#666;margin-bottom:15px;">${isRTL ? 'Reviewer' : 'المراجع'}</div>
+            <div style="font-size:12px;">${request.reviewed_by_name || '-'}</div>
+            ${request.reviewer_signature_url ? `<div style="margin-top:5px;"><img src="${request.reviewer_signature_url.startsWith('/') ? window.location.origin + request.reviewer_signature_url : request.reviewer_signature_url}" style="max-height:40px;max-width:120px;" onerror="this.style.display='none'"></div>` : ''}
+            <div style="border-top:1px solid #999;margin-top:${request.reviewer_signature_url ? '5px' : '30px'};padding-top:5px;font-size:10px;color:#666;">${isRTL ? 'التوقيع / Signature' : 'Signature / التوقيع'}</div>
+            ${request.reviewed_at ? `<div style="font-size:10px;color:#666;margin-top:3px;">${formatDate(request.reviewed_at)}</div>` : ''}
           </td>
           <td class="sig-cell">
             <div style="font-weight:bold;font-size:12px;">${isRTL ? 'الاعتماد' : 'Approval'}</div>
             <div style="font-size:10px;color:#666;margin-bottom:15px;">${isRTL ? 'Approval' : 'الاعتماد'}</div>
-            <div style="font-size:12px;">-</div>
-            <div style="border-top:1px solid #999;margin-top:30px;padding-top:5px;font-size:10px;color:#666;">${isRTL ? 'التوقيع / Signature' : 'Signature / التوقيع'}</div>
+            <div style="font-size:12px;">${request.approved_by_name || '-'}</div>
+            ${request.approver_signature_url ? `<div style="margin-top:5px;"><img src="${request.approver_signature_url.startsWith('/') ? window.location.origin + request.approver_signature_url : request.approver_signature_url}" style="max-height:40px;max-width:120px;" onerror="this.style.display='none'"></div>` : ''}
+            <div style="border-top:1px solid #999;margin-top:${request.approver_signature_url ? '5px' : '30px'};padding-top:5px;font-size:10px;color:#666;">${isRTL ? 'التوقيع / Signature' : 'Signature / التوقيع'}</div>
+            ${request.approved_at ? `<div style="font-size:10px;color:#666;margin-top:3px;">${formatDate(request.approved_at)}</div>` : ''}
           </td>
         </tr>
       </table>

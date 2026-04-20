@@ -165,6 +165,9 @@ export function useFieldPermissions(permissionPrefix: string): UseFieldPermissio
   return {
     canView,
     canEdit,
+    isVisible: canView,
+    isEditable: canEdit,
+    isRequired: (_field: string) => false,
     getFieldAccess,
     filterVisibleFields,
     filterEditableFields,

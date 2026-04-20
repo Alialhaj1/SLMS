@@ -12,6 +12,7 @@ import MainLayout from './MainLayout';
 const PUBLIC_ROUTES = [
   '/login',
   '/auth/login',
+  '/admin',
   '/register',
   '/auth/register',
   '/forgot-password',
@@ -25,6 +26,9 @@ const PUBLIC_ROUTES = [
   '/500',
 ];
 
+// Store routes use their own layout (StoreLayout) — bypass ERP wrapper
+const isStoreRoute = (path: string) => path.startsWith('/store/');
+
 interface LayoutWrapperProps {
   children: React.ReactNode;
 }
@@ -33,20 +37,24 @@ export function LayoutWrapper({ children }: LayoutWrapperProps) {
   const router = useRouter();
   const { userContext } = useAuthorization();
 
-  const isPublicRoute = PUBLIC_ROUTES.some((route) => router.pathname === route);
+  const isPublicRoute = PUBLIC_ROUTES.some((route) => router.pathname === route) || isStoreRoute(router.pathname);
+  const isAdminRoute = router.pathname.startsWith('/admin');
 
   // Handle redirect in useEffect to avoid render-phase navigation errors
   useEffect(() => {
-    if (!isPublicRoute && userContext === null && router.pathname !== '/') {
+    // Skip redirect for public routes, root page, and admin sub-routes
+    // (admin sub-routes handle their own auth checks)
+    if (isPublicRoute || router.pathname === '/' || isAdminRoute) return;
+
+    // Only redirect if no user context AND no token in storage (avoids race condition after login)
+    const hasToken = typeof window !== 'undefined' && !!localStorage.getItem('accessToken');
+    if (userContext === null && !hasToken) {
       router.replace('/').catch(() => {});
     }
-  }, [userContext, isPublicRoute, router.pathname]);
+  }, [userContext, isPublicRoute, isAdminRoute, router.pathname]);
 
-  // Public routes - render directly without layout
-  if (isPublicRoute || router.pathname === '/') {
-    return <>{children}</>;
-  }
-
-  // Authenticated routes - wrap in MainLayout
-  return <MainLayout>{children}</MainLayout>;
+  // All routes render children directly.
+  // Individual pages already wrap themselves in <MainLayout> where needed,
+  // so wrapping again here would cause a double header/sidebar.
+  return <>{children}</>;
 }

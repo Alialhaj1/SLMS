@@ -118,3 +118,5 @@ export const harvestSchedulesConfig: PageConfig<HarvestSchedule> = {
   pageSizeOptions: [10, 25, 50, 100],
   bulkOperationsEnabled: true,
 };
+
+export const harvestScheduleConfig = harvestSchedulesConfig;

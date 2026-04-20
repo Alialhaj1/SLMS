@@ -1,6 +1,7 @@
 import '../styles/globals.css';
 import '../styles/rtl.css';
 import '../styles/permission-components.css';
+import '../styles/enhanced-components.css';
 import type { AppProps } from 'next/app';
 import { ThemeProvider } from '../contexts/ThemeContext';
 import { ToastProvider } from '../contexts/ToastContext';

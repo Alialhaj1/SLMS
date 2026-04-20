@@ -42,6 +42,7 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
     warehouse_id: defaultWarehouseId || 0,
     uom_id: 0,
     uom_code: '',
+    uom_name: '',
     quantity: 1,
     unit_price: 0,
     discount_percent: 0,
@@ -77,6 +78,7 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
         warehouse_id: defaultWarehouseId || 0,
         uom_id: 0,
         uom_code: '',
+        uom_name: '',
         quantity: 1,
         unit_price: 0,
         discount_percent: 0,
@@ -102,6 +104,7 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
         item_name_ar: item.name_ar,
         uom_id: item.unit_id,
         uom_code: item.unit_code,
+        uom_name: item.base_uom_name || item.unit_name || item.unit_code || '',
         unit_price: item.unit_price || 0,
       });
     } else {
@@ -113,6 +116,7 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
         item_name: '',
         uom_id: 0,
         uom_code: '',
+        uom_name: '',
       });
     }
   };
@@ -223,7 +227,7 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
             </label>
             <input
               type="text"
-              value={itemData.uom_code || ''}
+              value={itemData.uom_name || itemData.uom_code || ''}
               disabled
               className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-400 cursor-not-allowed"
               placeholder={locale === 'ar' ? 'يتم تعبئتها تلقائياً' : 'Auto-filled'}

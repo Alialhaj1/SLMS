@@ -84,3 +84,5 @@ export const addressTypesConfig: PageConfig<AddressType> = {
   pageSizeOptions: [10, 25, 50, 100],
   bulkOperationsEnabled: true,
 };
+
+export const addressTypeConfig = addressTypesConfig;

@@ -9,15 +9,17 @@ import { Router, Request, Response } from 'express';
 import pool from '../db';
 import { authenticate } from '../middleware/auth';
 import { requireAnyPermission } from '../middleware/rbac';
+import { loadCompanyContext } from '../middleware/companyContext';
 
 const router = Router();
 
 router.use(authenticate);
+router.use(loadCompanyContext);
 
 // ── LIST ──────────────────────────────────────────────────────────────
 router.get('/', requireAnyPermission(['cash_registers:view']), async (req: Request, res: Response) => {
   try {
-    const companyId = (req as any).user?.companyId;
+    const companyId = req.companyId;
     const { branch_id, is_active, search } = req.query;
 
     let query = `
@@ -37,6 +39,9 @@ router.get('/', requireAnyPermission(['cash_registers:view']), async (req: Reque
     if (companyId) {
       params.push(companyId);
       query += ` AND cr.company_id = $${++paramIdx}`;
+    } else {
+      // No company context — return nothing to prevent cross-tenant leak
+      return res.json({ data: [], total: 0 });
     }
     if (branch_id) {
       params.push(branch_id);
@@ -90,7 +95,7 @@ router.get('/:id', requireAnyPermission(['cash_registers:view']), async (req: Re
 // ── CREATE ────────────────────────────────────────────────────────────
 router.post('/', requireAnyPermission(['cash_registers:create']), async (req: Request, res: Response) => {
   try {
-    const companyId = (req as any).user?.companyId;
+    const companyId = req.companyId;
     const userId = (req as any).user?.id;
     const {
       branch_id, gl_account_id, currency_id, code, name_ar, name_en,
@@ -206,7 +211,7 @@ router.post('/:id/transactions', requireAnyPermission(['cash_registers:transact'
   const client = await pool.connect();
   try {
     const { id } = req.params;
-    const companyId = (req as any).user?.companyId;
+    const companyId = req.companyId;
     const userId = (req as any).user?.id;
     const { transaction_type, amount, description, reference_type, reference_id } = req.body;
 

@@ -9,7 +9,16 @@
 
 import crypto from 'crypto';
 
-const ENCRYPTION_KEY = process.env.PASSWORD_ENCRYPTION_KEY || 'slms-default-encryption-key-32ch'; // must be 32 chars
+// §12 S16: NEVER use a hardcoded fallback key in production.
+// The fallback is kept for development only and logs a warning.
+const FALLBACK_KEY = 'slms-default-encryption-key-32ch';
+const ENCRYPTION_KEY = process.env.PASSWORD_ENCRYPTION_KEY || FALLBACK_KEY;
+
+if (ENCRYPTION_KEY === FALLBACK_KEY && process.env.NODE_ENV === 'production') {
+  console.error('FATAL: PASSWORD_ENCRYPTION_KEY is not set. Using fallback key in production is forbidden (§12 S16).');
+  // Don't crash — but log a loud warning so it's caught in monitoring
+}
+
 const IV_LENGTH = 16;
 const ALGORITHM = 'aes-256-cbc';
 

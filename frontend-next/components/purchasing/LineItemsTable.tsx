@@ -1,14 +1,18 @@
 /**
- * 📦 PURCHASE ORDER LINE ITEMS TABLE
- * ===================================
- * Dynamic line items table with auto-calculations
- * 
+ * 📦 PROFESSIONAL LINE ITEMS TABLE
+ * ==================================
+ * Enterprise-grade line items editor for Purchase Orders.
+ *
  * Features:
- * ✅ Add/Edit/Delete/Clone rows
- * ✅ Auto calculate: Qty × Price = Amount
- * ✅ Auto subtotal/tax/total
- * ✅ Item search/select
- * ✅ RTL support
+ * ✅ Professional card-based layout with gradient accents
+ * ✅ Inline editing with smart auto-calculation
+ * ✅ Add / Delete / Clone / Reorder rows
+ * ✅ Item search via SearchableSelect (supports all items)
+ * ✅ Scoped UOM dropdown per item
+ * ✅ Dual pricing: edit unit price OR line total
+ * ✅ Expandable row for notes / HS Code / warehouse
+ * ✅ Full RTL (Arabic) support
+ * ✅ Professional summary footer with currency
  */
 
 import { Fragment, useState, useCallback, useMemo } from 'react';
@@ -18,8 +22,12 @@ import {
   DocumentDuplicateIcon,
   ChevronUpIcon,
   ChevronDownIcon,
+  ChevronRightIcon,
+  CubeIcon,
+  ExclamationTriangleIcon,
+  ShoppingCartIcon,
+  CalculatorIcon,
 } from '@heroicons/react/24/outline';
-import Button from '../ui/Button';
 import SearchableSelect from '../ui/SearchableSelect';
 import clsx from 'clsx';
 
@@ -33,6 +41,7 @@ export interface LineItem {
   item_name_ar?: string;
   uom_id: number;
   uom_code?: string;
+  uom_name?: string;
   ordered_qty: number;
   unit_price: number;
   discount_percent: number;
@@ -54,6 +63,7 @@ interface ItemOption {
   name_ar?: string;
   base_uom_id?: number;
   base_uom_code?: string;
+  base_uom_name?: string;
   purchase_price?: number;
   tax_rate_id?: number;
   default_tax_rate?: number;
@@ -367,6 +377,7 @@ export default function LineItemsTable({
           item_name_ar: selectedItem.name_ar,
           uom_id: Number(preferredUomId) || 0,
           uom_code: preferredUom?.code || selectedItem.base_uom_code || updatedItem.uom_code,
+          uom_name: preferredUom?.name || selectedItem.base_uom_name || updatedItem.uom_name,
           unit_price: selectedItem.purchase_price || updatedItem.unit_price,
           tax_rate_id: selectedItem.tax_rate_id,
           tax_rate: selectedItem.default_tax_rate || 0,
@@ -393,7 +404,7 @@ export default function LineItemsTable({
         uomOptions.find((u) => u.id === Number(value));
 
       if (selectedUom?.code) {
-        updatedItem = { ...updatedItem, uom_code: selectedUom.code };
+        updatedItem = { ...updatedItem, uom_code: selectedUom.code, uom_name: selectedUom.name };
       }
     }
 
@@ -427,87 +438,190 @@ export default function LineItemsTable({
     );
   }, [items]);
 
-  const formatNumber = (num: number) => {
+  const formatNumber = (num: number, decimals = 2) => {
     return new Intl.NumberFormat(locale === 'ar' ? 'ar-SA' : 'en-US', {
-      minimumFractionDigits: 2,
+      minimumFractionDigits: decimals,
       maximumFractionDigits: 4,
     }).format(num);
   };
 
   const t = {
-    line: isRtl ? '#' : '#',
+    line: '#',
     item: isRtl ? 'الصنف' : 'Item',
     uom: isRtl ? 'الوحدة' : 'UOM',
     qty: isRtl ? 'الكمية' : 'Qty',
-    price: isRtl ? 'السعر' : 'Price',
+    price: isRtl ? 'سعر الوحدة' : 'Unit Price',
     discount: isRtl ? 'خصم %' : 'Disc %',
     tax: isRtl ? 'ضريبة' : 'Tax',
     total: isRtl ? 'الإجمالي' : 'Total',
-    actions: isRtl ? 'إجراءات' : 'Actions',
+    actions: '',
     addItem: isRtl ? 'إضافة صنف' : 'Add Item',
     subtotal: isRtl ? 'المجموع الفرعي' : 'Subtotal',
     discountTotal: isRtl ? 'إجمالي الخصم' : 'Total Discount',
     taxTotal: isRtl ? 'إجمالي الضريبة' : 'Total Tax',
-    grandTotal: isRtl ? 'الإجمالي العام' : 'Grand Total',
+    grandTotal: isRtl ? 'الإجمالي الكلي' : 'Grand Total',
     totalQty: isRtl ? 'إجمالي الكمية' : 'Total Qty',
-    selectItem: isRtl ? 'اختر صنف...' : 'Select item...',
-    noItems: isRtl ? 'لا توجد بنود' : 'No items added',
+    totalItems: isRtl ? 'عدد البنود' : 'Items',
+    selectItem: isRtl ? 'بحث عن صنف بالاسم أو الكود...' : 'Search by item name or code...',
+    noItems: isRtl ? 'لا توجد بنود — اضغط "إضافة صنف" للبدء' : 'No items yet — click "Add Item" to start',
     hsCode: isRtl ? 'رمز النظام المنسق' : 'HS Code',
     notes: isRtl ? 'ملاحظات' : 'Notes',
+    moreDetails: isRtl ? 'تفاصيل إضافية' : 'More details',
+  };
+
+  /* ── Styled numeric input ─── */
+  const NumInput = ({
+    item,
+    index,
+    field,
+    className = '',
+    placeholder = '',
+    title = '',
+  }: {
+    item: LineItem;
+    index: number;
+    field: 'ordered_qty' | 'unit_price' | 'discount_percent' | 'line_total';
+    className?: string;
+    placeholder?: string;
+    title?: string;
+  }) => {
+    const key = getRowKey(item, index);
+    return (
+      <input
+        type="text"
+        inputMode="decimal"
+        value={rawInputs[key]?.[field] ?? String((item as any)[field] ?? '')}
+        onChange={(e) => {
+          const raw = e.target.value;
+          setRaw(key, field, raw);
+          const parsed = parseDecimal(raw);
+          if (parsed != null) updateRow(index, field, parsed);
+        }}
+        onBlur={() => {
+          const raw = rawInputs[key]?.[field];
+          if (raw == null) return;
+          const parsed = parseDecimal(raw);
+          updateRow(index, field, parsed ?? 0);
+          clearRaw(key, field);
+        }}
+        placeholder={placeholder}
+        title={title}
+        className={clsx(
+          'w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2.5 text-sm',
+          'focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 dark:focus:ring-blue-400/30 dark:focus:border-blue-400',
+          'transition-all duration-150 text-slate-800 dark:text-slate-200',
+          className
+        )}
+      />
+    );
   };
 
   return (
     <div className="space-y-4" dir={isRtl ? 'rtl' : 'ltr'}>
-      {/* Table */}
-      <div className="overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-lg">
-        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-          <thead className="bg-gray-50 dark:bg-gray-800">
-            <tr>
-              <th className="px-3 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider text-center w-12">
-                {t.line}
-              </th>
-              <th className="px-3 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider text-start min-w-[200px]">
-                {t.item}
-              </th>
-              <th className="px-3 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider text-center w-24">
-                {t.uom}
-              </th>
-              <th className="px-3 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider text-center w-32">
-                {t.qty}
-              </th>
-              <th className="px-3 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider text-center w-36">
-                {t.price}
-              </th>
-              <th className="px-3 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider text-center w-28">
-                {t.discount}
-              </th>
-              <th className="px-3 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider text-center w-24">
-                {t.tax}
-              </th>
-              <th className="px-3 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider text-end w-32">
-                {t.total}
-              </th>
-              {!readOnly && (
-                <th className="px-3 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider text-center w-28">
-                  {t.actions}
+      {/* ── Header bar ─── */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/30">
+            <ShoppingCartIcon className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+          </div>
+          <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+            {t.totalItems}: <span className="text-blue-600 dark:text-blue-400">{items.length}</span>
+          </span>
+          {items.length > 0 && (
+            <>
+              <span className="text-xs text-slate-400 dark:text-slate-500 mx-2">|</span>
+              <span className="text-sm text-slate-500 dark:text-slate-400">
+                {t.totalQty}: <span className="font-medium text-slate-700 dark:text-slate-300">{formatNumber(totals.qty, 0)}</span>
+              </span>
+            </>
+          )}
+        </div>
+        {!readOnly && (
+          <button
+            type="button"
+            onClick={addRow}
+            className={clsx(
+              'inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200',
+              'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-sm',
+              'hover:from-blue-700 hover:to-indigo-700 hover:shadow-md',
+              'active:scale-[0.98]'
+            )}
+          >
+            <PlusIcon className="h-4 w-4" />
+            {t.addItem}
+          </button>
+        )}
+      </div>
+
+      {/* ── Error ─── */}
+      {errors?.items && (
+        <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 text-red-700 px-4 py-3 text-sm dark:bg-red-900/20 dark:border-red-800 dark:text-red-300">
+          <ExclamationTriangleIcon className="h-5 w-5 flex-shrink-0" />
+          {errors.items}
+        </div>
+      )}
+
+      {/* ── Empty state ─── */}
+      {items.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-16 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/30">
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 dark:bg-slate-700 mb-4">
+            <CubeIcon className="h-8 w-8 text-slate-400 dark:text-slate-500" />
+          </div>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">{t.noItems}</p>
+          {!readOnly && (
+            <button
+              type="button"
+              onClick={addRow}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+            >
+              <PlusIcon className="h-4 w-4" />
+              {t.addItem}
+            </button>
+          )}
+        </div>
+      ) : (
+      /* ── Table ─── */
+      <div className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
+        <div className="overflow-x-auto">
+          <table className="min-w-[1280px] w-full">
+            {/* ── Header ─── */}
+            <thead>
+              <tr className="bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-800/80">
+                <th className="px-3 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-center w-12">
+                  {t.line}
                 </th>
-              )}
-            </tr>
-          </thead>
-          <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
-            {items.length === 0 ? (
-              <tr>
-                <td
-                  colSpan={readOnly ? 8 : 9}
-                  className="px-4 py-8 text-center text-gray-500 dark:text-gray-400"
-                >
-                  {t.noItems}
-                </td>
+                <th className="px-3 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-start min-w-[320px]">
+                  {t.item}
+                </th>
+                <th className="px-3 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-center w-[120px]">
+                  {t.uom}
+                </th>
+                <th className="px-3 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-center w-[130px]">
+                  {t.qty}
+                </th>
+                <th className="px-3 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-center w-[150px]">
+                  {t.price}
+                </th>
+                <th className="px-3 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-center w-[110px]">
+                  {t.discount}
+                </th>
+                <th className="px-3 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-center w-[110px]">
+                  {t.tax}
+                </th>
+                <th className="px-3 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-end w-[160px]">
+                  {t.total}
+                </th>
+                {!readOnly && (
+                  <th className="px-2 py-3 w-[130px]" />
+                )}
               </tr>
-            ) : (
-              items.map((item, index) => {
+            </thead>
+            {/* ── Body ─── */}
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60">
+              {items.map((item, index) => {
                 const rowKey = item.id?.toString() || item.temp_id || `row-${index}`;
                 const isExpanded = expandedRows.has(rowKey);
+                const isEven = index % 2 === 0;
 
                 const selectedItem = item.item_id
                   ? itemOptions.find((i) => i.id === Number(item.item_id))
@@ -528,20 +642,30 @@ export default function LineItemsTable({
 
                 return (
                   <Fragment key={rowKey}>
-                    <tr className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                    <tr
+                      className={clsx(
+                        'group transition-colors duration-100',
+                        isEven
+                          ? 'bg-white dark:bg-slate-900'
+                          : 'bg-slate-50/50 dark:bg-slate-800/30',
+                        'hover:bg-blue-50/50 dark:hover:bg-blue-900/10'
+                      )}
+                    >
                       {/* Line Number */}
-                      <td className="px-3 py-2 text-center text-sm text-gray-500 dark:text-gray-400">
-                        {item.line_number}
+                      <td className="px-3 py-3 text-center">
+                        <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-700 text-xs font-bold text-slate-500 dark:text-slate-400">
+                          {item.line_number}
+                        </span>
                       </td>
 
                       {/* Item Select */}
-                      <td className="px-3 py-2">
+                      <td className="px-3 py-3">
                         {readOnly ? (
                           <div>
-                            <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                            <div className="text-sm font-medium text-slate-800 dark:text-slate-100">
                               {isRtl && item.item_name_ar ? item.item_name_ar : item.item_name}
                             </div>
-                            <div className="text-xs text-gray-500">{item.item_code}</div>
+                            <div className="text-xs text-slate-400 dark:text-slate-500 font-mono">{item.item_code}</div>
                           </div>
                         ) : (
                           <SearchableSelect
@@ -549,28 +673,28 @@ export default function LineItemsTable({
                             value={item.item_id || ''}
                             onChange={(v) => updateRow(index, 'item_id', Number(v))}
                             placeholder={t.selectItem}
-                            searchPlaceholder={isRtl ? 'بحث...' : 'Search...'}
+                            searchPlaceholder={isRtl ? 'بحث بالاسم أو الكود...' : 'Search name or code...'}
                             locale={locale}
                           />
                         )}
                       </td>
 
                       {/* UOM */}
-                      <td className="px-3 py-2">
+                      <td className="px-3 py-3">
                         {readOnly ? (
-                          <span className="text-sm text-gray-700 dark:text-gray-300">
-                            {item.uom_code}
+                          <span className="inline-flex items-center rounded-md bg-slate-100 dark:bg-slate-700 px-2.5 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300">
+                            {item.uom_code || item.uom_name || '—'}
                           </span>
                         ) : (
                           <select
                             value={item.uom_id || ''}
                             onChange={(e) => updateRow(index, 'uom_id', Number(e.target.value))}
-                            className="input text-sm w-full"
+                            className="w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition-all"
                           >
-                            <option value="">-</option>
+                            <option value="">—</option>
                             {rowUoms.map((opt) => (
                               <option key={opt.id} value={opt.id}>
-                                {opt.code}
+                                {opt.code || opt.name}
                               </option>
                             ))}
                           </select>
@@ -578,109 +702,41 @@ export default function LineItemsTable({
                       </td>
 
                       {/* Quantity */}
-                      <td className="px-3 py-2">
+                      <td className="px-3 py-3">
                         {readOnly ? (
-                          <span className="text-sm text-gray-900 dark:text-gray-100 text-center block">
-                            {formatNumber(item.ordered_qty)}
-                          </span>
+                          <span className="text-sm font-medium text-slate-800 dark:text-slate-200 text-center block">{formatNumber(item.ordered_qty)}</span>
                         ) : (
-                          <input
-                            type="text"
-                            inputMode="decimal"
-                            value={rawInputs[getRowKey(item, index)]?.ordered_qty ?? String(item.ordered_qty ?? '')}
-                            onChange={(e) => {
-                              const key = getRowKey(item, index);
-                              const raw = e.target.value;
-                              setRaw(key, 'ordered_qty', raw);
-                              const parsed = parseDecimal(raw);
-                              if (parsed != null) updateRow(index, 'ordered_qty', parsed);
-                            }}
-                            onBlur={() => {
-                              const key = getRowKey(item, index);
-                              const raw = rawInputs[key]?.ordered_qty;
-                              if (raw == null) return;
-                              const parsed = parseDecimal(raw);
-                              updateRow(index, 'ordered_qty', parsed ?? 0);
-                              clearRaw(key, 'ordered_qty');
-                            }}
-                            className="input text-sm w-full text-center min-w-[7.5rem]"
-                          />
+                          <NumInput item={item} index={index} field="ordered_qty" className="text-center" />
                         )}
                       </td>
 
                       {/* Unit Price */}
-                      <td className="px-3 py-2">
+                      <td className="px-3 py-3">
                         {readOnly ? (
-                          <span className="text-sm text-gray-900 dark:text-gray-100 text-center block">
-                            {formatNumber(item.unit_price)}
-                          </span>
+                          <span className="text-sm text-slate-700 dark:text-slate-300 text-center block">{formatNumber(item.unit_price)}</span>
                         ) : (
-                          <input
-                            type="text"
-                            inputMode="decimal"
-                            value={rawInputs[getRowKey(item, index)]?.unit_price ?? String(item.unit_price ?? '')}
-                            onChange={(e) => {
-                              const key = getRowKey(item, index);
-                              const raw = e.target.value;
-                              setRaw(key, 'unit_price', raw);
-                              const parsed = parseDecimal(raw);
-                              if (parsed != null) updateRow(index, 'unit_price', parsed);
-                            }}
-                            onBlur={() => {
-                              const key = getRowKey(item, index);
-                              const raw = rawInputs[key]?.unit_price;
-                              if (raw == null) return;
-                              const parsed = parseDecimal(raw);
-                              updateRow(index, 'unit_price', parsed ?? 0);
-                              clearRaw(key, 'unit_price');
-                            }}
-                            className="input text-sm w-full text-center min-w-[9rem]"
-                          />
+                          <NumInput item={item} index={index} field="unit_price" className="text-center" />
                         )}
                       </td>
 
                       {/* Discount % */}
-                      <td className="px-3 py-2">
+                      <td className="px-3 py-3">
                         {readOnly ? (
-                          <span className="text-sm text-gray-700 dark:text-gray-300 text-center block">
-                            {item.discount_percent}%
-                          </span>
+                          <span className="text-sm text-slate-500 dark:text-slate-400 text-center block">{item.discount_percent}%</span>
                         ) : (
-                          <input
-                            type="text"
-                            inputMode="decimal"
-                            value={rawInputs[getRowKey(item, index)]?.discount_percent ?? String(item.discount_percent ?? '')}
-                            onChange={(e) => {
-                              const key = getRowKey(item, index);
-                              const raw = e.target.value;
-                              setRaw(key, 'discount_percent', raw);
-                              const parsed = parseDecimal(raw);
-                              if (parsed != null) updateRow(index, 'discount_percent', parsed);
-                            }}
-                            onBlur={() => {
-                              const key = getRowKey(item, index);
-                              const raw = rawInputs[key]?.discount_percent;
-                              if (raw == null) return;
-                              const parsed = parseDecimal(raw);
-                              updateRow(index, 'discount_percent', parsed ?? 0);
-                              clearRaw(key, 'discount_percent');
-                            }}
-                            className="input text-sm w-full text-center min-w-[6.5rem]"
-                          />
+                          <NumInput item={item} index={index} field="discount_percent" className="text-center" placeholder="0" />
                         )}
                       </td>
 
                       {/* Tax */}
-                      <td className="px-3 py-2">
+                      <td className="px-3 py-3">
                         {readOnly ? (
-                          <span className="text-sm text-gray-700 dark:text-gray-300 text-center block">
-                            {item.tax_rate}%
-                          </span>
+                          <span className="text-sm text-slate-500 dark:text-slate-400 text-center block">{item.tax_rate}%</span>
                         ) : (
                           <select
                             value={item.tax_rate_id || ''}
                             onChange={(e) => updateRow(index, 'tax_rate_id', Number(e.target.value))}
-                            className="input text-sm w-full"
+                            className="w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2.5 text-sm text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition-all"
                           >
                             <option value="">0%</option>
                             {taxRateOptions.map((opt) => (
@@ -693,32 +749,17 @@ export default function LineItemsTable({
                       </td>
 
                       {/* Line Total */}
-                      <td className="px-3 py-2 text-end">
+                      <td className="px-3 py-3">
                         {readOnly ? (
-                          <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                          <span className="text-sm font-semibold text-slate-900 dark:text-slate-100 text-end block">
                             {formatNumber(item.line_total)}
                           </span>
                         ) : (
-                          <input
-                            type="text"
-                            inputMode="decimal"
-                            value={rawInputs[getRowKey(item, index)]?.line_total ?? String(item.line_total ?? '')}
-                            onChange={(e) => {
-                              const key = getRowKey(item, index);
-                              const raw = e.target.value;
-                              setRaw(key, 'line_total', raw);
-                              const parsed = parseDecimal(raw);
-                              if (parsed != null) updateRow(index, 'line_total', parsed);
-                            }}
-                            onBlur={() => {
-                              const key = getRowKey(item, index);
-                              const raw = rawInputs[key]?.line_total;
-                              if (raw == null) return;
-                              const parsed = parseDecimal(raw);
-                              updateRow(index, 'line_total', parsed ?? 0);
-                              clearRaw(key, 'line_total');
-                            }}
-                            className="input text-sm w-full text-end min-w-[9rem]"
+                          <NumInput
+                            item={item}
+                            index={index}
+                            field="line_total"
+                            className="text-end font-medium"
                             title={isRtl ? 'اكتب الإجمالي وسيتم حساب سعر الوحدة' : 'Enter total to auto-calc unit price'}
                           />
                         )}
@@ -726,77 +767,65 @@ export default function LineItemsTable({
 
                       {/* Actions */}
                       {!readOnly && (
-                        <td className="px-3 py-2">
-                          <div className="flex items-center justify-center gap-1">
-                            <button
-                              type="button"
-                              onClick={() => moveRowUp(index)}
-                              disabled={index === 0}
-                              className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30"
-                              title="Move Up"
-                            >
-                              <ChevronUpIcon className="w-4 h-4" />
+                        <td className="px-2 py-3">
+                          <div className="flex items-center justify-center gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
+                            <button type="button" onClick={() => toggleExpanded(rowKey)}
+                              className={clsx('p-1.5 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors', isExpanded && 'bg-slate-200 dark:bg-slate-700 text-blue-600 dark:text-blue-400')}
+                              title={t.moreDetails}>
+                              <ChevronRightIcon className={clsx('h-3.5 w-3.5 transition-transform', isExpanded && 'rotate-90')} />
                             </button>
-                            <button
-                              type="button"
-                              onClick={() => moveRowDown(index)}
-                              disabled={index === items.length - 1}
-                              className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30"
-                              title="Move Down"
-                            >
-                              <ChevronDownIcon className="w-4 h-4" />
+                            <button type="button" onClick={() => moveRowUp(index)} disabled={index === 0}
+                              className="p-1.5 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 disabled:opacity-20 transition-colors"
+                              title="Move Up">
+                              <ChevronUpIcon className="h-3.5 w-3.5" />
                             </button>
-                            <button
-                              type="button"
-                              onClick={() => cloneRow(index)}
-                              className="p-1 text-blue-500 hover:text-blue-700"
-                              title="Clone"
-                            >
-                              <DocumentDuplicateIcon className="w-4 h-4" />
+                            <button type="button" onClick={() => moveRowDown(index)} disabled={index === items.length - 1}
+                              className="p-1.5 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 disabled:opacity-20 transition-colors"
+                              title="Move Down">
+                              <ChevronDownIcon className="h-3.5 w-3.5" />
                             </button>
-                            <button
-                              type="button"
-                              onClick={() => deleteRow(index)}
-                              className="p-1 text-red-500 hover:text-red-700"
-                              title="Delete"
-                            >
-                              <TrashIcon className="w-4 h-4" />
+                            <button type="button" onClick={() => cloneRow(index)}
+                              className="p-1.5 rounded-md hover:bg-blue-100 dark:hover:bg-blue-900/30 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                              title="Clone">
+                              <DocumentDuplicateIcon className="h-3.5 w-3.5" />
+                            </button>
+                            <button type="button" onClick={() => deleteRow(index)}
+                              className="p-1.5 rounded-md hover:bg-red-100 dark:hover:bg-red-900/30 text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                              title="Delete">
+                              <TrashIcon className="h-3.5 w-3.5" />
                             </button>
                           </div>
                         </td>
                       )}
                     </tr>
 
-                    {/* Expanded row for additional fields */}
+                    {/* Expanded details row */}
                     {isExpanded && (
-                      <tr className="bg-gray-50 dark:bg-gray-800/50">
+                      <tr className={clsx(isEven ? 'bg-blue-50/30 dark:bg-blue-900/10' : 'bg-blue-50/40 dark:bg-blue-900/15')}>
                         <td colSpan={readOnly ? 8 : 9} className="px-4 py-3">
-                          <div className="grid grid-cols-3 gap-4">
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                             {showHsCode && (
                               <div>
-                                <label className="block text-xs font-medium text-gray-500 mb-1">
-                                  {t.hsCode}
-                                </label>
+                                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">{t.hsCode}</label>
                                 <input
                                   type="text"
                                   value={item.hs_code || ''}
                                   onChange={(e) => updateRow(index, 'hs_code', e.target.value)}
-                                  className="input text-sm w-full"
+                                  className="w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500"
                                   disabled={readOnly}
                                 />
                               </div>
                             )}
                             {showNotes && (
-                              <div className="col-span-2">
-                                <label className="block text-xs font-medium text-gray-500 mb-1">
-                                  {t.notes}
-                                </label>
+                              <div className={clsx(showHsCode ? 'sm:col-span-2' : 'sm:col-span-3')}>
+                                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">{t.notes}</label>
                                 <input
                                   type="text"
                                   value={item.notes || ''}
                                   onChange={(e) => updateRow(index, 'notes', e.target.value)}
-                                  className="input text-sm w-full"
+                                  className="w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500"
                                   disabled={readOnly}
+                                  placeholder={isRtl ? 'أدخل ملاحظات لهذا البند...' : 'Enter notes for this line item...'}
                                 />
                               </div>
                             )}
@@ -806,71 +835,83 @@ export default function LineItemsTable({
                     )}
                   </Fragment>
                 );
-              })
-            )}
-          </tbody>
+              })}
+            </tbody>
 
-          {/* Totals Footer */}
-          <tfoot className="bg-gray-100 dark:bg-gray-800">
-            <tr className="font-medium">
-              <td colSpan={3} className="px-4 py-3 text-sm text-end text-gray-600 dark:text-gray-300">
-                {t.totalQty}:
-              </td>
-              <td className="px-3 py-3 text-sm text-center text-gray-900 dark:text-gray-100">
-                {formatNumber(totals.qty)}
-              </td>
-              <td colSpan={2} className="px-4 py-3 text-sm text-end text-gray-600 dark:text-gray-300">
-                {t.subtotal}:
-              </td>
-              <td colSpan={readOnly ? 2 : 3} className="px-4 py-3 text-sm text-end text-gray-900 dark:text-gray-100">
-                {currencySymbol} {formatNumber(totals.subtotal)}
-              </td>
-            </tr>
-            {totals.discount > 0 && (
-              <tr>
-                <td colSpan={6} className="px-4 py-2 text-sm text-end text-gray-600 dark:text-gray-300">
-                  {t.discountTotal}:
+            {/* ── Summary Footer ─── */}
+            <tfoot>
+              {/* Subtotal */}
+              <tr className="bg-slate-50 dark:bg-slate-800/50 border-t-2 border-slate-200 dark:border-slate-600">
+                <td colSpan={readOnly ? 5 : 6} className="px-4 py-2.5 text-end">
+                  <span className="text-sm text-slate-500 dark:text-slate-400">{t.subtotal}</span>
                 </td>
-                <td colSpan={readOnly ? 2 : 3} className="px-4 py-2 text-sm text-end text-red-600 dark:text-red-400">
-                  -{currencySymbol} {formatNumber(totals.discount)}
+                <td colSpan={readOnly ? 3 : 3} className="px-4 py-2.5 text-end">
+                  <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
+                    {currencySymbol} {formatNumber(totals.subtotal)}
+                  </span>
                 </td>
               </tr>
-            )}
-            {totals.tax > 0 && (
-              <tr>
-                <td colSpan={6} className="px-4 py-2 text-sm text-end text-gray-600 dark:text-gray-300">
-                  {t.taxTotal}:
+
+              {/* Discount */}
+              {totals.discount > 0 && (
+                <tr className="bg-slate-50 dark:bg-slate-800/50">
+                  <td colSpan={readOnly ? 5 : 6} className="px-4 py-2 text-end">
+                    <span className="text-sm text-slate-500 dark:text-slate-400">{t.discountTotal}</span>
+                  </td>
+                  <td colSpan={readOnly ? 3 : 3} className="px-4 py-2 text-end">
+                    <span className="text-sm font-medium text-red-600 dark:text-red-400">
+                      -{currencySymbol} {formatNumber(totals.discount)}
+                    </span>
+                  </td>
+                </tr>
+              )}
+
+              {/* Tax */}
+              {totals.tax > 0 && (
+                <tr className="bg-slate-50 dark:bg-slate-800/50">
+                  <td colSpan={readOnly ? 5 : 6} className="px-4 py-2 text-end">
+                    <span className="text-sm text-slate-500 dark:text-slate-400">{t.taxTotal}</span>
+                  </td>
+                  <td colSpan={readOnly ? 3 : 3} className="px-4 py-2 text-end">
+                    <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
+                      {currencySymbol} {formatNumber(totals.tax)}
+                    </span>
+                  </td>
+                </tr>
+              )}
+
+              {/* Grand Total */}
+              <tr className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border-t-2 border-blue-200 dark:border-blue-700">
+                <td colSpan={readOnly ? 5 : 6} className="px-4 py-3 text-end">
+                  <span className="flex items-center justify-end gap-2">
+                    <CalculatorIcon className="h-4 w-4 text-blue-500 dark:text-blue-400" />
+                    <span className="text-sm font-bold text-blue-800 dark:text-blue-200">{t.grandTotal}</span>
+                  </span>
                 </td>
-                <td colSpan={readOnly ? 2 : 3} className="px-4 py-2 text-sm text-end text-gray-900 dark:text-gray-100">
-                  {currencySymbol} {formatNumber(totals.tax)}
+                <td colSpan={readOnly ? 3 : 3} className="px-4 py-3 text-end">
+                  <span className="text-base font-bold text-blue-700 dark:text-blue-300">
+                    {currencySymbol} {formatNumber(totals.total)}
+                  </span>
                 </td>
               </tr>
-            )}
-            <tr className="border-t-2 border-gray-300 dark:border-gray-600">
-              <td colSpan={6} className="px-4 py-3 text-base font-bold text-end text-gray-900 dark:text-gray-100">
-                {t.grandTotal}:
-              </td>
-              <td colSpan={readOnly ? 2 : 3} className="px-4 py-3 text-base font-bold text-end text-primary-600 dark:text-primary-400">
-                {currencySymbol} {formatNumber(totals.total)}
-              </td>
-            </tr>
-          </tfoot>
-        </table>
-      </div>
-
-      {/* Add Item Button */}
-      {!readOnly && (
-        <div className="flex justify-start">
-          <Button type="button" variant="secondary" size="sm" onClick={addRow}>
-            <PlusIcon className="w-4 h-4 me-1" />
-            {t.addItem}
-          </Button>
+            </tfoot>
+          </table>
         </div>
+      </div>
       )}
 
-      {/* Error Display */}
-      {errors?.items && (
-        <p className="text-sm text-red-600 dark:text-red-400">{errors.items}</p>
+      {/* ── Add button below table ─── */}
+      {!readOnly && items.length > 0 && (
+        <div className="flex justify-start">
+          <button
+            type="button"
+            onClick={addRow}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 border border-blue-200 dark:border-blue-800 transition-colors"
+          >
+            <PlusIcon className="h-3.5 w-3.5" />
+            {t.addItem}
+          </button>
+        </div>
       )}
     </div>
   );

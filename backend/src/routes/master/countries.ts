@@ -34,7 +34,7 @@ router.get(
   async (req: Request, res: Response) => {
     try {
       const {
-        search, is_active, status, region, tax_zone, is_eu_member, is_favorite,
+        search, is_active, status, region, is_favorite,
         sort_by = 'sort_order', sort_order = 'asc',
         page = '1', limit = '50'
       } = req.query as Record<string, string>;
@@ -50,10 +50,10 @@ router.get(
         paramCount++;
         const searchClause = ` AND (
           name ILIKE $${paramCount} OR name_ar ILIKE $${paramCount} OR
-          code ILIKE $${paramCount} OR code_2 ILIKE $${paramCount} OR code3 ILIKE $${paramCount} OR
+          code ILIKE $${paramCount} OR code_2 ILIKE $${paramCount} OR
           phone_code ILIKE $${paramCount} OR currency_code ILIKE $${paramCount} OR
           capital_en ILIKE $${paramCount} OR capital_ar ILIKE $${paramCount} OR
-          sub_region ILIKE $${paramCount}
+          region ILIKE $${paramCount}
         )`;
         query += searchClause;
         countQuery += searchClause;
@@ -61,7 +61,7 @@ router.get(
         countParams.push(`%${search}%`);
       }
 
-      // Filter: is_active (legacy boolean)
+      // Filter: is_active (supports both is_active=true and status=active)
       if (is_active !== undefined) {
         paramCount++;
         const clause = ` AND is_active = $${paramCount}`;
@@ -69,16 +69,14 @@ router.get(
         countQuery += clause;
         params.push(is_active === 'true');
         countParams.push(is_active === 'true');
-      }
-
-      // Filter: status (active / inactive / restricted)
-      if (status) {
+      } else if (status) {
+        // Map status=active/inactive to is_active boolean
         paramCount++;
-        const clause = ` AND status = $${paramCount}`;
+        const clause = ` AND is_active = $${paramCount}`;
         query += clause;
         countQuery += clause;
-        params.push(status);
-        countParams.push(status);
+        params.push(status === 'active');
+        countParams.push(status === 'active');
       }
 
       // Filter: region
@@ -89,26 +87,6 @@ router.get(
         countQuery += clause;
         params.push(region);
         countParams.push(region);
-      }
-
-      // Filter: tax_zone
-      if (tax_zone) {
-        paramCount++;
-        const clause = ` AND tax_zone = $${paramCount}`;
-        query += clause;
-        countQuery += clause;
-        params.push(tax_zone);
-        countParams.push(tax_zone);
-      }
-
-      // Filter: EU membership
-      if (is_eu_member !== undefined) {
-        paramCount++;
-        const clause = ` AND is_eu_member = $${paramCount}`;
-        query += clause;
-        countQuery += clause;
-        params.push(is_eu_member === 'true');
-        countParams.push(is_eu_member === 'true');
       }
 
       // Filter: favorites
@@ -124,8 +102,7 @@ router.get(
       // Sorting — whitelist allowed columns
       const allowedSortColumns = [
         'name', 'name_ar', 'code', 'code_2', 'phone_code', 'currency_code',
-        'region', 'tax_zone', 'status', 'population', 'area_km2',
-        'sort_order', 'created_at', 'updated_at', 'is_favorite'
+        'region', 'continent', 'sort_order', 'created_at', 'updated_at', 'is_favorite'
       ];
       const safeSortBy = allowedSortColumns.includes(sort_by) ? sort_by : 'sort_order';
       const safeSortOrder = sort_order?.toLowerCase() === 'desc' ? 'DESC' : 'ASC';
@@ -234,17 +211,15 @@ router.get(
   requirePermission('master:countries:view'),
   async (req: Request, res: Response) => {
     try {
-      const [regions, taxZones] = await Promise.all([
-        pool.query(`SELECT DISTINCT region FROM countries WHERE deleted_at IS NULL AND region IS NOT NULL ORDER BY region`),
-        pool.query(`SELECT DISTINCT tax_zone FROM countries WHERE deleted_at IS NULL AND tax_zone IS NOT NULL ORDER BY tax_zone`)
-      ]);
+      const regions = await pool.query(
+        `SELECT DISTINCT region FROM countries WHERE deleted_at IS NULL AND region IS NOT NULL ORDER BY region`
+      );
 
       res.json({
         success: true,
         data: {
           regions: regions.rows.map(r => r.region),
-          taxZones: taxZones.rows.map(r => r.tax_zone),
-          statuses: ['active', 'inactive', 'restricted']
+          statuses: ['active', 'inactive']
         }
       });
     } catch (error: any) {
@@ -290,14 +265,12 @@ router.post(
   async (req: Request, res: Response) => {
     try {
       const {
-        code_2, code3, numeric_code,
-        name, name_ar, nationality, nationality_ar,
+        code_2,
+        name, name_ar, name_en, nationality, nationality_ar,
         capital_en, capital_ar,
         phone_code, currency_code, flag_emoji,
-        region, sub_region, tax_zone,
-        is_eu_member = false,
-        population, area_km2,
-        status: countryStatus = 'active',
+        region, continent, alpha_2,
+        is_active: bodyIsActive = true,
         is_favorite = false, sort_order
       } = req.body;
 
@@ -310,18 +283,14 @@ router.post(
         return res.status(400).json({ error: 'code_2 must be exactly 2 characters (ISO 3166-1 alpha-2)' });
       }
 
-      if (code3 && code3.length !== 3) {
-        return res.status(400).json({ error: 'code3 must be exactly 3 characters (ISO 3166-1 alpha-3)' });
-      }
-
-      if (!phone_code || !currency_code || !region || !tax_zone) {
-        return res.status(400).json({ error: 'phone_code, currency_code, region, and tax_zone are required' });
+      if (!phone_code || !currency_code || !region) {
+        return res.status(400).json({ error: 'phone_code, currency_code, and region are required' });
       }
 
       // Check duplicates on code_2
       const dupCheck = await pool.query(
-        'SELECT id FROM countries WHERE (code_2 = $1 OR (code3 = $2 AND $2 IS NOT NULL)) AND deleted_at IS NULL',
-        [code_2.toUpperCase(), code3?.toUpperCase() || null]
+        'SELECT id FROM countries WHERE code_2 = $1 AND deleted_at IS NULL',
+        [code_2.toUpperCase()]
       );
 
       if (dupCheck.rows.length > 0) {
@@ -335,31 +304,29 @@ router.post(
 
       const result = await pool.query(
         `INSERT INTO countries (
-          code, code_2, code3, numeric_code,
-          name, name_ar, nationality, nationality_ar,
+          code, code_2, alpha_2,
+          name, name_ar, name_en, nationality, nationality_ar,
           capital_en, capital_ar,
           phone_code, currency_code, flag_emoji,
-          region, sub_region, tax_zone,
-          is_eu_member, population, area_km2,
-          status, is_active, is_favorite, sort_order,
+          region, continent,
+          is_active, is_favorite, sort_order,
           created_by, updated_by
         ) VALUES (
-          $1, $2, $3, $4,
-          $5, $6, $7, $8,
+          $1, $2, $3,
+          $4, $5, $6, $7, $8,
           $9, $10,
           $11, $12, $13,
-          $14, $15, $16,
-          $17, $18, $19,
-          $20, $21, $22, $23,
-          $24, $24
+          $14, $15,
+          $16, $17, $18,
+          $19, $19
         ) RETURNING *`,
         [
-          (code3 || code_2).toUpperCase(),   // code (legacy alpha-3 column, fallback to alpha-2)
+          code_2.toUpperCase(),               // code
           code_2.toUpperCase(),               // code_2
-          code3?.toUpperCase() || null,        // code3
-          numeric_code || null,               // numeric_code
+          alpha_2?.toUpperCase() || code_2.toUpperCase(), // alpha_2
           name,                               // name
           name_ar,                            // name_ar
+          name_en || name,                    // name_en
           nationality || null,                // nationality
           nationality_ar || null,             // nationality_ar
           capital_en || null,                 // capital_en
@@ -368,13 +335,8 @@ router.post(
           currency_code.toUpperCase(),        // currency_code
           computedFlag,                       // flag_emoji
           region,                             // region
-          sub_region || null,                 // sub_region
-          tax_zone,                           // tax_zone
-          is_eu_member,                       // is_eu_member
-          population || null,                 // population
-          area_km2 || null,                   // area_km2
-          countryStatus,                      // status
-          countryStatus === 'active',         // is_active
+          continent || null,                  // continent
+          bodyIsActive,                       // is_active
           is_favorite,                        // is_favorite
           sort_order || null,                 // sort_order
           userId                              // created_by, updated_by
@@ -403,13 +365,12 @@ router.put(
     try {
       const { id } = req.params;
       const {
-        code_2, code3, numeric_code,
-        name, name_ar, nationality, nationality_ar,
+        code_2,
+        name, name_ar, name_en, nationality, nationality_ar,
         capital_en, capital_ar,
         phone_code, currency_code, flag_emoji,
-        region, sub_region, tax_zone,
-        is_eu_member, population, area_km2,
-        status: countryStatus,
+        region, continent, alpha_2,
+        is_active: bodyIsActive,
         is_favorite, sort_order
       } = req.body;
 
@@ -425,25 +386,18 @@ router.put(
         return res.status(404).json({ error: 'Country not found' });
       }
 
-      // Bypass global master data protection trigger for admin operations
-      if (existing.rows[0].is_global && existing.rows[0].is_system) {
-        await client.query("SET LOCAL app.bypass_global_protection = 'true'");
-      }
-
-      // Handle status → is_active sync
-      const newStatus = countryStatus ?? existing.rows[0].status;
-      const newIsActive = newStatus === 'active';
+      const newIsActive = bodyIsActive !== undefined ? bodyIsActive : existing.rows[0].is_active;
 
       const userId = (req as any).user?.id || null;
 
       const result = await client.query(
         `UPDATE countries SET
           code_2 = COALESCE($1, code_2),
-          code3 = COALESCE($2, code3),
-          code = COALESCE($2, code3, code),
-          numeric_code = COALESCE($3, numeric_code),
-          name = COALESCE($4, name),
-          name_ar = COALESCE($5, name_ar),
+          code = COALESCE($1, code),
+          alpha_2 = COALESCE($2, alpha_2),
+          name = COALESCE($3, name),
+          name_ar = COALESCE($4, name_ar),
+          name_en = COALESCE($5, name_en),
           nationality = COALESCE($6, nationality),
           nationality_ar = COALESCE($7, nationality_ar),
           capital_en = COALESCE($8, capital_en),
@@ -452,27 +406,22 @@ router.put(
           currency_code = COALESCE($11, currency_code),
           flag_emoji = COALESCE($12, flag_emoji),
           region = COALESCE($13, region),
-          sub_region = COALESCE($14, sub_region),
-          tax_zone = COALESCE($15, tax_zone),
-          is_eu_member = COALESCE($16, is_eu_member),
-          population = COALESCE($17, population),
-          area_km2 = COALESCE($18, area_km2),
-          status = $19,
-          is_active = $20,
-          is_favorite = COALESCE($21, is_favorite),
-          sort_order = COALESCE($22, sort_order),
-          updated_by = $23,
+          continent = COALESCE($14, continent),
+          is_active = $15,
+          is_favorite = COALESCE($16, is_favorite),
+          sort_order = COALESCE($17, sort_order),
+          updated_by = $18,
           updated_at = CURRENT_TIMESTAMP
-        WHERE id = $24 AND deleted_at IS NULL
+        WHERE id = $19 AND deleted_at IS NULL
         RETURNING *`,
         [
-          code_2?.toUpperCase(), code3?.toUpperCase(), numeric_code,
-          name, name_ar, nationality, nationality_ar,
+          code_2?.toUpperCase(),
+          alpha_2?.toUpperCase() || code_2?.toUpperCase(),
+          name, name_ar, name_en, nationality, nationality_ar,
           capital_en, capital_ar,
           phone_code, currency_code?.toUpperCase(), flag_emoji,
-          region, sub_region, tax_zone,
-          is_eu_member, population, area_km2,
-          newStatus, newIsActive,
+          region, continent,
+          newIsActive,
           is_favorite, sort_order,
           userId, id
         ]
@@ -507,17 +456,13 @@ router.patch(
 
       await client.query('BEGIN');
 
-      // Check if record is global/system and bypass trigger if needed
       const existing = await client.query(
-        'SELECT is_global, is_system FROM countries WHERE id = $1 AND deleted_at IS NULL',
+        'SELECT id FROM countries WHERE id = $1 AND deleted_at IS NULL',
         [id]
       );
       if (existing.rows.length === 0) {
         await client.query('ROLLBACK');
         return res.status(404).json({ error: 'Country not found' });
-      }
-      if (existing.rows[0].is_global && existing.rows[0].is_system) {
-        await client.query("SET LOCAL app.bypass_global_protection = 'true'");
       }
 
       const result = await client.query(
@@ -553,33 +498,29 @@ router.patch(
       const { id } = req.params;
       const { status: newStatus } = req.body;
 
-      if (!['active', 'inactive', 'restricted'].includes(newStatus)) {
-        return res.status(400).json({ error: 'Invalid status. Must be: active, inactive, or restricted' });
+      if (!['active', 'inactive'].includes(newStatus)) {
+        return res.status(400).json({ error: 'Invalid status. Must be: active or inactive' });
       }
 
       await client.query('BEGIN');
 
-      // Check if record is global/system and bypass trigger if needed
       const existing = await client.query(
-        'SELECT is_global, is_system FROM countries WHERE id = $1 AND deleted_at IS NULL',
+        'SELECT id FROM countries WHERE id = $1 AND deleted_at IS NULL',
         [id]
       );
       if (existing.rows.length === 0) {
         await client.query('ROLLBACK');
         return res.status(404).json({ error: 'Country not found' });
       }
-      if (existing.rows[0].is_global && existing.rows[0].is_system) {
-        await client.query("SET LOCAL app.bypass_global_protection = 'true'");
-      }
 
       const userId = (req as any).user?.id || null;
 
       const result = await client.query(
         `UPDATE countries 
-         SET status = $1, is_active = $2, updated_by = $3, updated_at = CURRENT_TIMESTAMP
-         WHERE id = $4 AND deleted_at IS NULL
+         SET is_active = $1, updated_by = $2, updated_at = CURRENT_TIMESTAMP
+         WHERE id = $3 AND deleted_at IS NULL
          RETURNING *`,
-        [newStatus, newStatus === 'active', userId, id]
+        [newStatus === 'active', userId, id]
       );
 
       await client.query('COMMIT');
@@ -619,11 +560,6 @@ router.delete(
         return res.status(404).json({ error: 'Country not found' });
       }
 
-      // Bypass global master data protection trigger for admin operations
-      if (existingCountry.rows[0].is_global && existingCountry.rows[0].is_system) {
-        await client.query("SET LOCAL app.bypass_global_protection = 'true'");
-      }
-
       const userId = (req as any).user?.id || null;
 
       await client.query(
@@ -657,15 +593,6 @@ router.post(
       const userId = (req as any).user?.id || null;
 
       await client.query('BEGIN');
-
-      // Check if record is global/system and bypass trigger if needed
-      const existing = await client.query(
-        'SELECT is_global, is_system FROM countries WHERE id = $1 AND deleted_at IS NOT NULL',
-        [id]
-      );
-      if (existing.rows.length > 0 && existing.rows[0].is_global && existing.rows[0].is_system) {
-        await client.query("SET LOCAL app.bypass_global_protection = 'true'");
-      }
 
       const result = await client.query(
         `UPDATE countries 
@@ -712,17 +639,15 @@ router.post(
       }
 
       await client.query('BEGIN');
-      // Bypass trigger for all bulk operations (may include global records)
-      await client.query("SET LOCAL app.bypass_global_protection = 'true'");
 
       const userId = (req as any).user?.id || null;
 
       const result = await client.query(
         `UPDATE countries 
-         SET status = $1, is_active = $2, updated_by = $3, updated_at = CURRENT_TIMESTAMP
-         WHERE id = ANY($4) AND deleted_at IS NULL
+         SET is_active = $1, updated_by = $2, updated_at = CURRENT_TIMESTAMP
+         WHERE id = ANY($3) AND deleted_at IS NULL
          RETURNING id`,
-        [newStatus, newStatus === 'active', userId, ids]
+        [newStatus === 'active', userId, ids]
       );
 
       await client.query('COMMIT');
@@ -751,8 +676,6 @@ router.post(
       }
 
       await client.query('BEGIN');
-      // Bypass trigger for all bulk operations (may include global records)
-      await client.query("SET LOCAL app.bypass_global_protection = 'true'");
 
       const userId = (req as any).user?.id || null;
 

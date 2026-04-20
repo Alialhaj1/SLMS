@@ -6,6 +6,7 @@ import Input from '../../components/ui/Input';
 import Modal from '../../components/ui/Modal';
 import { useTranslation } from '../../hooks/useTranslation';
 import { useToast } from '../../contexts/ToastContext';
+import { useCurrencies } from '../../hooks/useReferenceData';
 import {
   DocumentTextIcon,
   PlusIcon,
@@ -42,6 +43,7 @@ const mockCreditNotes: CreditNote[] = [
 export default function CreditNotesPage() {
   const { locale } = useTranslation();
   const { showToast } = useToast();
+  const { currencies: currencyList } = useCurrencies();
 
   const [notes] = useState<CreditNote[]>(mockCreditNotes);
   const [selectedStatus, setSelectedStatus] = useState<'all' | CreditNoteStatus>('all');
@@ -236,8 +238,9 @@ export default function CreditNotesPage() {
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{locale === 'ar' ? 'العملة' : 'Currency'}</label>
               <select value={formData.currency} onChange={(e) => setFormData({ ...formData, currency: e.target.value as any })} className="input">
-                <option value="SAR">SAR</option>
-                <option value="USD">USD</option>
+                {currencyList.map(c => (
+                  <option key={c.code} value={c.code}>{c.code}</option>
+                ))}
               </select>
             </div>
             <div>

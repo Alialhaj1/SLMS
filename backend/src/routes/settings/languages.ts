@@ -26,7 +26,9 @@ async function ensureCompanyLanguages(companyId: number) {
   );
 }
 
-router.get('/', requirePermission('settings:language:view'), async (req, res) => {
+// GET is open to any authenticated user with company context – languages are
+// basic reference data already scoped to the company.
+router.get('/', async (req, res) => {
   try {
     const companyId = req.companyId as number;
     await ensureCompanyLanguages(companyId);

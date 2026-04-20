@@ -214,7 +214,10 @@ export function useMasterData<T = any>(arg: UseMasterDataArg) {
         throw new Error(extractError(result, 'Failed to fetch data'));
       }
 
-      setData(result.data || []);
+      // Handle both flat (data: [...]) and nested (data: { data: [...], total }) response formats
+      const responseData = result.data;
+      const items = Array.isArray(responseData) ? responseData : (Array.isArray(responseData?.data) ? responseData.data : []);
+      setData(items);
       
       // Update pagination if provided
       if (result.pagination) {
@@ -238,9 +241,18 @@ export function useMasterData<T = any>(arg: UseMasterDataArg) {
           totalItems: result.total,
           totalPages: Math.ceil(result.total / prev.pageSize),
         }));
+      } else if (responseData && !Array.isArray(responseData) && responseData.total !== undefined) {
+        // Nested format: { data: { data: [...], total: N, page, limit } }
+        setPagination(prev => ({
+          ...prev,
+          currentPage: responseData.page || prev.currentPage,
+          totalItems: responseData.total,
+          totalPages: Math.ceil(responseData.total / (responseData.limit || prev.pageSize)),
+          pageSize: responseData.limit || prev.pageSize,
+        }));
       }
 
-      return result.data;
+      return items;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to fetch data';
       setError(message);
@@ -508,6 +520,80 @@ export function useMasterData<T = any>(arg: UseMasterDataArg) {
     }
   }, [endpoint, fetchList, showToast, t]);
 
+  /**
+   * Bulk delete items by IDs
+   */
+  const bulkRemove = useCallback(async (ids: number[]) => {
+    if (!ids.length) return { success: 0, failed: 0 };
+    setLoading(true);
+    setError(null);
+
+    let success = 0;
+    let failed = 0;
+
+    try {
+      const token = getToken();
+      if (!token) throw new Error('No authentication token found');
+
+      const companyId = getCompanyId();
+      const headers: Record<string, string> = {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        ...(companyId ? { 'X-Company-Id': String(companyId) } : {}),
+      };
+
+      // Try bulk endpoint first
+      const bulkUrl = `${apiBaseUrl}${endpoint}/bulk/delete`;
+      const bulkRes = await fetch(bulkUrl, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ ids }),
+      });
+
+      if (bulkRes.ok) {
+        const bulkResult = await bulkRes.json();
+        if (bulkResult.success !== false) {
+          success = bulkResult.data?.deleted || ids.length;
+          showToast('success', `${success} ${t('common.deletedSuccessfully') || 'deleted successfully'}`);
+          await fetchList();
+          return { success, failed: 0 };
+        }
+      }
+
+      // Fallback: delete one by one
+      const batchSize = 5;
+      for (let i = 0; i < ids.length; i += batchSize) {
+        const batch = ids.slice(i, i + batchSize);
+        const results = await Promise.allSettled(
+          batch.map(id =>
+            fetch(`${apiBaseUrl}${endpoint}/${id}`, { method: 'DELETE', headers })
+              .then(r => r.ok ? r.json() : Promise.reject(r))
+          )
+        );
+        results.forEach(r => {
+          if (r.status === 'fulfilled') success++;
+          else failed++;
+        });
+      }
+
+      if (success > 0) {
+        showToast('success', `${success} ${t('common.deletedSuccessfully') || 'deleted successfully'}${failed > 0 ? `, ${failed} ${t('common.failedToDelete') || 'failed'}` : ''}`);
+      } else {
+        showToast('error', t('common.deleteFailed') || 'Failed to delete records');
+      }
+
+      await fetchList();
+      return { success, failed };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to delete items';
+      setError(message);
+      showToast('error', message);
+      return { success, failed: ids.length - success };
+    } finally {
+      setLoading(false);
+    }
+  }, [endpoint, fetchList, showToast, t]);
+
   return {
     data,
     selectedItem,
@@ -519,6 +605,7 @@ export function useMasterData<T = any>(arg: UseMasterDataArg) {
     create,
     update,
     remove,
+    bulkRemove,
     refresh,
     setSelectedItem,
   };

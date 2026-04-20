@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تقرير اختبار شامل - المجموعة الأولى</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+        
+        .header {
+            text-align: center;
+            border-bottom: 3px solid #4f46e5;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .header h1 {
+            color: #1e293b;
+            margin: 0;
+            font-size: 2.5rem;
+        }
+        
+        .header p {
+            color: #64748b;
+            margin: 10px 0 0 0;
+            font-size: 1.1rem;
+        }
+        
+        .test-section {
+            margin-bottom: 25px;
+            padding: 20px;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            background: #f8fafc;
+        }
+        
+        .section-title {
+            color: #1e293b;
+            font-size: 1.3rem;
+            margin-bottom: 15px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+        
+        .test-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .test-item {
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #10b981;
+            background: white;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .test-name {
+            font-weight: 600;
+            color: #1e293b;
+        }
+        
+        .test-link {
+            display: inline-block;
+            padding: 5px 12px;
+            background: #4f46e5;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            font-size: 0.9rem;
+            transition: background 0.2s;
+        }
+        
+        .test-link:hover {
+            background: #3730a3;
+        }
+        
+        .api-link {
+            background: #059669;
+        }
+        
+        .api-link:hover {
+            background: #047857;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+        
+        .stat-number {
+            font-size: 2rem;
+            font-weight: bold;
+            display: block;
+        }
+        
+        .stat-label {
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+        
+        .instructions {
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 20px;
+        }
+        
+        .instructions h3 {
+            color: #1e40af;
+            margin-top: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🧪 تقرير اختبار شامل</h1>
+            <p>المجموعة الأولى - البيانات الأساسية والفلاتر المتتالية</p>
+        </div>
+
+        <div class="stats">
+            <div class="stat-card">
+                <span class="stat-number">5</span>
+                <span class="stat-label">شاشات رئيسية</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-number">16</span>
+                <span class="stat-label">API Endpoints</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-number">6</span>
+                <span class="stat-label">دول بالبيانات</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-number">100+</span>
+                <span class="stat-label">مدن ومناطق</span>
+            </div>
+        </div>
+
+        <!-- اختبار صفحات الـ Frontend -->
+        <div class="test-section">
+            <h2 class="section-title">🖥️ صفحات الـ Frontend</h2>
+            <div class="test-grid">
+                <div class="test-item">
+                    <span class="test-name">أ-15: حالات السجلات</span>
+                    <a href="/master/record-statuses" class="test-link" target="_blank">اختبار</a>
+                </div>
+                <div class="test-item">
+                    <span class="test-name">أ-16: حالات الطلبات</span>
+                    <a href="/master/request-statuses" class="test-link" target="_blank">اختبار</a>
+                </div>
+                <div class="test-item">
+                    <span class="test-name">أ-14: طرق التواصل</span>
+                    <a href="/master/contact-methods" class="test-link" target="_blank">اختبار</a>
+                </div>
+                <div class="test-item">
+                    <span class="test-name">أ-03: اللغات</span>
+                    <a href="/master/languages" class="test-link" target="_blank">اختبار</a>
+                </div>
+                <div class="test-item">
+                    <span class="test-name">أ-04: المناطق الزمنية</span>
+                    <a href="/master/timezones" class="test-link" target="_blank">اختبار</a>
+                </div>
+                <div class="test-item">
+                    <span class="test-name">🏙️ المدن (مع الفلاتر المتتالية)</span>
+                    <a href="/master/cities" class="test-link" target="_blank">اختبار</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- اختبار الـ APIs -->
+        <div class="test-section">
+            <h2 class="section-title">🔌 اختبار الـ APIs</h2>
+            <div class="test-grid">
+                <div class="test-item">
+                    <span class="test-name">صحة النظام</span>
+                    <a href="http://localhost:4000/api/health" class="test-link api-link" target="_blank">API</a>
+                </div>
+                <div class="test-item">
+                    <span class="test-name">الدول</span>
+                    <a href="http://localhost:4000/api/master/countries" class="test-link api-link" target="_blank">API</a>
+                </div>
+                <div class="test-item">
+                    <span class="test-name">المدن</span>
+                    <a href="http://localhost:4000/api/master/cities" class="test-link api-link" target="_blank">API</a>
+                </div>
+                <div class="test-item">
+                    <span class="test-name">حالات السجلات</span>
+                    <a href="http://localhost:4000/api/master/record-statuses" class="test-link api-link" target="_blank">API</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="instructions">
+            <h3>📋 تعليمات الاختبار الشامل</h3>
+            <ol>
+                <li><strong>اختبار صفحات الـ Frontend:</strong> تأكد من إمكانية تسجيل الدخول وعرض البيانات</li>
+                <li><strong>اختبار الـ APIs:</strong> تحقق من استرجاع البيانات بتنسيق JSON صحيح</li>
+                <li><strong>اختبار الفلاتر:</strong> تأكد من عمل الفلترة المتتالية للمدن حسب الدولة</li>
+                <li><strong>اختبار الترجمات:</strong> تحقق من ظهور النصوص بالعربية والإنجليزية</li>
+                <li><strong>اختبار الصلاحيات:</strong> تأكد من ظهور/إخفاء الأزرار حسب الصلاحيات</li>
+            </ol>
+        </div>
+    </div>
+</body>
+</html>

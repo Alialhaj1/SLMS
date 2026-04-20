@@ -1,0 +1,74 @@
+
+> slms-backend@0.1.0 dev
+> ts-node-dev --respawn --transpile-only src/index.ts
+
+[INFO] 10:56:40 ts-node-dev ver. 2.0.0 (using ts-node ver. 10.9.2, typescript ver. 5.9.3)
+G£‡ Environment configuration loaded:
+   - NODE_ENV: development
+   - PORT: 4000
+   - JWT_SECRET: ******* (46 chars)
+   - DATABASE_URL: postgres:5432/slms_db
+   - CORS_ORIGINS: http://localhost:3000, http://localhost:3001
+2026-03-08 10:56:58 [[34mdebug[39m]: [34mPDF/CSV export service loaded[39m
+G‰¶n+≈  Sentry disabled - no SENTRY_DSN configured (dev mode OK)
+2026-03-08 10:57:01 [[32minfo[39m]: [32m=É‹« Application starting...[39m | {
+  "nodeEnv": "development",
+  "port": 4000
+}
+2026-03-08 10:57:02 [[32minfo[39m]: [32m=ÉÙË Accounting Event Bridge initialized (listener mode)[39m
+2026-03-08 10:57:02 [[32minfo[39m]: [32m=É‹« Starting SLMS Backend...[39m | {
+  "nodeVersion": "v18.20.8",
+  "platform": "linux"
+}
+2026-03-08 10:57:02 [[32minfo[39m]: [32mRunning database migrations...[39m
+New database client connected
+2026-03-08 10:57:03 [[32minfo[39m]: [32mG£‡ Migration applied: 406_platform_layer.sql[39m | {
+  "executionTime": "650ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-03-08 10:57:03 [[32minfo[39m]: [32mG£‡ Migration applied: 407_tenant_dashboard_layer.sql[39m | {
+  "executionTime": "153ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-03-08 10:57:06 [[32minfo[39m]: [32mG£‡ Migration applied: 408_master_data_strategy.sql[39m | {
+  "executionTime": "2830ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-03-08 10:57:06 [[32minfo[39m]: [32mG£‡ Migration applied: 409_branch_management.sql[39m | {
+  "executionTime": "520ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-03-08 10:57:06 [[32minfo[39m]: [32mG£‡ Migration applied: 410_users_and_roles.sql[39m | {
+  "executionTime": "144ms",
+  "checksum": "LS0gPT09PT09PT09PT09PT09PT09PT09"
+}
+2026-03-08 10:57:06 [[31merror[39m]: [31mG•Ó Migration failed: 411_database_schema_alignment.sql column "code" does not exist[39m | {
+  "length": 106,
+  "name": "error",
+  "severity": "ERROR",
+  "code": "42703",
+  "position": "1286",
+  "file": "parse_relation.c",
+  "line": "3665",
+  "routine": "errorMissingColumn"
+}
+2026-03-08 10:57:06 [[31merror[39m]: [31mMigration runner error column "code" does not exist[39m | {
+  "length": 106,
+  "name": "error",
+  "severity": "ERROR",
+  "code": "42703",
+  "position": "1286",
+  "file": "parse_relation.c",
+  "line": "3665",
+  "routine": "errorMissingColumn"
+}
+2026-03-08 10:57:06 [[31merror[39m]: [31mG•Ó Failed to start application column "code" does not exist[39m | {
+  "length": 106,
+  "name": "error",
+  "severity": "ERROR",
+  "code": "42703",
+  "position": "1286",
+  "file": "parse_relation.c",
+  "line": "3665",
+  "routine": "errorMissingColumn"
+}

@@ -71,9 +71,14 @@ export function useCompany() {
       const companyList = response.data || [];
       setCompanies(companyList);
       
-      // Auto-select if only one company or if no company selected
-      if (companyList.length > 0 && !activeCompanyId) {
+      // Validate active company — clear stale IDs from previous sessions
+      const currentId = companyStore.getActiveCompanyId();
+      const isValid = currentId && companyList.some(c => c.id === currentId);
+
+      if (companyList.length > 0 && !isValid) {
         companyStore.setActiveCompany(companyList[0].id);
+      } else if (companyList.length === 0 && currentId) {
+        companyStore.setActiveCompany(null);
       }
     } catch (error) {
       console.error('Failed to load companies:', error);

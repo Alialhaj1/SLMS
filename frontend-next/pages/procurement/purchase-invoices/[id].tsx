@@ -352,7 +352,7 @@ function PurchaseInvoiceDetailPage() {
                 <div>
                   <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Linked PO</dt>
                   <dd className="text-sm text-primary-600 dark:text-primary-400 mt-1">
-                    <button onClick={() => router.push(`/procurement/purchase-orders/${invoice.purchase_order_id}`)}>
+                    <button onClick={() => router.push(`/purchasing/orders/${invoice.purchase_order_id}?mode=view`)}>
                       {invoice.po_number}
                     </button>
                   </dd>

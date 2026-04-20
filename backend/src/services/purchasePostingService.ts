@@ -192,15 +192,15 @@ export async function postPurchaseInvoice(
       vendorId: data.vendorId
     });
 
-    // Insert journal entry lines
+    // Insert journal lines (unified table for all journal entries)
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
       await conn.query(
-        `INSERT INTO journal_entry_lines (
+        `INSERT INTO journal_lines (
           journal_entry_id, line_number, account_id, 
-          debit, credit, description, 
-          cost_center_id, vendor_id, customer_id,
-          reference_type, reference_id,
+          debit_amount, credit_amount, description, 
+          cost_center_id, partner_type, partner_id,
+          source_line_type, source_line_id,
           created_at
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())`,
         [
@@ -211,8 +211,8 @@ export async function postPurchaseInvoice(
           line.credit,
           line.description,
           line.costCenterId || null,
-          line.vendorId || null,
-          line.customerId || null,
+          line.vendorId ? 'vendor' : (line.customerId ? 'customer' : null),
+          line.vendorId || line.customerId || null,
           line.referenceType || null,
           line.referenceId || null
         ]
@@ -309,19 +309,19 @@ export async function postVendorPayment(
 
     // DR: Vendor Payable Account (reduce liability)
     await conn.query(
-      `INSERT INTO journal_entry_lines (
-        journal_entry_id, line_number, account_id, debit, credit,
-        description, vendor_id, reference_type, reference_id, created_at
-      ) VALUES ($1, 1, $2, $3, 0, $4, $5, 'payment_voucher', $6, NOW())`,
+      `INSERT INTO journal_lines (
+        journal_entry_id, line_number, account_id, debit_amount, credit_amount,
+        description, partner_type, partner_id, source_line_type, source_line_id, created_at
+      ) VALUES ($1, 1, $2, $3, 0, $4, 'vendor', $5, 'payment_voucher', $6, NOW())`,
       [journalEntryId, payableAccountId, data.amount, data.description, data.vendorId, data.paymentId]
     );
 
     // CR: Cash/Bank Account
     await conn.query(
-      `INSERT INTO journal_entry_lines (
-        journal_entry_id, line_number, account_id, debit, credit,
-        description, vendor_id, reference_type, reference_id, created_at
-      ) VALUES ($1, 2, $2, 0, $3, $4, $5, 'payment_voucher', $6, NOW())`,
+      `INSERT INTO journal_lines (
+        journal_entry_id, line_number, account_id, debit_amount, credit_amount,
+        description, partner_type, partner_id, source_line_type, source_line_id, created_at
+      ) VALUES ($1, 2, $2, 0, $3, $4, 'vendor', $5, 'payment_voucher', $6, NOW())`,
       [journalEntryId, data.cashAccountId, data.amount, data.description, data.vendorId, data.paymentId]
     );
 
@@ -445,20 +445,20 @@ export async function postPurchaseReturn(
 
     // DR: Vendor Payable Account (reduce liability)
     await conn.query(
-      `INSERT INTO journal_entry_lines (
-        journal_entry_id, line_number, account_id, debit, credit,
-        description, vendor_id, reference_type, reference_id, created_at
-      ) VALUES ($1, $2, $3, $4, 0, $5, $6, 'purchase_return', $7, NOW())`,
+      `INSERT INTO journal_lines (
+        journal_entry_id, line_number, account_id, debit_amount, credit_amount,
+        description, partner_type, partner_id, source_line_type, source_line_id, created_at
+      ) VALUES ($1, $2, $3, $4, 0, $5, 'vendor', $6, 'purchase_return', $7, NOW())`,
       [journalEntryId, lineNumber++, payableAccountId, data.totalAmount, data.description, data.vendorId, data.returnId]
     );
 
     // CR: Inventory accounts
     for (const [accountId, amount] of accountGroups) {
       await conn.query(
-        `INSERT INTO journal_entry_lines (
-          journal_entry_id, line_number, account_id, debit, credit,
-          description, vendor_id, reference_type, reference_id, created_at
-        ) VALUES ($1, $2, $3, 0, $4, $5, $6, 'purchase_return', $7, NOW())`,
+        `INSERT INTO journal_lines (
+          journal_entry_id, line_number, account_id, debit_amount, credit_amount,
+          description, partner_type, partner_id, source_line_type, source_line_id, created_at
+        ) VALUES ($1, $2, $3, 0, $4, $5, 'vendor', $6, 'purchase_return', $7, NOW())`,
         [journalEntryId, lineNumber++, accountId, amount, data.description, data.vendorId, data.returnId]
       );
     }
@@ -535,8 +535,8 @@ export async function canDeleteVendor(
 
     // Check for journal entries
     const jeResult = await conn.query(
-      `SELECT COUNT(*) as count FROM journal_entry_lines 
-       WHERE vendor_id = $1 AND deleted_at IS NULL`,
+      `SELECT COUNT(*) as count FROM journal_lines 
+       WHERE partner_type = 'vendor' AND partner_id = $1 AND deleted_at IS NULL`,
       [vendorId]
     );
 

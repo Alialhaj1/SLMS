@@ -27,6 +27,7 @@ import { authenticate } from '../middleware/auth';
 import { requirePermission, requireAnyPermission } from '../middleware/rbac';
 import { amountToWordsArabic, amountToWordsEnglish } from '../utils/numberToWords';
 import { loadCompanyContext } from '../middleware/companyContext';
+import { ApprovalWorkflowEngine } from '../services/approvalWorkflowEngine';
 
 const router = Router();
 
@@ -205,7 +206,7 @@ router.get('/shipment/:shipmentId', authenticate, async (req: Request, res: Resp
               JOIN currencies poc ON po.currency_id = poc.id
               WHERE po.id = ls.purchase_order_id AND po.deleted_at IS NULL LIMIT 1) as currency_symbol
       FROM logistics_shipments ls
-      LEFT JOIN logistics_shipment_types st ON ls.shipment_type_id = st.id
+      LEFT JOIN shipment_types st ON ls.shipment_type_id = st.id
       LEFT JOIN ports pod ON ls.port_of_discharge_id = pod.id
       LEFT JOIN ports pol ON ls.port_of_loading_id = pol.id
       LEFT JOIN countries oc ON pol.country_id = oc.id
@@ -639,13 +640,9 @@ router.post('/', authenticate, requirePermission('shipment_expenses:create'), as
     }
     
     // Insert expense with account_id from Chart of Accounts
-    // Look up tenant_id from company
-    const tenantResult = await client.query('SELECT tenant_id FROM companies WHERE id = $1', [companyId]);
-    const tenantId = tenantResult.rows[0]?.tenant_id || companyId;
-    
     const insertResult = await client.query(`
       INSERT INTO shipment_expenses (
-        company_id, tenant_id, shipment_id, project_id,
+        company_id, shipment_id, project_id,
         expense_type_id, expense_type_code, expense_type_name, analytic_account_code,
         account_id,
         amount_before_vat, vat_rate, vat_amount, total_amount,
@@ -668,15 +665,27 @@ router.post('/', authenticate, requirePermission('shipment_expenses:create'), as
         expense_date, approval_status,
         created_by, created_at
       ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-        $11, $12, $13, $14, $15, $16, $17, $18, $19, $20,
-        $21, $22, $23, $24, $25, $26, $27, $28, $29, $30,
-        $31, $32, $33, $34, $35, $36, $37, $38, $39, $40,
-        $41, $42, $43, $44, $45, $46, $47, $48, $49, $50,
-        $51, $52, $53, $54, $55, $56, $57, 'draft', $58, NOW()
+        $1, $2, $3, $4, $5, $6, $7, $8,
+        $9, $10, $11, $12, $13, $14, $15,
+        $16, $17, $18, $19,
+        $20, $21, $22,
+        $23, $24, $25,
+        $26,
+        $27, $28, $29, $30, $31,
+        $32, $33,
+        $34, $35,
+        $36,
+        $37, $38,
+        $39,
+        $40, $41, $42, $43,
+        $44, $45, $46, $47,
+        $48, $49, $50,
+        $51, $52, $53,
+        $54, $55,
+        $56, 'draft', $57, NOW()
       ) RETURNING *
     `, [
-      companyId, tenantId, shipment_id, shipment.project_id,
+      companyId, shipment_id, shipment.project_id,
       expense_type_id, expenseType.code, expenseType.name, expenseType.analytic_account_code,
       account_id && account_id !== '' ? parseInt(account_id) : null,
       amount_before_vat, actualVatRate, vatAmount, totalAmount,
@@ -977,6 +986,75 @@ router.delete('/:id', authenticate, requirePermission('shipment_expenses:delete'
     res.json({ success: true, message: 'Expense deleted successfully' });
   } catch (error: any) {
     console.error('Error deleting expense:', error);
+    res.status(500).json({ success: false, error: { message: error.message } });
+  }
+});
+
+// =====================================================
+// SUBMIT EXPENSE FOR APPROVAL (Multi-step Workflow)
+// =====================================================
+router.post('/:id/submit-for-approval', authenticate, requirePermission('shipment_expenses:submit'), async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const userId = (req as any).user?.id;
+    const companyId = (req as any).companyId;
+    const tenantId = (req as any).tenantId;
+
+    // Get the expense and verify it's in draft
+    const expenseResult = await pool.query(`
+      SELECT se.*, ls.shipment_number, et.name as expense_type_name
+      FROM shipment_expenses se
+      JOIN logistics_shipments ls ON se.shipment_id = ls.id
+      JOIN shipment_expense_types et ON se.expense_type_id = et.id
+      WHERE se.id = $1 AND se.company_id = $2 AND se.deleted_at IS NULL
+    `, [id, companyId]);
+
+    if (expenseResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: { message: 'Expense not found' } });
+    }
+
+    const expense = expenseResult.rows[0];
+
+    if (expense.approval_status !== 'draft') {
+      return res.status(400).json({ success: false, error: { message: 'Expense must be in draft status to submit for approval' } });
+    }
+
+    // Submit to the approval workflow engine
+    const result = await ApprovalWorkflowEngine.submitDocument({
+      companyId,
+      tenantId,
+      documentType: 'shipment_expense',
+      referenceId: parseInt(id),
+      referenceTable: 'shipment_expenses',
+      documentNumber: expense.invoice_number || `SE-${id}`,
+      title: `${expense.expense_type_name} - Shipment ${expense.shipment_number}`,
+      amount: parseFloat(expense.total_amount) || 0,
+      currency: 'SAR',
+      createdBy: userId,
+      notes: req.body.notes,
+      priority: req.body.priority || 'normal',
+      watchers: req.body.watchers,
+      ipAddress: req.ip,
+      userAgent: req.get('User-Agent'),
+    });
+
+    // Update source status
+    await pool.query(`
+      UPDATE shipment_expenses 
+      SET approval_status = 'pending_approval', 
+          approval_document_id = $1,
+          updated_by = $2,
+          updated_at = NOW()
+      WHERE id = $3
+    `, [result.approvalDocumentId, userId, id]);
+
+    res.json({ 
+      success: true, 
+      message: 'Expense submitted for approval',
+      data: { approvalDocumentId: result.approvalDocumentId, status: result.status }
+    });
+  } catch (error: any) {
+    console.error('Error submitting expense for approval:', error);
     res.status(500).json({ success: false, error: { message: error.message } });
   }
 });
@@ -1717,7 +1795,7 @@ router.get('/shipment/:shipmentId/po-details', authenticate, async (req: Request
            AND er.deleted_at IS NULL
          ORDER BY er.effective_date DESC LIMIT 1) as exchange_rate_to_base
       FROM logistics_shipments ls
-      LEFT JOIN logistics_shipment_types st ON ls.shipment_type_id = st.id
+      LEFT JOIN shipment_types st ON ls.shipment_type_id = st.id
       LEFT JOIN ports pod ON ls.port_of_discharge_id = pod.id
       LEFT JOIN ports pol ON ls.port_of_loading_id = pol.id
       LEFT JOIN countries oc ON pol.country_id = oc.id

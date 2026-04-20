@@ -34,7 +34,8 @@ export default function DeferredPoliciesPage() {
       });
       if (!res.ok) throw new Error('Failed to fetch');
       const json = await res.json();
-      setItems(json.data || []);
+      const raw = json.data;
+      setItems(Array.isArray(raw) ? raw : raw?.data || []);
     } catch {
       showToast('error', locale === 'ar' ? 'فشل تحميل البيانات' : 'Failed to load data');
     } finally {
@@ -43,7 +44,7 @@ export default function DeferredPoliciesPage() {
   };
 
   const filtered = items.filter(i =>
-    i.name.toLowerCase().includes(search.toLowerCase())
+    (i.name || i.name_en || '').toLowerCase().includes(search.toLowerCase())
   );
 
   const statusBadge = (s: string) => {

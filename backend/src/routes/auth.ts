@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import pool from '../db';
 import bcrypt from 'bcryptjs';
+import { config } from '../config/env';
 import { authRateLimiter, settingsRateLimiter } from '../middleware/rateLimiter';
 import { authenticate } from '../middleware/auth';
 import { AuthService } from '../services/authService';
@@ -44,7 +45,7 @@ router.post('/register', authenticate, auditLog, async (req: AuthRequest, res) =
   
   const client = await pool.connect();
   try {
-    const hashed = await bcrypt.hash(password, 10);
+    const hashed = await bcrypt.hash(password, config.BCRYPT_ROUNDS);
     await client.query('BEGIN');
     
     const r = await client.query(
@@ -78,7 +79,7 @@ router.post('/register', authenticate, auditLog, async (req: AuthRequest, res) =
 });
 
 router.post('/login', authRateLimiter, auditLog, async (req, res) => {
-  const { email, password, tenant_id, tenant_code } = req.body;
+  const { email, password, tenant_id, tenant_code, device_token } = req.body;
   
   if (!email || !password) {
     return sendError(res, 'VALIDATION_ERROR', 'Email and password are required', 400);
@@ -89,18 +90,21 @@ router.post('/login', authRateLimiter, auditLog, async (req, res) => {
     let resolvedTenantId = tenant_id ? Number(tenant_id) : undefined;
     if (!resolvedTenantId && tenant_code) {
       const tenantResult = await pool.query(
-        'SELECT id, status FROM tenants WHERE tenant_code = $1 AND deleted_at IS NULL',
+        'SELECT id, status FROM tenants WHERE company_code = $1 AND deleted_at IS NULL',
         [tenant_code.toUpperCase()]
       );
       if (tenantResult.rowCount === 0) {
-        return sendError(res, 'INVALID_TENANT', 'Company not found. Please check the company code.', 400);
+        return sendError(res, 'INVALID_CREDENTIALS', 'Invalid credentials', 401);
       }
       const tenant = tenantResult.rows[0];
       if (tenant.status === 'locked') {
-        return sendError(res, 'TENANT_LOCKED', 'This company account is locked. Contact platform support.', 403);
+        return sendError(res, 'ACCOUNT_UNAVAILABLE', 'This account is currently unavailable. Contact support.', 403);
+      }
+      if (tenant.status === 'suspended') {
+        return sendError(res, 'ACCOUNT_UNAVAILABLE', 'This account is currently unavailable. Contact support.', 403);
       }
       if (tenant.status === 'terminated') {
-        return sendError(res, 'TENANT_TERMINATED', 'This company account has been terminated.', 403);
+        return sendError(res, 'ACCOUNT_UNAVAILABLE', 'This account is currently unavailable. Contact support.', 403);
       }
       resolvedTenantId = tenant.id;
     }
@@ -110,7 +114,8 @@ router.post('/login', authRateLimiter, auditLog, async (req, res) => {
       password, 
       req.ip || 'unknown', 
       req.get('user-agent') || 'unknown',
-      resolvedTenantId
+      resolvedTenantId,
+      device_token
     );
 
     // Check if user must change password before granting access
@@ -152,25 +157,36 @@ router.post('/login', authRateLimiter, auditLog, async (req, res) => {
     }
 
     // Handle specific errors
+    if (error.message === 'USER_EMAIL_NOT_FOUND') {
+      return sendError(res, 'USER_EMAIL_NOT_FOUND', 'This email does not exist in our system. Please contact platform administration.', 401);
+    }
+
     if (error.message === 'INVALID_CREDENTIALS') {
       return sendError(res, 'INVALID_CREDENTIALS', 'Invalid email or password', 401);
     }
 
     if (error.message === 'TENANT_LOGIN_REQUIRED') {
-      return sendError(res, 'TENANT_LOGIN_REQUIRED', 'Please select a company to login', 400);
+      return sendError(res, 'TENANT_LOGIN_REQUIRED', 'Please select a company to login', 401);
     }
 
     if (error.message === 'TENANT_ACCESS_DENIED') {
-      return sendError(res, 'TENANT_ACCESS_DENIED', 'You do not have access to this company. Contact your administrator.', 403);
+      console.warn(`[AUTH] Tenant access denied for login attempt - email: ${email}`);
+      return sendError(res, 'INVALID_CREDENTIALS', 'Invalid credentials', 401);
     }
 
     if (error.message === 'ACCOUNT_DISABLED') {
-      return sendError(res, 'ACCOUNT_DISABLED', 'Account disabled. Contact administrator.', 403);
+      console.warn(`[AUTH] Disabled account login attempt - email: ${email}`);
+      return sendError(res, 'ACCOUNT_UNAVAILABLE', 'This account is currently unavailable. Contact support.', 403);
+    }
+
+    if (error.message === 'ACCOUNT_SUSPENDED') {
+      console.warn(`[AUTH] Suspended account login attempt - email: ${email}`);
+      return sendError(res, 'ACCOUNT_UNAVAILABLE', 'This account is currently unavailable. Contact support.', 403);
     }
 
     if (error.message === 'ACCOUNT_LOCKED' || error.message === 'ACCOUNT_LOCKED_BY_FAILED_ATTEMPTS') {
-      const lockMinutes = await PolicyService.lockoutDurationMinutes();
-      return sendError(res, 'ACCOUNT_LOCKED', `Account locked due to multiple failed login attempts. Try again in ${lockMinutes} minutes.`, 403);
+      console.warn(`[AUTH] Locked account login attempt - email: ${email}`);
+      return sendError(res, 'ACCOUNT_LOCKED', 'Account temporarily locked due to multiple failed attempts. Please try again later.', 423);
     }
 
     return sendError(res, 'SERVER_ERROR', 'Login failed', 500);
@@ -275,7 +291,7 @@ router.post('/change-password', authenticate, settingsRateLimiter, auditLog, asy
     logger.error('Change password failed', error, { userId: req.user?.id });
 
     if (error.message === 'USER_NOT_FOUND') {
-      return sendError(res, 'NOT_FOUND', 'User not found', 404);
+      return sendError(res, 'INVALID_REQUEST', 'Unable to process request', 400);
     }
 
     if (error.message === 'INVALID_CURRENT_PASSWORD') {
@@ -362,8 +378,10 @@ router.post('/request-password-reset', authRateLimiter, auditLog, async (req: Re
     );
 
     if (userResult.rows.length === 0) {
-      // Reject unregistered emails
-      return sendError(res, 'NOT_FOUND', 'This email is not registered in the system', 404);
+      // Return generic success to prevent email enumeration
+      return sendSuccess(res, {
+        message: 'If this email is registered, a password reset request has been submitted to the administrator.'
+      }, 200);
     }
 
     const user = userResult.rows[0];

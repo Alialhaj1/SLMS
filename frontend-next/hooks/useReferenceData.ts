@@ -44,7 +44,7 @@ export function useCurrencies() {
   const loadCurrencies = async () => {
     try {
       setLoading(true);
-      const response = await apiClient.get<{ data: Currency[] }>('/api/currencies');
+      const response = await apiClient.get<{ data: Currency[] }>('/api/finance/currencies?is_active=true');
       setCurrencies(response.data || []);
     } catch (error) {
       console.error('Failed to load currencies:', error);

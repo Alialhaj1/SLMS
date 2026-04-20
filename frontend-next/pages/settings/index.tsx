@@ -7,6 +7,7 @@ import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import { useToast } from '../../contexts/ToastContext';
 import { usePermissions } from '../../hooks/usePermissions';
+import { useCurrencies } from '../../hooks/useReferenceData';
 import {
   Cog6ToothIcon,
   BellIcon,
@@ -34,6 +35,7 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const { showToast } = useToast();
   const { hasPermission } = usePermissions();
+  const { currencies: currencyList } = useCurrencies();
 
   const [settings, setSettings] = useState<SystemSettings>({
     company_name: '',
@@ -62,7 +64,7 @@ export default function SettingsPage() {
   const fetchSettings = async () => {
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch('/api/settings', {
+      const res = await fetch('http://localhost:4000/api/settings', {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -104,7 +106,7 @@ export default function SettingsPage() {
     try {
       setSaving(true);
       const token = localStorage.getItem('accessToken');
-      const res = await fetch('/api/settings', {
+      const res = await fetch('http://localhost:4000/api/settings', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -256,12 +258,9 @@ export default function SettingsPage() {
                     onChange={(e) => setSettings({ ...settings, currency: e.target.value })}
                     className="input"
                   >
-                    <option value="USD">USD ($)</option>
-                    <option value="EUR">EUR (€)</option>
-                    <option value="GBP">GBP (£)</option>
-                    <option value="AED">AED (د.إ)</option>
-                    <option value="SAR">SAR (ر.س)</option>
-                    <option value="JPY">JPY (¥)</option>
+                    {currencyList.map(c => (
+                      <option key={c.code} value={c.code}>{c.code} ({c.symbol || c.code})</option>
+                    ))}
                   </select>
                 </div>
               </div>

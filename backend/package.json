@@ -19,7 +19,10 @@
     "test:unit": "jest src/tests/unit --detectOpenHandles",
     "test:integration": "jest src/tests/integration --detectOpenHandles",
     "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage --detectOpenHandles"
+    "test:coverage": "jest --coverage --detectOpenHandles",
+    "security:audit": "npm audit --json > audit-report.json && echo 'Audit report saved to audit-report.json'",
+    "security:audit:fix": "npm audit fix",
+    "security:check": "npm audit --audit-level=high"
   },
   "dependencies": {
     "@sentry/node": "^10.32.1",

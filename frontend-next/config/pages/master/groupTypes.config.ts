@@ -90,3 +90,5 @@ export const groupTypesConfig: PageConfig<GroupType> = {
   pageSizeOptions: [10, 25, 50, 100],
   bulkOperationsEnabled: true,
 };
+
+export const groupTypeConfig = groupTypesConfig;

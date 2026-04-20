@@ -20,6 +20,7 @@ import {
   PencilIcon,
   CheckCircleIcon,
   XCircleIcon,
+  PaperAirplaneIcon,
 } from '@heroicons/react/24/outline';
 
 interface ExpenseRequest {
@@ -40,31 +41,85 @@ interface ExpenseRequest {
   status_name: string;
   status_name_ar: string;
   status_color: string;
+  status_code: string;
+  allows_submit: boolean;
   notes: string;
   bl_number: string;
+  requested_by: number;
   requested_by_name: string;
   requested_by_email: string;
   approved_by_name: string;
   approved_at: string;
+  approved_by: number;
+  reviewed_by: number;
+  reviewed_by_name: string;
+  reviewed_at: string;
   source_type: string;
   is_auto_synced: boolean;
   created_at: string;
   updated_at: string;
+  // Signature fields
+  requester_signature_url: string;
+  requester_title_en: string;
+  requester_title_ar: string;
+  reviewer_signature_url: string;
+  reviewer_title_en: string;
+  reviewer_title_ar: string;
+  approver_signature_url: string;
+  approver_title_en: string;
+  approver_title_ar: string;
+  // History
+  approval_history: ApprovalHistoryEntry[];
+  history: ApprovalHistoryEntry[];
+}
+
+interface ApprovalHistoryEntry {
+  id: number;
+  action: string;
+  performed_by_name: string;
+  previous_status: string;
+  previous_status_name: string;
+  previous_status_ar: string;
+  previous_status_name_ar: string;
+  new_status: string;
+  new_status_name: string;
+  new_status_ar: string;
+  new_status_name_ar: string;
+  comments: string;
+  rejection_reason: string;
+  signature_url: string;
+  performer_signature_url: string;
+  signature_title_en: string;
+  performer_title_en: string;
+  signature_title_ar: string;
+  performer_title_ar: string;
+  performed_at: string;
 }
 
 export default function ExpenseRequestDetailPage() {
   const router = useRouter();
   const { id } = router.query;
   const { user } = useAuth();
-  const { hasPermission } = usePermissions();
+  const { hasPermission, hasAnyPermission } = usePermissions();
   const { showToast } = useToast();
   const { t, locale } = useTranslation();
 
   const [request, setRequest] = useState<ExpenseRequest | null>(null);
   const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+  const [showRejectModal, setShowRejectModal] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const isArabic = locale === 'ar';
+  const isOwner = request ? (user as any)?.id === request.requested_by : false;
+
+  // Permission-based action checks
+  const canSubmit = hasAnyPermission(['expense_requests:submit', 'expense_requests:manage']);
+  const canApprove = hasAnyPermission(['expense_requests:approve', 'expense_requests:manage']);
+  const canReview = hasAnyPermission(['expense_requests:review', 'expense_requests:approve', 'expense_requests:manage']);
+  const canUpdate = hasAnyPermission(['expense_requests:update', 'expense_requests:manage']);
+  const canPrint = hasAnyPermission(['expense_requests:view', 'expense_requests:manage']);
 
   useEffect(() => {
     if (!id) return;
@@ -89,7 +144,7 @@ export default function ExpenseRequestDetailPage() {
         setRequest(data);
       } catch (err: any) {
         setError(err.message);
-        showToast(err.message, 'error');
+        showToast({ type: 'error', message: err.message });
       } finally {
         setLoading(false);
       }
@@ -100,6 +155,42 @@ export default function ExpenseRequestDetailPage() {
 
   const handlePrint = () => {
     router.push(`/requests/expense/${id}/print`);
+  };
+
+  const callAction = async (action: 'submit' | 'approve' | 'reject' | 'review', body?: object) => {
+    setActionLoading(true);
+    try {
+      const token = localStorage.getItem('accessToken');
+      const res = await fetch(`/api/expense-requests/${id}/${action}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `Failed to ${action}`);
+      showToast({ type: 'success', message: isArabic
+        ? action === 'submit' ? 'تم إرسال الطلب للاعتماد' : action === 'approve' ? 'تمت الموافقة على الطلب' : action === 'review' ? 'تمت المراجعة بنجاح' : 'تم رفض الطلب'
+        : action === 'submit' ? 'Request submitted for approval' : action === 'approve' ? 'Request approved' : action === 'review' ? 'Request reviewed' : 'Request rejected'
+      });
+      // Reload
+      const newRes = await fetch(`/api/expense-requests/${id}`, {
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      });
+      if (newRes.ok) setRequest(await newRes.json());
+    } catch (err: any) {
+      showToast({ type: 'error', message: err.message });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleSubmit = () => callAction('submit');
+  const handleApprove = () => callAction('approve');
+  const handleReview = () => callAction('review');
+  const handleReject = async () => {
+    await callAction('reject', { rejection_reason: rejectReason });
+    setShowRejectModal(false);
+    setRejectReason('');
   };
 
   const formatDate = (date: string) => {
@@ -189,11 +280,61 @@ export default function ExpenseRequestDetailPage() {
               </p>
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <Button variant="secondary" onClick={handlePrint}>
               <PrinterIcon className="w-5 h-5" />
               {isArabic ? 'طباعة' : 'Print'}
             </Button>
+            {/* Edit – available in DRAFT and user has update permission */}
+            {request && request.status_code === 'DRAFT' && (isOwner || canUpdate) && (
+              <Button variant="secondary" onClick={() => router.push(`/requests/expense/${id}/edit`)}>
+                <PencilIcon className="w-5 h-5" />
+                {isArabic ? 'تعديل' : 'Edit'}
+              </Button>
+            )}
+            {/* Submit – available when in DRAFT and user has submit permission */}
+            {request && request.allows_submit && (isOwner || canSubmit) && (
+              <Button variant="primary" onClick={handleSubmit} disabled={actionLoading}>
+                <PaperAirplaneIcon className="w-5 h-5" />
+                {isArabic ? 'إرسال للاعتماد' : 'Submit for Approval'}
+              </Button>
+            )}
+            {/* Review – available when SUBMITTED and user has review permission */}
+            {request && request.status_code === 'SUBMITTED' && canReview && (
+              <Button
+                variant="primary"
+                onClick={handleReview}
+                disabled={actionLoading}
+                className="!bg-blue-600 hover:!bg-blue-700"
+              >
+                <CheckCircleIcon className="w-5 h-5" />
+                {isArabic ? 'مراجعة' : 'Review'}
+              </Button>
+            )}
+            {/* Approve – available when SUBMITTED or REVIEWED and user has approve permission */}
+            {request && (request.status_code === 'SUBMITTED' || request.status_code === 'REVIEWED') && canApprove && (
+              <Button
+                variant="primary"
+                onClick={handleApprove}
+                disabled={actionLoading}
+                className="!bg-green-600 hover:!bg-green-700"
+              >
+                <CheckCircleIcon className="w-5 h-5" />
+                {isArabic ? 'اعتماد' : 'Approve'}
+              </Button>
+            )}
+            {/* Reject – available when SUBMITTED or REVIEWED and user has approve permission */}
+            {request && (request.status_code === 'SUBMITTED' || request.status_code === 'REVIEWED') && canApprove && (
+              <Button
+                variant="secondary"
+                onClick={() => setShowRejectModal(true)}
+                disabled={actionLoading}
+                className="!border-red-300 !text-red-600 hover:!bg-red-50"
+              >
+                <XCircleIcon className="w-5 h-5" />
+                {isArabic ? 'رفض' : 'Reject'}
+              </Button>
+            )}
           </div>
         </div>
 
@@ -319,6 +460,34 @@ export default function ExpenseRequestDetailPage() {
               <p className="text-xs text-gray-500 dark:text-gray-400">{request.requested_by_email}</p>
             </div>
 
+            {/* Approval Info */}
+            {request.approved_by_name && (
+              <div className="bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800 p-4">
+                <h3 className="text-sm font-medium text-green-800 dark:text-green-300 mb-2">
+                  {isArabic ? 'تمت الموافقة بواسطة' : 'Approved By'}
+                </h3>
+                <p className="text-sm text-green-700 dark:text-green-400">{request.approved_by_name}</p>
+                {request.approved_at && (
+                  <p className="text-xs text-green-600 dark:text-green-500 mt-1">{formatDate(request.approved_at)}</p>
+                )}
+              </div>
+            )}
+
+            {/* Rejection Info */}
+            {(request as any).rejection_reason && (
+              <div className="bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800 p-4">
+                <h3 className="text-sm font-medium text-red-800 dark:text-red-300 mb-2">
+                  {isArabic ? 'سبب الرفض' : 'Rejection Reason'}
+                </h3>
+                <p className="text-sm text-red-700 dark:text-red-400">{(request as any).rejection_reason}</p>
+                {(request as any).rejected_by_name && (
+                  <p className="text-xs text-red-600 dark:text-red-500 mt-1">
+                    {isArabic ? 'بواسطة: ' : 'By: '}{(request as any).rejected_by_name}
+                  </p>
+                )}
+              </div>
+            )}
+
             {/* Timestamps */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
@@ -340,6 +509,186 @@ export default function ExpenseRequestDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Approval Signatures */}
+      {(request.requester_signature_url || request.reviewer_signature_url || request.approver_signature_url || request.reviewed_by_name || request.approved_by_name) && (
+        <div className="mx-6 mb-6 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">
+            {isArabic ? 'التوقيعات' : 'Signatures'}
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+            {/* Requester */}
+            <div className="flex flex-col items-center border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-3 uppercase tracking-wide">
+                {isArabic ? 'مقدم الطلب' : 'Requested By'}
+              </p>
+              <div className="w-32 h-20 border border-dashed border-gray-300 dark:border-gray-600 rounded flex items-center justify-center mb-3 bg-gray-50 dark:bg-gray-700">
+                {request.requester_signature_url ? (
+                  <img src={request.requester_signature_url} alt="signature" className="max-w-full max-h-full object-contain" />
+                ) : (
+                  <span className="text-xs text-gray-400">{isArabic ? 'لا يوجد توقيع' : 'No signature'}</span>
+                )}
+              </div>
+              <p className="text-sm font-medium text-gray-900 dark:text-white text-center">{request.requested_by_name || '-'}</p>
+              {(request.requester_title_en || request.requester_title_ar) && (
+                <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-1">
+                  {isArabic ? request.requester_title_ar : request.requester_title_en}
+                </p>
+              )}
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{formatDate(request.created_at)}</p>
+            </div>
+
+            {/* Reviewer */}
+            <div className="flex flex-col items-center border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-3 uppercase tracking-wide">
+                {isArabic ? 'المراجع' : 'Reviewed By'}
+              </p>
+              <div className="w-32 h-20 border border-dashed border-gray-300 dark:border-gray-600 rounded flex items-center justify-center mb-3 bg-gray-50 dark:bg-gray-700">
+                {request.reviewer_signature_url ? (
+                  <img src={request.reviewer_signature_url} alt="signature" className="max-w-full max-h-full object-contain" />
+                ) : (
+                  <span className="text-xs text-gray-400">{isArabic ? 'لا يوجد توقيع' : 'No signature'}</span>
+                )}
+              </div>
+              <p className="text-sm font-medium text-gray-900 dark:text-white text-center">{request.reviewed_by_name || '-'}</p>
+              {(request.reviewer_title_en || request.reviewer_title_ar) && (
+                <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-1">
+                  {isArabic ? request.reviewer_title_ar : request.reviewer_title_en}
+                </p>
+              )}
+              {request.reviewed_at && (
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{formatDate(request.reviewed_at)}</p>
+              )}
+            </div>
+
+            {/* Approver */}
+            <div className="flex flex-col items-center border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-3 uppercase tracking-wide">
+                {isArabic ? 'المعتمد' : 'Approved By'}
+              </p>
+              <div className="w-32 h-20 border border-dashed border-gray-300 dark:border-gray-600 rounded flex items-center justify-center mb-3 bg-gray-50 dark:bg-gray-700">
+                {request.approver_signature_url ? (
+                  <img src={request.approver_signature_url} alt="signature" className="max-w-full max-h-full object-contain" />
+                ) : (
+                  <span className="text-xs text-gray-400">{isArabic ? 'لا يوجد توقيع' : 'No signature'}</span>
+                )}
+              </div>
+              <p className="text-sm font-medium text-gray-900 dark:text-white text-center">{request.approved_by_name || '-'}</p>
+              {(request.approver_title_en || request.approver_title_ar) && (
+                <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-1">
+                  {isArabic ? request.approver_title_ar : request.approver_title_en}
+                </p>
+              )}
+              {request.approved_at && (
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{formatDate(request.approved_at)}</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Approval History Timeline */}
+      {((request.approval_history?.length > 0) || (request.history?.length > 0)) && (
+        <div className="mx-6 mb-6 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">
+            {isArabic ? 'سجل الموافقات' : 'Approval History'}
+          </h2>
+          <ol className="relative border-s border-gray-200 dark:border-gray-700 ms-3">
+            {(request.approval_history || request.history || []).map((entry) => {
+              const actionColors: Record<string, string> = {
+                submitted: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
+                reviewed: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300',
+                approved: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
+                rejected: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
+              };
+              const actionLabels: Record<string, { en: string; ar: string }> = {
+                submitted: { en: 'Submitted', ar: 'تم التقديم' },
+                reviewed: { en: 'Reviewed', ar: 'تمت المراجعة' },
+                approved: { en: 'Approved', ar: 'تمت الموافقة' },
+                rejected: { en: 'Rejected', ar: 'تم الرفض' },
+              };
+              const colorClass = actionColors[entry.action] || 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
+              const label = actionLabels[entry.action];
+              return (
+                <li key={entry.id} className="mb-6 ms-6">
+                  <span className="absolute flex items-center justify-center w-6 h-6 rounded-full -start-3 ring-8 ring-white dark:ring-gray-800 bg-gray-100 dark:bg-gray-700">
+                    <svg className="w-2.5 h-2.5 text-gray-500 dark:text-gray-400" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M20 4a2 2 0 0 0-2-2h-2V1a1 1 0 0 0-2 0v1h-3V1a1 1 0 0 0-2 0v1H6V1a1 1 0 0 0-2 0v1H2a2 2 0 0 0-2 2v2h20V4ZM0 18a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8H0v10Zm5-8h10a1 1 0 0 1 0 2H5a1 1 0 0 1 0-2Z"/>
+                    </svg>
+                  </span>
+                  <div className="flex items-start gap-3">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${colorClass}`}>
+                          {label ? (isArabic ? label.ar : label.en) : entry.action}
+                        </span>
+                        <span className="text-sm font-medium text-gray-900 dark:text-white">{entry.performed_by_name}</span>
+                        <span className="text-xs text-gray-400 dark:text-gray-500">{formatDate(entry.performed_at)}</span>
+                      </div>
+                      {entry.comments && (
+                        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{entry.comments}</p>
+                      )}
+                      {entry.rejection_reason && (
+                        <p className="mt-1 text-sm text-red-600 dark:text-red-400">
+                          {isArabic ? 'سبب الرفض: ' : 'Reason: '}{entry.rejection_reason}
+                        </p>
+                      )}
+                      {(entry.previous_status_name || entry.new_status_name) && (
+                        <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                          {isArabic ? (entry.previous_status_name_ar || entry.previous_status_ar) : entry.previous_status_name}
+                          {' → '}
+                          {isArabic ? (entry.new_status_name_ar || entry.new_status_ar) : entry.new_status_name}
+                        </p>
+                      )}
+                    </div>
+                    {(entry.performer_signature_url || entry.signature_url) && (
+                      <div className="w-20 h-12 border border-gray-200 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-700 flex items-center justify-center flex-shrink-0">
+                        <img src={entry.performer_signature_url || entry.signature_url} alt="sig" className="max-w-full max-h-full object-contain" />
+                      </div>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+        </div>
+      )}
+
+      {/* Reject Modal */}
+      {showRejectModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+              {isArabic ? 'رفض الطلب' : 'Reject Request'}
+            </h3>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              {isArabic ? 'سبب الرفض' : 'Reason for rejection'}
+            </label>
+            <textarea
+              className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-red-500 resize-none"
+              rows={3}
+              value={rejectReason}
+              onChange={e => setRejectReason(e.target.value)}
+              placeholder={isArabic ? 'اكتب سبب الرفض...' : 'Enter rejection reason...'}
+            />
+            <div className="flex gap-3 mt-4 justify-end">
+              <button
+                onClick={() => { setShowRejectModal(false); setRejectReason(''); }}
+                className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+              >
+                {isArabic ? 'إلغاء' : 'Cancel'}
+              </button>
+              <button
+                onClick={handleReject}
+                disabled={actionLoading}
+                className="px-4 py-2 text-sm text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 rounded-lg"
+              >
+                {actionLoading ? (isArabic ? 'جار الرفض...' : 'Rejecting...') : (isArabic ? 'تأكيد الرفض' : 'Confirm Reject')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </MainLayout>
   );
 }

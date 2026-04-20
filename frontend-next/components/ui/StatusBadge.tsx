@@ -21,29 +21,29 @@ interface StatusBadgeProps {
 }
 
 const variantClasses: Record<StatusVariant, string> = {
-  success: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
-  warning: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
-  error: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
-  info: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
-  pending: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400',
-  active: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
-  inactive: 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400',
-  draft: 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400',
-  approved: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
-  rejected: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
+  success: 'slms-badge-success',
+  warning: 'slms-badge-warning', 
+  error: 'slms-badge-error',
+  info: 'slms-badge-info',
+  pending: 'slms-badge-warning',
+  active: 'slms-badge-success',
+  inactive: 'slms-badge-neutral',
+  draft: 'slms-badge-neutral',
+  approved: 'slms-badge-success',
+  rejected: 'slms-badge-error',
 };
 
 const dotClasses: Record<StatusVariant, string> = {
-  success: 'bg-green-500',
-  warning: 'bg-yellow-500',
-  error: 'bg-red-500',
-  info: 'bg-blue-500',
-  pending: 'bg-orange-500',
-  active: 'bg-green-500',
-  inactive: 'bg-gray-500',
-  draft: 'bg-gray-500',
-  approved: 'bg-green-500',
-  rejected: 'bg-red-500',
+  success: 'bg-feedback-success-500',
+  warning: 'bg-feedback-warning-500',
+  error: 'bg-feedback-error-500',
+  info: 'bg-primary-600',
+  pending: 'bg-feedback-warning-500',
+  active: 'bg-feedback-success-500',
+  inactive: 'bg-neutral-500',
+  draft: 'bg-neutral-500',
+  approved: 'bg-feedback-success-500',
+  rejected: 'bg-feedback-error-500',
 };
 
 const sizeClasses = {

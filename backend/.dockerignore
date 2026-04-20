@@ -10,3 +10,6 @@ Dockerfile
 dist
 coverage
 .nyc_output
+logs
+data
+backups

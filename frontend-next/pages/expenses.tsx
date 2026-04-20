@@ -5,6 +5,8 @@ import AuthGuard from '../components/AuthGuard';
 import MainLayout from '../components/layout/MainLayout';
 import { withPermission } from '../utils/withPermission';
 import { MenuPermissions } from '../config/menu.permissions';
+import { usePermissions } from '../hooks/usePermissions';
+import { useCurrencies } from '../hooks/useReferenceData';
 import {
   PlusIcon,
   MagnifyingGlassIcon,
@@ -13,6 +15,7 @@ import {
   TrashIcon,
   ArrowUpIcon,
   CurrencyDollarIcon,
+  PrinterIcon,
 } from '@heroicons/react/24/outline';
 import { useTranslation } from '../hooks/useTranslation.enhanced';
 import { useToast } from '../contexts/ToastContext';
@@ -37,6 +40,8 @@ const Expenses: React.FC = () => {
   const router = useRouter();
   const { t } = useTranslation();
   const { showToast } = useToast();
+  const { can } = usePermissions();
+  const { currencies: currencyList } = useCurrencies();
 
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
@@ -376,7 +381,7 @@ const Expenses: React.FC = () => {
                         {expense.description}
                       </td>
                       <td className="px-6 py-4 text-sm font-semibold text-gray-900 dark:text-white">
-                        ${expense.amount?.toFixed(2)} {expense.currency}
+                        ${Number(expense.amount || 0).toFixed(2)} {expense.currency}
                       </td>
                       <td className="px-6 py-4 text-sm">
                         <span
@@ -396,12 +401,22 @@ const Expenses: React.FC = () => {
                       </td>
                       <td className="px-6 py-4 text-sm text-right space-x-2 flex justify-end gap-2">
                         <button
+                          onClick={() => router.push(`/print/shipment-expense/${expense.id}`)}
+                          className="text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-300 p-1 rounded hover:bg-green-50 dark:hover:bg-green-900/20"
+                          title="Print"
+                        >
+                          <PrinterIcon className="w-4 h-4" />
+                        </button>
+                        {can('expenses:edit') && (
+                        <button
                           onClick={() => handleEdit(expense)}
                           className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 p-1 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20"
                           title="Edit"
                         >
                           <PencilIcon className="w-4 h-4" />
                         </button>
+                        )}
+                        {can('expenses:delete') && (
                         <button
                           onClick={() => {
                             setDeletingId(expense.id);
@@ -412,6 +427,7 @@ const Expenses: React.FC = () => {
                         >
                           <TrashIcon className="w-4 h-4" />
                         </button>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -456,11 +472,9 @@ const Expenses: React.FC = () => {
                   onChange={(e) => setFormData({ ...formData, currency: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="USD">USD</option>
-                  <option value="EUR">EUR</option>
-                  <option value="GBP">GBP</option>
-                  <option value="SAR">SAR</option>
-                  <option value="AED">AED</option>
+                  {currencyList.map(c => (
+                    <option key={c.code} value={c.code}>{c.code}</option>
+                  ))}
                 </select>
               </div>
             </div>

@@ -1,178 +1,283 @@
-import { useMemo, useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Head from 'next/head';
+import { useRouter } from 'next/router';
 import MainLayout from '../../components/layout/MainLayout';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import Modal from '../../components/ui/Modal';
+import { Badge } from '../../components/ui/Badge';
 import { useToast } from '../../contexts/ToastContext';
 import { useTranslation } from '../../hooks/useTranslation';
+import { useLocale } from '../../contexts/LocaleContext';
 import { usePermissions } from '../../hooks/usePermissions';
-import { MenuPermissions } from '../../config/menu.permissions';
-import { DocumentCheckIcon, PlusIcon, EyeIcon, PencilSquareIcon } from '@heroicons/react/24/outline';
+import apiClient from '../../lib/apiClient';
+import {
+  DocumentCheckIcon,
+  EyeIcon,
+  ArrowPathIcon,
+  CheckCircleIcon,
+  XCircleIcon,
+  ClockIcon,
+  ExclamationTriangleIcon,
+  NoSymbolIcon,
+  PencilSquareIcon,
+  DocumentTextIcon,
+} from '@heroicons/react/24/outline';
 import clsx from 'clsx';
 
-interface ContractApprovalStatus {
-  id: number;
-  code: string;
-  nameEn: string;
-  nameAr: string;
-  description?: string;
-  descriptionAr?: string;
-  colorCode: string;
-  isActive: boolean;
+/**
+ * Approval statuses sourced from the approval_documents workflow engine.
+ * This page shows current status distribution + master status reference.
+ */
+
+interface StatusSummary {
+  status: string;
+  count: number;
 }
 
-const mockStatuses: ContractApprovalStatus[] = [
-  { id: 1, code: 'DRAFT', nameEn: 'Draft', nameAr: 'مسودة', colorCode: 'gray', isActive: true },
-  { id: 2, code: 'PENDING', nameEn: 'Pending Approval', nameAr: 'قيد المراجعة', colorCode: 'amber', isActive: true },
-  { id: 3, code: 'APPROVED', nameEn: 'Approved', nameAr: 'معتمد', colorCode: 'green', isActive: true },
-  { id: 4, code: 'REJECTED', nameEn: 'Rejected', nameAr: 'مرفوض', colorCode: 'red', isActive: true },
-];
+const statusMeta: Record<string, {
+  icon: typeof CheckCircleIcon;
+  color: string;
+  bgGradient: string;
+  label_en: string;
+  label_ar: string;
+  desc_en: string;
+  desc_ar: string;
+}> = {
+  draft:            { icon: PencilSquareIcon,       color: 'gray',   bgGradient: 'from-gray-400 to-gray-500',    label_en: 'Draft',           label_ar: 'مسودة',            desc_en: 'Document saved but not yet submitted',          desc_ar: 'المستند محفوظ ولم يُرسل بعد' },
+  pending_review:   { icon: ClockIcon,              color: 'amber',  bgGradient: 'from-amber-400 to-orange-500', label_en: 'Pending Review',  label_ar: 'بانتظار المراجعة', desc_en: 'Waiting for reviewer to check',                 desc_ar: 'بانتظار مراجعة المختص' },
+  under_review:     { icon: EyeIcon,                color: 'blue',   bgGradient: 'from-blue-400 to-blue-500',    label_en: 'Under Review',    label_ar: 'قيد المراجعة',     desc_en: 'Reviewer has opened and is reviewing',          desc_ar: 'المراجع يقوم بمراجعة المستند' },
+  pending_approval: { icon: ExclamationTriangleIcon, color: 'orange', bgGradient: 'from-orange-400 to-red-500',  label_en: 'Pending Approval', label_ar: 'بانتظار الاعتماد', desc_en: 'Needs final approval from authorized person', desc_ar: 'يحتاج اعتماد من المخوّل' },
+  approved:         { icon: CheckCircleIcon,        color: 'green',  bgGradient: 'from-emerald-400 to-green-500', label_en: 'Approved',       label_ar: 'معتمد',            desc_en: 'All approvals completed',                       desc_ar: 'اكتملت جميع الاعتمادات' },
+  pending_post:     { icon: DocumentTextIcon,       color: 'indigo', bgGradient: 'from-indigo-400 to-violet-500', label_en: 'Pending Post',   label_ar: 'بانتظار الترحيل',  desc_en: 'Approved and ready to post to ledger',          desc_ar: 'معتمد وجاهز للترحيل' },
+  posted:           { icon: CheckCircleIcon,        color: 'teal',   bgGradient: 'from-teal-400 to-emerald-500', label_en: 'Posted',          label_ar: 'مرحّل',            desc_en: 'Posted to general ledger with accounting effect', desc_ar: 'تم الترحيل للدفاتر بأثر محاسبي' },
+  rejected:         { icon: XCircleIcon,            color: 'red',    bgGradient: 'from-red-400 to-red-600',      label_en: 'Rejected',        label_ar: 'مرفوض',            desc_en: 'Rejected by reviewer or approver',              desc_ar: 'مرفوض من المراجع أو المعتمد' },
+  voided:           { icon: NoSymbolIcon,           color: 'rose',   bgGradient: 'from-rose-400 to-rose-600',    label_en: 'Voided',          label_ar: 'ملغي',             desc_en: 'Posted document reversed',                      desc_ar: 'مستند مرحّل تم إلغاؤه' },
+  cancelled:        { icon: NoSymbolIcon,           color: 'slate',  bgGradient: 'from-slate-400 to-slate-500',  label_en: 'Cancelled',       label_ar: 'ملغى',             desc_en: 'Document cancelled by creator',                 desc_ar: 'ألغي بواسطة المنشئ' },
+};
+
+const allStatuses = Object.keys(statusMeta);
 
 export default function ContractApprovalStatusPage() {
-  const { locale } = useTranslation();
+  const { t } = useTranslation();
+  const { locale } = useLocale();
   const { showToast } = useToast();
-  const { hasAnyPermission } = usePermissions();
+  const { hasPermission } = usePermissions();
+  const router = useRouter();
 
-  const canView = hasAnyPermission([MenuPermissions.MasterData.ContractApprovalStatus.View]);
-  const canCreate = hasAnyPermission([MenuPermissions.MasterData.ContractApprovalStatus.Create]);
-  const canEdit = hasAnyPermission([MenuPermissions.MasterData.ContractApprovalStatus.Edit]);
+  const [summary, setSummary] = useState<StatusSummary[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
 
-  const [items] = useState<ContractApprovalStatus[]>(mockStatuses);
-  const [search, setSearch] = useState('');
-  const [selected, setSelected] = useState<ContractApprovalStatus | null>(null);
-  const [createOpen, setCreateOpen] = useState(false);
+  const fetchSummary = useCallback(async () => {
+    try {
+      setLoading(true);
+      const res = await apiClient.get('/api/approval-documents/monitor');
+      // Extract status counts from monitor data
+      const data = res.data || res;
+      const counts: StatusSummary[] = [];
 
-  const [formData, setFormData] = useState({ code: '', nameEn: '', nameAr: '', colorCode: 'gray' });
+      // If monitor returns per-status counts, use them; otherwise count from items
+      if (data.statusCounts) {
+        Object.entries(data.statusCounts).forEach(([status, count]) => {
+          counts.push({ status, count: count as number });
+        });
+      } else if (data.items) {
+        const countMap: Record<string, number> = {};
+        (data.items as any[]).forEach(item => {
+          countMap[item.status] = (countMap[item.status] || 0) + 1;
+        });
+        Object.entries(countMap).forEach(([status, count]) => {
+          counts.push({ status, count });
+        });
+      }
+      setSummary(counts);
+    } catch (err) {
+      console.error('Failed to load status summary:', err);
+      // Show all statuses with 0 count as fallback
+      setSummary(allStatuses.map(s => ({ status: s, count: 0 })));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return items.filter((s) => !q || s.code.toLowerCase().includes(q) || s.nameEn.toLowerCase().includes(q) || s.nameAr.toLowerCase().includes(q));
-  }, [items, search]);
+  useEffect(() => { fetchSummary(); }, [fetchSummary]);
 
-  const statusPill = (s: ContractApprovalStatus) => {
-    const colors: Record<string, string> = {
-      gray: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300',
-      amber: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300',
-      green: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
-      red: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
-    };
-    return (
-      <span className={clsx('px-2 py-0.5 text-xs font-medium rounded-full', colors[s.colorCode] || colors.gray)}>
-        {locale === 'ar' ? s.nameAr : s.nameEn}
-      </span>
-    );
-  };
-
-  if (!canView) {
-    return (
-      <MainLayout>
-        <Head>
-          <title>{locale === 'ar' ? 'حالات الموافقة على العقود - SLMS' : 'Contract Approval Status - SLMS'}</title>
-        </Head>
-        <div className="text-center py-12">
-          <DocumentCheckIcon className="w-16 h-16 mx-auto text-gray-400 mb-4" />
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{locale === 'ar' ? 'غير مصرح' : 'Access Denied'}</h2>
-          <p className="text-gray-600 dark:text-gray-400 mt-2">{locale === 'ar' ? 'لا تملك صلاحية عرض حالات الموافقة على العقود.' : "You don't have permission to view contract approval statuses."}</p>
-        </div>
-      </MainLayout>
-    );
-  }
+  const totalDocuments = summary.reduce((sum, s) => sum + s.count, 0);
 
   return (
     <MainLayout>
       <Head>
-        <title>{locale === 'ar' ? 'حالات الموافقة على العقود - SLMS' : 'Contract Approval Status - SLMS'}</title>
+        <title>{locale === 'ar' ? 'حالات الاعتماد - SLMS' : 'Approval Statuses - SLMS'}</title>
       </Head>
 
-      <div className="space-y-6 animate-fade-in">
+      <div className="space-y-6 max-w-6xl mx-auto animate-fade-in">
+        {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
-              <DocumentCheckIcon className="h-6 w-6 text-green-600 dark:text-green-300" />
+            <div className="p-3 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl shadow-lg shadow-green-500/25">
+              <DocumentCheckIcon className="h-7 w-7 text-white" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{locale === 'ar' ? 'حالات الموافقة على العقود' : 'Contract Approval Status'}</h1>
-              <p className="text-sm text-gray-500 dark:text-gray-400">{locale === 'ar' ? 'حالات مراحل الموافقة (مسودة، قيد المراجعة، معتمد، مرفوض)' : 'Approval workflow statuses (draft, pending, approved, rejected)'}</p>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+                {locale === 'ar' ? 'حالات الاعتماد' : 'Approval Statuses'}
+              </h1>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                {locale === 'ar'
+                  ? 'مرجع جميع حالات دورة الاعتماد مع التوزيع الحالي'
+                  : 'Reference of all approval workflow statuses with current distribution'}
+              </p>
             </div>
           </div>
-          {canCreate && (
-            <Button onClick={() => setCreateOpen(true)}>
-              <PlusIcon className="h-4 w-4" />
-              {locale === 'ar' ? 'إضافة حالة' : 'Add Status'}
+          <div className="flex items-center gap-2">
+            <Button variant="secondary" onClick={() => router.push('/settings/approval-engine')}>
+              {locale === 'ar' ? '⚙️ إعدادات المحرك' : '⚙️ Engine Settings'}
             </Button>
+            <Button variant="secondary" onClick={fetchSummary}>
+              <ArrowPathIcon className={clsx('h-4 w-4', loading && 'animate-spin')} />
+            </Button>
+          </div>
+        </div>
+
+        {/* Summary bar */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              {locale === 'ar' ? 'التوزيع الحالي' : 'Current Distribution'}
+            </span>
+            <span className="text-sm text-gray-500">
+              {locale === 'ar' ? `${totalDocuments} مستند` : `${totalDocuments} documents`}
+            </span>
+          </div>
+          {totalDocuments > 0 ? (
+            <div className="flex h-3 rounded-full overflow-hidden bg-gray-100 dark:bg-gray-700">
+              {summary.filter(s => s.count > 0).map((s) => {
+                const meta = statusMeta[s.status];
+                const pct = (s.count / totalDocuments) * 100;
+                return (
+                  <div
+                    key={s.status}
+                    className={clsx('bg-gradient-to-r', meta?.bgGradient || 'from-gray-400 to-gray-500', 'transition-all duration-700')}
+                    style={{ width: `${pct}%` }}
+                    title={`${locale === 'ar' ? meta?.label_ar : meta?.label_en}: ${s.count}`}
+                  />
+                );
+              })}
+            </div>
+          ) : (
+            <div className="h-3 rounded-full bg-gray-100 dark:bg-gray-700" />
           )}
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
-          <Input label={locale === 'ar' ? 'بحث' : 'Search'} value={search} onChange={(e) => setSearch(e.target.value)} placeholder={locale === 'ar' ? 'بحث بالكود أو الاسم...' : 'Search by code or name...'} />
-        </div>
+        {/* Status Cards Grid */}
+        {loading ? (
+          <div className="flex justify-center py-16">
+            <ArrowPathIcon className="h-10 w-10 text-gray-400 animate-spin" />
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {allStatuses.map((status) => {
+              const meta = statusMeta[status];
+              const StatusIcon = meta.icon;
+              const summaryItem = summary.find(s => s.status === status);
+              const count = summaryItem?.count || 0;
 
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-gray-50 dark:bg-gray-700">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{locale === 'ar' ? 'الكود' : 'Code'}</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{locale === 'ar' ? 'الاسم' : 'Name'}</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{locale === 'ar' ? 'معاينة' : 'Preview'}</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{locale === 'ar' ? 'إجراءات' : 'Actions'}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-              {filtered.map((s) => (
-                <tr key={s.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                  <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{s.code}</td>
-                  <td className="px-4 py-3 text-gray-900 dark:text-white">{locale === 'ar' ? s.nameAr : s.nameEn}</td>
-                  <td className="px-4 py-3">{statusPill(s)}</td>
-                  <td className="px-4 py-3 flex gap-2">
-                    <Button size="sm" variant="secondary" onClick={() => setSelected(s)}>
-                      <EyeIcon className="h-4 w-4" />
-                    </Button>
-                    {canEdit && (
-                      <Button size="sm" onClick={() => { setFormData({ code: s.code, nameEn: s.nameEn, nameAr: s.nameAr, colorCode: s.colorCode }); setSelected(s); }}>
-                        <PencilSquareIcon className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+              return (
+                <div
+                  key={status}
+                  onClick={() => setSelectedStatus(status)}
+                  className={clsx(
+                    'relative overflow-hidden bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 cursor-pointer transition-all duration-300',
+                    'hover:shadow-lg hover:scale-[1.02]',
+                    selectedStatus === status && 'ring-2 ring-blue-500'
+                  )}
+                >
+                  {/* Decorative gradient strip */}
+                  <div className={clsx('absolute top-0 left-0 right-0 h-1 bg-gradient-to-r', meta.bgGradient)} />
 
-      <Modal isOpen={!!selected && !createOpen} onClose={() => setSelected(null)} title={locale === 'ar' ? 'تفاصيل' : 'Details'} size="md">
-        {selected && (
-          <div className="space-y-3">
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{locale === 'ar' ? selected.nameAr : selected.nameEn}</h3>
-              <p className="text-sm text-gray-500">{selected.code}</p>
-            </div>
-            <div>{statusPill(selected)}</div>
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className={clsx('p-2.5 rounded-xl bg-gradient-to-br', meta.bgGradient, 'shadow-md')}>
+                        <StatusIcon className="h-5 w-5 text-white" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-gray-900 dark:text-white text-sm">
+                          {locale === 'ar' ? meta.label_ar : meta.label_en}
+                        </h3>
+                        <code className="text-xs text-gray-400 font-mono">{status}</code>
+                      </div>
+                    </div>
+                    <span className={clsx(
+                      'text-2xl font-bold',
+                      count > 0 ? 'text-gray-900 dark:text-white' : 'text-gray-300 dark:text-gray-600'
+                    )}>
+                      {count}
+                    </span>
+                  </div>
+
+                  <p className="mt-3 text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+                    {locale === 'ar' ? meta.desc_ar : meta.desc_en}
+                  </p>
+                </div>
+              );
+            })}
           </div>
         )}
-      </Modal>
 
-      <Modal isOpen={canCreate && createOpen} onClose={() => setCreateOpen(false)} title={locale === 'ar' ? 'حالة جديدة' : 'New Status'} size="md">
-        <div className="space-y-4">
-          <Input label={locale === 'ar' ? 'الكود' : 'Code'} value={formData.code} onChange={(e) => setFormData({ ...formData, code: e.target.value })} />
-          <Input label={locale === 'ar' ? 'الاسم (EN)' : 'Name (EN)'} value={formData.nameEn} onChange={(e) => setFormData({ ...formData, nameEn: e.target.value })} />
-          <Input label={locale === 'ar' ? 'الاسم (AR)' : 'Name (AR)'} value={formData.nameAr} onChange={(e) => setFormData({ ...formData, nameAr: e.target.value })} />
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{locale === 'ar' ? 'اللون' : 'Color'}</label>
-            <select className="input" value={formData.colorCode} onChange={(e) => setFormData({ ...formData, colorCode: e.target.value })}>
-              <option value="gray">{locale === 'ar' ? 'رمادي' : 'Gray'}</option>
-              <option value="amber">{locale === 'ar' ? 'عنبري' : 'Amber'}</option>
-              <option value="green">{locale === 'ar' ? 'أخضر' : 'Green'}</option>
-              <option value="red">{locale === 'ar' ? 'أحمر' : 'Red'}</option>
-            </select>
-          </div>
-          <div className="flex gap-2 pt-4 border-t dark:border-gray-700">
-            <Button onClick={() => { showToast(locale === 'ar' ? 'تمت الإضافة (تجريبي)' : 'Added (demo)', 'success'); setCreateOpen(false); }}>{locale === 'ar' ? 'حفظ' : 'Save'}</Button>
-            <Button variant="secondary" onClick={() => setCreateOpen(false)}>{locale === 'ar' ? 'إلغاء' : 'Cancel'}</Button>
-          </div>
-        </div>
-      </Modal>
+        {/* Status Detail Modal */}
+        <Modal
+          isOpen={!!selectedStatus}
+          onClose={() => setSelectedStatus(null)}
+          title={selectedStatus ? (locale === 'ar' ? statusMeta[selectedStatus]?.label_ar : statusMeta[selectedStatus]?.label_en) : ''}
+          size="md"
+        >
+          {selectedStatus && (() => {
+            const meta = statusMeta[selectedStatus];
+            const StatusIcon = meta.icon;
+            const count = summary.find(s => s.status === selectedStatus)?.count || 0;
+            return (
+              <div className="space-y-4">
+                <div className="flex items-center gap-4">
+                  <div className={clsx('p-4 rounded-xl bg-gradient-to-br', meta.bgGradient, 'shadow-lg')}>
+                    <StatusIcon className="h-8 w-8 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+                      {locale === 'ar' ? meta.label_ar : meta.label_en}
+                    </h3>
+                    <code className="text-sm text-gray-400 font-mono">{selectedStatus}</code>
+                  </div>
+                </div>
+
+                <p className="text-gray-600 dark:text-gray-300">
+                  {locale === 'ar' ? meta.desc_ar : meta.desc_en}
+                </p>
+
+                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-500 dark:text-gray-400">
+                      {locale === 'ar' ? 'المستندات الحالية' : 'Current Documents'}
+                    </span>
+                    <span className="text-2xl font-bold text-gray-900 dark:text-white">{count}</span>
+                  </div>
+                </div>
+
+                {count > 0 && (
+                  <Button
+                    className="w-full"
+                    onClick={() => {
+                      setSelectedStatus(null);
+                      router.push(`/approvals/monitor?status=${selectedStatus}`);
+                    }}
+                  >
+                    {locale === 'ar' ? 'عرض المستندات' : 'View Documents'} →
+                  </Button>
+                )}
+              </div>
+            );
+          })()}
+        </Modal>
+      </div>
     </MainLayout>
   );
 }

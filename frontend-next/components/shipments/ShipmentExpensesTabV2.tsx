@@ -13,6 +13,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/router';
 import { useLocale } from '@/contexts/LocaleContext';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useToast } from '@/contexts/ToastContext';
@@ -29,7 +30,9 @@ import {
   XMarkIcon,
   LockClosedIcon,
   TrashIcon,
-  EyeIcon
+  EyeIcon,
+  PaperAirplaneIcon,
+  ClockIcon
 } from '@heroicons/react/24/outline';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import apiClient from '@/lib/apiClient';
@@ -324,6 +327,7 @@ export default function ShipmentExpensesTabV2({
   const [feeDistributionMethod, setFeeDistributionMethod] = useState<'quantity' | 'value'>('quantity');
   const [dutyCalculationMode, setDutyCalculationMode] = useState<'auto' | 'manual'>('auto');
   const [isExchangeRateManuallySet, setIsExchangeRateManuallySet] = useState(false);
+  const [filterCategory, setFilterCategory] = useState<string>('ALL');
   
   // Form state
   const [formData, setFormData] = useState<any>({
@@ -398,6 +402,7 @@ export default function ShipmentExpensesTabV2({
   const canUpdate = hasPermission('shipment_expenses:update') && !isLocked;
   const canDelete = hasPermission('shipment_expenses:delete') && !isLocked;
   const canApprove = hasPermission('shipment_expenses:approve');
+  const canSubmit = hasPermission('shipment_expenses:create') || hasPermission('shipment_expenses:submit');
   
   // =====================================================
   // EFFECTS
@@ -1178,6 +1183,25 @@ export default function ShipmentExpensesTabV2({
     }
   };
   
+  const handleSubmitForApproval = async (expenseId: number) => {
+    try {
+      const data = await apiClient.post(`/api/shipment-expenses/${expenseId}/submit-for-approval`, {
+        notes: ''
+      });
+      
+      if (data.success) {
+        showToast(locale === 'ar' ? 'تم تقديم المصروف للاعتماد بنجاح' : 'Expense submitted for approval', 'success');
+        fetchExpenses();
+      } else {
+        showToast(data.error?.message || (locale === 'ar' ? 'فشل في تقديم المصروف للاعتماد' : 'Failed to submit for approval'), 'error');
+      }
+    } catch (error: any) {
+      console.error('Error submitting expense for approval:', error);
+      const msg = error?.response?.data?.error?.message || error?.message || '';
+      showToast(msg || (locale === 'ar' ? 'فشل في تقديم المصروف للاعتماد' : 'Failed to submit for approval'), 'error');
+    }
+  };
+
   const handleApprove = async (expenseId: number) => {
     try {
       const data = await apiClient.post(`/api/shipment-expenses/${expenseId}/approve`);
@@ -1217,225 +1241,9 @@ export default function ShipmentExpensesTabV2({
     }
   };
   
+  const router = useRouter();
   const handlePrint = (expense: any) => {
-    // Create a print window
-    const printWindow = window.open('', '_blank', 'width=800,height=600');
-    if (!printWindow) {
-      showToast(locale === 'ar' ? 'فشل فتح نافذة الطباعة' : 'Failed to open print window', 'error');
-      return;
-    }
-    
-    // Get shipment details
-    const shipmentRef = expense.shipment_reference || '';
-    const shipmentBL = expense.bl_number || '';
-    
-    // Format the print content
-    const printContent = `
-      <!DOCTYPE html>
-      <html dir="${locale === 'ar' ? 'rtl' : 'ltr'}">
-      <head>
-        <meta charset="UTF-8">
-        <title>${locale === 'ar' ? 'طباعة المصروف' : 'Print Expense'}</title>
-        <style>
-          * { margin: 0; padding: 0; box-sizing: border-box; }
-          body {
-            font-family: ${locale === 'ar' ? 'Tahoma, Arial' : 'Arial, sans-serif'};
-            padding: 20mm;
-            line-height: 1.6;
-            direction: ${locale === 'ar' ? 'rtl' : 'ltr'};
-          }
-          .header {
-            text-align: center;
-            border-bottom: 2px solid #333;
-            padding-bottom: 15px;
-            margin-bottom: 30px;
-          }
-          .header h1 {
-            font-size: 24px;
-            margin-bottom: 5px;
-          }
-          .header p {
-            font-size: 14px;
-            color: #666;
-          }
-          .section {
-            margin-bottom: 25px;
-          }
-          .section-title {
-            font-size: 16px;
-            font-weight: bold;
-            background: #f0f0f0;
-            padding: 8px 12px;
-            margin-bottom: 12px;
-            border-${locale === 'ar' ? 'right' : 'left'}: 4px solid #333;
-          }
-          .row {
-            display: flex;
-            margin-bottom: 10px;
-            padding: 5px 0;
-          }
-          .label {
-            font-weight: bold;
-            min-width: 200px;
-            color: #555;
-          }
-          .value {
-            flex: 1;
-            color: #000;
-          }
-          .amount-box {
-            background: #f9f9f9;
-            border: 2px solid #333;
-            padding: 15px;
-            margin: 20px 0;
-            text-align: center;
-          }
-          .amount-number {
-            font-size: 28px;
-            font-weight: bold;
-            margin-bottom: 10px;
-          }
-          .amount-words {
-            font-size: 14px;
-            font-style: italic;
-            color: #555;
-            border-top: 1px solid #ddd;
-            padding-top: 10px;
-          }
-          .footer {
-            margin-top: 50px;
-            padding-top: 20px;
-            border-top: 1px solid #ddd;
-            text-align: center;
-            color: #666;
-            font-size: 12px;
-          }
-          @media print {
-            body { padding: 10mm; }
-            .no-print { display: none; }
-          }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <h1>${locale === 'ar' ? 'مستند مصروف شحنة' : 'Shipment Expense Document'}</h1>
-          <p>${locale === 'ar' ? 'نظام إدارة اللوجستيات الذكي' : 'Smart Logistics Management System'}</p>
-        </div>
-        
-        <div class="section">
-          <div class="section-title">${locale === 'ar' ? 'معلومات المصروف' : 'Expense Information'}</div>
-          <div class="row">
-            <div class="label">${locale === 'ar' ? 'نوع المصروف:' : 'Expense Type:'}</div>
-            <div class="value">${locale === 'ar' ? expense.expense_type_name_ar : expense.expense_type_name_en} (${expense.expense_type_code})</div>
-          </div>
-          <div class="row">
-            <div class="label">${locale === 'ar' ? 'التاريخ:' : 'Date:'}</div>
-            <div class="value">${new Date(expense.expense_date).toLocaleDateString(locale === 'ar' ? 'ar-SA' : 'en-US')}</div>
-          </div>
-          <div class="row">
-            <div class="label">${locale === 'ar' ? 'الحالة:' : 'Status:'}</div>
-            <div class="value">${expense.approval_status === 'approved' 
-              ? (locale === 'ar' ? 'معتمد' : 'Approved') 
-              : (locale === 'ar' ? 'مسودة' : 'Draft')
-            }</div>
-          </div>
-        </div>
-        
-        <div class="section">
-          <div class="section-title">${locale === 'ar' ? 'معلومات الشحنة' : 'Shipment Information'}</div>
-          <div class="row">
-            <div class="label">${locale === 'ar' ? 'رقم الشحنة:' : 'Shipment Reference:'}</div>
-            <div class="value">${shipmentRef}</div>
-          </div>
-          <div class="row">
-            <div class="label">${locale === 'ar' ? 'رقم البوليصة:' : 'BL Number:'}</div>
-            <div class="value">${shipmentBL}</div>
-          </div>
-          ${expense.description ? `
-          <div class="row">
-            <div class="label">${locale === 'ar' ? 'الوصف:' : 'Description:'}</div>
-            <div class="value">${expense.description}</div>
-          </div>
-          ` : ''}
-        </div>
-        
-        <div class="amount-box">
-          <div class="amount-number">
-            ${Number(expense.total_amount || 0).toFixed(2)} ${expense.currency_symbol || ''}
-          </div>
-          <div style="font-size: 12px; color: #666; margin: 5px 0;">
-            ${locale === 'ar' ? 'المبلغ بالعملة الأساسية:' : 'Amount in Base Currency:'} 
-            ${Number(expense.total_in_base_currency || 0).toFixed(2)} SAR
-          </div>
-          ${expense.amount_in_words || expense.amount_in_words_ar ? `
-          <div class="amount-words">
-            ${locale === 'ar' ? expense.amount_in_words_ar : expense.amount_in_words}
-          </div>
-          ` : ''}
-        </div>
-        
-        <div class="section">
-          <div class="section-title">${locale === 'ar' ? 'تفاصيل المبلغ' : 'Amount Details'}</div>
-          <div class="row">
-            <div class="label">${locale === 'ar' ? 'المبلغ قبل الضريبة:' : 'Amount Before VAT:'}</div>
-            <div class="value">${Number(expense.amount_before_vat || 0).toFixed(2)} ${expense.currency_symbol || ''}</div>
-          </div>
-          <div class="row">
-            <div class="label">${locale === 'ar' ? 'نسبة الضريبة:' : 'VAT Rate:'}</div>
-            <div class="value">${expense.vat_rate || 0}%</div>
-          </div>
-          <div class="row">
-            <div class="label">${locale === 'ar' ? 'مبلغ الضريبة:' : 'VAT Amount:'}</div>
-            <div class="value">${(Number(expense.total_amount || 0) - Number(expense.amount_before_vat || 0)).toFixed(2)} ${expense.currency_symbol || ''}</div>
-          </div>
-          <div class="row">
-            <div class="label">${locale === 'ar' ? 'سعر الصرف:' : 'Exchange Rate:'}</div>
-            <div class="value">${expense.exchange_rate || 1}</div>
-          </div>
-        </div>
-        
-        ${expense.invoice_number || expense.reference_number ? `
-        <div class="section">
-          <div class="section-title">${locale === 'ar' ? 'المراجع' : 'References'}</div>
-          ${expense.invoice_number ? `
-          <div class="row">
-            <div class="label">${locale === 'ar' ? 'رقم الفاتورة:' : 'Invoice Number:'}</div>
-            <div class="value">${expense.invoice_number}</div>
-          </div>
-          ` : ''}
-          ${expense.reference_number ? `
-          <div class="row">
-            <div class="label">${locale === 'ar' ? 'رقم المرجع:' : 'Reference Number:'}</div>
-            <div class="value">${expense.reference_number}</div>
-          </div>
-          ` : ''}
-        </div>
-        ` : ''}
-        
-        <div class="footer">
-          <p>${locale === 'ar' ? 'طُبع في:' : 'Printed on:'} ${new Date().toLocaleString(locale === 'ar' ? 'ar-SA' : 'en-US')}</p>
-          <p>${locale === 'ar' ? 'هذا المستند تم إنشاؤه آلياً' : 'This document was generated automatically'}</p>
-        </div>
-        
-        <div class="no-print" style="text-align: center; margin-top: 30px;">
-          <button onclick="window.print()" style="padding: 10px 30px; font-size: 16px; background: #333; color: white; border: none; border-radius: 4px; cursor: pointer;">
-            ${locale === 'ar' ? 'طباعة' : 'Print'}
-          </button>
-          <button onclick="window.close()" style="padding: 10px 30px; font-size: 16px; background: #666; color: white; border: none; border-radius: 4px; cursor: pointer; margin-${locale === 'ar' ? 'right' : 'left'}: 10px;">
-            ${locale === 'ar' ? 'إغلاق' : 'Close'}
-          </button>
-        </div>
-      </body>
-      </html>
-    `;
-    
-    printWindow.document.write(printContent);
-    printWindow.document.close();
-    
-    // Auto print after a small delay to ensure content is loaded
-    setTimeout(() => {
-      printWindow.print();
-    }, 250);
+    router.push(`/print/shipment-expense/${expense.id}`);
   };
   
   const resetForm = () => {
@@ -2287,6 +2095,15 @@ export default function ShipmentExpensesTabV2({
       );
     }
     
+    if (expense.approval_status === 'pending_approval') {
+      return (
+        <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200">
+          <ClockIcon className="w-3 h-3 mr-1" />
+          {locale === 'ar' ? 'قيد الاعتماد' : 'Pending Approval'}
+        </span>
+      );
+    }
+    
     if (expense.approval_status === 'rejected') {
       return (
         <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
@@ -2298,7 +2115,7 @@ export default function ShipmentExpensesTabV2({
     
     return (
       <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
-        {locale === 'ar' ? 'معلق' : 'Draft'}
+        {locale === 'ar' ? 'مسودة' : 'Draft'}
       </span>
     );
   };
@@ -2306,24 +2123,68 @@ export default function ShipmentExpensesTabV2({
   // =====================================================
   // RENDER
   // =====================================================
+  
+  // Category labels and colors
+  const categoryConfig: Record<string, { label: string; labelAr: string; color: string; icon: string }> = {
+    FREIGHT: { label: 'Freight', labelAr: 'شحن', color: 'blue', icon: '🚢' },
+    CUSTOMS: { label: 'Customs', labelAr: 'جمارك', color: 'red', icon: '🏛️' },
+    CLEARANCE: { label: 'Clearance', labelAr: 'تخليص', color: 'orange', icon: '📋' },
+    PORT: { label: 'Port', labelAr: 'ميناء', color: 'cyan', icon: '⚓' },
+    INSURANCE: { label: 'Insurance', labelAr: 'تأمين', color: 'green', icon: '🛡️' },
+    INSPECTION: { label: 'Inspection', labelAr: 'فحص', color: 'yellow', icon: '🔍' },
+    CERTIFICATION: { label: 'Certification', labelAr: 'شهادات', color: 'indigo', icon: '📜' },
+    DOCUMENTATION: { label: 'Documentation', labelAr: 'مستندات', color: 'gray', icon: '📄' },
+    WAREHOUSE: { label: 'Warehouse', labelAr: 'تخزين', color: 'amber', icon: '🏭' },
+    DELIVERY: { label: 'Delivery', labelAr: 'توصيل', color: 'teal', icon: '🚛' },
+    TREATMENT: { label: 'Treatment', labelAr: 'معالجة', color: 'lime', icon: '🧪' },
+    FINANCE: { label: 'Finance', labelAr: 'مالية', color: 'purple', icon: '🏦' },
+  };
+  
+  // Group expenses by category for summary
+  const expensesByCategory = expenses.reduce((acc: Record<string, { count: number; total: number }>, exp) => {
+    const cat = exp.expense_category || 'OTHER';
+    if (!acc[cat]) acc[cat] = { count: 0, total: 0 };
+    acc[cat].count++;
+    acc[cat].total += Number(exp.total_in_base_currency || exp.total_amount || 0);
+    return acc;
+  }, {});
+  
+  // Category filter
+  const filteredExpenses = filterCategory === 'ALL' 
+    ? expenses 
+    : expenses.filter(e => e.expense_category === filterCategory);
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+            <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+            </svg>
             {locale === 'ar' ? 'مصاريف الشحنة' : 'Shipment Expenses'}
           </h3>
           {shipment && (
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              {locale === 'ar' ? 'رقم الشحنة:' : 'Shipment:'} <strong>{shipment.shipment_number}</strong>
-              {shipment.bl_number && <> • BL: <strong>{shipment.bl_number}</strong></>}
-              {shipment.project_code && <> • {locale === 'ar' ? 'مشروع:' : 'Project:'} <strong>{shipment.project_code}</strong></>}
-            </p>
+            <div className="flex flex-wrap items-center gap-3 mt-2">
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200">
+                {locale === 'ar' ? 'شحنة' : 'Shipment'}: {shipment.shipment_number}
+              </span>
+              {shipment.bl_number && (
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
+                  BL: {shipment.bl_number}
+                </span>
+              )}
+              {shipment.project_code && (
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-200">
+                  {locale === 'ar' ? 'مشروع' : 'Project'}: {shipment.project_code} - {shipment.project_name}
+                </span>
+              )}
+            </div>
           )}
         </div>
         {canCreate && (
-          <Button onClick={handleOpenAddModal}>
+          <Button onClick={handleOpenAddModal} className="!bg-gradient-to-r !from-blue-600 !to-indigo-600 hover:!from-blue-700 hover:!to-indigo-700">
             <PlusIcon className="w-5 h-5 mr-2" />
             {locale === 'ar' ? 'إضافة مصروف' : 'Add Expense'}
           </Button>
@@ -2332,136 +2193,239 @@ export default function ShipmentExpensesTabV2({
 
       {/* Summary Cards */}
       {costSummary && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 border border-blue-200 dark:border-blue-800">
-            <div className="text-sm text-blue-600 dark:text-blue-400 mb-1">
-              {locale === 'ar' ? 'إجمالي التكاليف' : 'Total Cost'}
+        <div className="space-y-4">
+          {/* Main Summary Row */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/20 rounded-xl p-4 border border-blue-200 dark:border-blue-700 shadow-sm">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center">
+                  <svg className="w-4 h-4 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <span className="text-sm font-medium text-blue-700 dark:text-blue-300">{locale === 'ar' ? 'الإجمالي' : 'Total Cost'}</span>
+              </div>
+              <div className="text-2xl font-bold text-blue-900 dark:text-blue-100">
+                {Number(costSummary.total_cost || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </div>
+              <div className="text-xs text-blue-500 dark:text-blue-400 mt-1">
+                {locale === 'ar' ? `${costSummary.expense_count || 0} مصروف • ض.ق.م: ${Number(costSummary.total_vat || 0).toLocaleString()}` : `${costSummary.expense_count || 0} expenses • VAT: ${Number(costSummary.total_vat || 0).toLocaleString()}`}
+              </div>
             </div>
-            <div className="text-2xl font-bold text-blue-900 dark:text-blue-100">
-              {Number(costSummary.total_cost || 0).toFixed(2)}
+            
+            <div className="bg-gradient-to-br from-green-50 to-emerald-100 dark:from-green-900/30 dark:to-emerald-800/20 rounded-xl p-4 border border-green-200 dark:border-green-700 shadow-sm">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-8 h-8 rounded-lg bg-green-500/20 flex items-center justify-center">
+                  <CheckIcon className="w-4 h-4 text-green-600 dark:text-green-400" />
+                </div>
+                <span className="text-sm font-medium text-green-700 dark:text-green-300">{locale === 'ar' ? 'المعتمد' : 'Approved'}</span>
+              </div>
+              <div className="text-2xl font-bold text-green-900 dark:text-green-100">
+                {Number(costSummary.total_approved_cost || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </div>
+              <div className="text-xs text-green-500 dark:text-green-400 mt-1">
+                {locale === 'ar' ? `${costSummary.approved_count || 0} مصروف` : `${costSummary.approved_count || 0} expenses`}
+              </div>
             </div>
-            <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-              {locale === 'ar' ? `${costSummary.expense_count || 0} مصروف` : `${costSummary.expense_count || 0} expenses`}
+            
+            <div className="bg-gradient-to-br from-amber-50 to-yellow-100 dark:from-amber-900/30 dark:to-yellow-800/20 rounded-xl p-4 border border-amber-200 dark:border-amber-700 shadow-sm">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center">
+                  <svg className="w-4 h-4 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <span className="text-sm font-medium text-amber-700 dark:text-amber-300">{locale === 'ar' ? 'معلق' : 'Pending'}</span>
+              </div>
+              <div className="text-2xl font-bold text-amber-900 dark:text-amber-100">
+                {Number(costSummary.total_pending_cost || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </div>
+            </div>
+            
+            <div className="bg-gradient-to-br from-purple-50 to-violet-100 dark:from-purple-900/30 dark:to-violet-800/20 rounded-xl p-4 border border-purple-200 dark:border-purple-700 shadow-sm">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center">
+                  <LockClosedIcon className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                </div>
+                <span className="text-sm font-medium text-purple-700 dark:text-purple-300">{locale === 'ar' ? 'مرحّل' : 'Posted'}</span>
+              </div>
+              <div className="text-2xl font-bold text-purple-900 dark:text-purple-100">{costSummary.posted_count || 0}</div>
+              <div className="text-xs text-purple-500 dark:text-purple-400 mt-1">{locale === 'ar' ? 'قيود محاسبية' : 'journal entries'}</div>
             </div>
           </div>
           
-          <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-4 border border-green-200 dark:border-green-800">
-            <div className="text-sm text-green-600 dark:text-green-400 mb-1">
-              {locale === 'ar' ? 'المعتمد' : 'Approved'}
+          {/* Category Breakdown */}
+          {Object.keys(expensesByCategory).length > 0 && (
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
+              <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">{locale === 'ar' ? 'توزيع المصاريف حسب التصنيف' : 'Expenses by Category'}</h4>
+              <div className="flex flex-wrap gap-2">
+                {Object.entries(expensesByCategory).map(([cat, data]) => {
+                  const cfg = categoryConfig[cat] || { label: cat, labelAr: cat, color: 'gray', icon: '📦' };
+                  return (
+                    <button key={cat} onClick={() => setFilterCategory(filterCategory === cat ? 'ALL' : cat)}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                        filterCategory === cat ? 'bg-blue-600 text-white border-blue-600 shadow-md scale-105' : 'bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600'
+                      }`}>
+                      <span>{cfg.icon}</span>
+                      <span>{locale === 'ar' ? cfg.labelAr : cfg.label}</span>
+                      <span className="bg-white/20 dark:bg-black/20 px-1.5 py-0.5 rounded-full text-[10px]">{data.count}</span>
+                      <span className="font-bold">{Number(data.total).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                    </button>
+                  );
+                })}
+                {filterCategory !== 'ALL' && (
+                  <button onClick={() => setFilterCategory('ALL')} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-700 hover:bg-red-100">
+                    <XMarkIcon className="w-3 h-3" />
+                    {locale === 'ar' ? 'عرض الكل' : 'Show All'}
+                  </button>
+                )}
+              </div>
             </div>
-            <div className="text-2xl font-bold text-green-900 dark:text-green-100">
-              {Number(costSummary.total_approved_cost || 0).toFixed(2)}
-            </div>
-            <div className="text-xs text-green-600 dark:text-green-400 mt-1">
-              {locale === 'ar' ? `${costSummary.approved_count || 0} مصروف` : `${costSummary.approved_count || 0} expenses`}
-            </div>
-          </div>
-          
-          <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-4 border border-yellow-200 dark:border-yellow-800">
-            <div className="text-sm text-yellow-600 dark:text-yellow-400 mb-1">
-              {locale === 'ar' ? 'معلق' : 'Pending'}
-            </div>
-            <div className="text-2xl font-bold text-yellow-900 dark:text-yellow-100">
-              {Number(costSummary.total_pending_cost || 0).toFixed(2)}
-            </div>
-          </div>
-          
-          <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4 border border-purple-200 dark:border-purple-800">
-            <div className="text-sm text-purple-600 dark:text-purple-400 mb-1">
-              {locale === 'ar' ? 'مرحّل' : 'Posted'}
-            </div>
-            <div className="text-xs text-purple-600 dark:text-purple-400 mt-1">
-              {locale === 'ar' ? `${costSummary.posted_count || 0} مصروف` : `${costSummary.posted_count || 0} expenses`}
-            </div>
-          </div>
+          )}
         </div>
       )}
 
       {/* Expenses Table */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-            <thead className="bg-gray-50 dark:bg-gray-900">
+            <thead className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
+                <th className="px-3 py-3 text-start text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                  {locale === 'ar' ? 'التصنيف' : 'Category'}
+                </th>
+                <th className="px-3 py-3 text-start text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
                   {locale === 'ar' ? 'نوع المصروف' : 'Expense Type'}
                 </th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
+                <th className="px-3 py-3 text-start text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                  {locale === 'ar' ? 'الجهة' : 'Entity'}
+                </th>
+                <th className="px-3 py-3 text-end text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
                   {locale === 'ar' ? 'المبلغ' : 'Amount'}
                 </th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
+                <th className="px-3 py-3 text-end text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                  {locale === 'ar' ? 'ض.ق.م' : 'VAT'}
+                </th>
+                <th className="px-3 py-3 text-end text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                  {locale === 'ar' ? 'الإجمالي (ر.س)' : 'Total (SAR)'}
+                </th>
+                <th className="px-3 py-3 text-center text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
                   {locale === 'ar' ? 'التاريخ' : 'Date'}
                 </th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
+                <th className="px-3 py-3 text-center text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
                   {locale === 'ar' ? 'الحالة' : 'Status'}
                 </th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
+                <th className="px-3 py-3 text-center text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
                   {locale === 'ar' ? 'الإجراءات' : 'Actions'}
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-100 dark:divide-gray-700">
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
-                    {locale === 'ar' ? 'جاري التحميل...' : 'Loading...'}
+                  <td colSpan={9} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                    <div className="flex items-center justify-center gap-3">
+                      <svg className="animate-spin h-5 w-5 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      {locale === 'ar' ? 'جاري التحميل...' : 'Loading...'}
+                    </div>
                   </td>
                 </tr>
-              ) : expenses.length === 0 ? (
+              ) : filteredExpenses.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
-                    {locale === 'ar' ? 'لا توجد مصاريف' : 'No expenses found'}
+                  <td colSpan={9} className="px-4 py-12 text-center">
+                    <div className="flex flex-col items-center gap-2">
+                      <svg className="w-12 h-12 text-gray-300 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                      </svg>
+                      <p className="text-gray-500 dark:text-gray-400 font-medium">
+                        {filterCategory !== 'ALL' 
+                          ? (locale === 'ar' ? 'لا توجد مصاريف في هذا التصنيف' : 'No expenses in this category')
+                          : (locale === 'ar' ? 'لا توجد مصاريف بعد' : 'No expenses yet')}
+                      </p>
+                      {canCreate && filterCategory === 'ALL' && (
+                        <Button size="sm" onClick={handleOpenAddModal} className="mt-2">
+                          <PlusIcon className="w-4 h-4 mr-1" />
+                          {locale === 'ar' ? 'إضافة أول مصروف' : 'Add First Expense'}
+                        </Button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ) : (
-                expenses.map((expense) => (
-                  <tr key={expense.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                    <td className="px-4 py-3">
-                      <div className="text-sm font-medium text-gray-900 dark:text-white">
-                        {locale === 'ar' ? expense.expense_type_name_ar : expense.expense_type_name_en}
-                      </div>
-                      <div className="text-xs text-gray-500 dark:text-gray-400">
-                        {expense.expense_type_code}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <div className="text-sm font-semibold text-gray-900 dark:text-white">
-                        {Number(expense.total_amount || 0).toFixed(2)} {expense.currency_symbol || ''}
-                      </div>
-                      <div className="text-xs text-gray-500 dark:text-gray-400">
-                        {Number(expense.total_in_base_currency || 0).toFixed(2)} SAR
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-center text-sm text-gray-700 dark:text-gray-300">
-                      {new Date(expense.expense_date).toLocaleDateString(locale === 'ar' ? 'ar-SA' : 'en-US')}
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      {getStatusBadge(expense)}
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <div className="flex items-center justify-center gap-2">
-                        {/* Print Button - available for all */}
+                filteredExpenses.map((expense) => {
+                  const cfg = categoryConfig[expense.expense_category] || { label: expense.expense_category, labelAr: expense.expense_category, color: 'gray', icon: '📦' };
+                  const entityName = expense.shipping_agent_name || expense.clearance_office_name || expense.insurance_company_name || expense.laboratory_name || expense.port_name || '';
+                  return (
+                    <tr key={expense.id} className="hover:bg-blue-50/50 dark:hover:bg-blue-900/10 transition-colors">
+                      <td className="px-3 py-3">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
+                          {cfg.icon} {locale === 'ar' ? cfg.labelAr : cfg.label}
+                        </span>
+                      </td>
+                      <td className="px-3 py-3">
+                        <div className="text-sm font-medium text-gray-900 dark:text-white">
+                          {locale === 'ar' ? expense.expense_type_name_ar : expense.expense_type_name_en}
+                        </div>
+                        <div className="text-xs text-gray-400 dark:text-gray-500 font-mono">
+                          {expense.account_code || expense.expense_type_code}
+                        </div>
+                      </td>
+                      <td className="px-3 py-3">
+                        {entityName ? (
+                          <div className="text-xs text-gray-600 dark:text-gray-400 max-w-[120px] truncate" title={entityName}>
+                            {entityName}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-gray-300 dark:text-gray-600">—</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-3 text-end">
+                        <div className="text-sm font-semibold text-gray-900 dark:text-white">
+                          {Number(expense.amount_before_vat || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </div>
+                        <div className="text-[10px] text-gray-400">{expense.currency_code || expense.currency_symbol}</div>
+                      </td>
+                      <td className="px-3 py-3 text-end text-xs text-gray-500 dark:text-gray-400">
+                        {Number(expense.vat_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        {expense.vat_rate > 0 && <div className="text-[10px] text-gray-400">{expense.vat_rate}%</div>}
+                      </td>
+                      <td className="px-3 py-3 text-end">
+                        <div className="text-sm font-bold text-blue-700 dark:text-blue-400">
+                          {Number(expense.total_in_base_currency || expense.total_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </div>
+                      </td>
+                      <td className="px-3 py-3 text-center text-xs text-gray-600 dark:text-gray-400">
+                        {new Date(expense.expense_date).toLocaleDateString(locale === 'ar' ? 'ar-SA' : 'en-US', { day: '2-digit', month: 'short' })}
+                      </td>
+                      <td className="px-3 py-3 text-center">
+                        {getStatusBadge(expense)}
+                      </td>
+                    <td className="px-3 py-3 text-center">
+                      <div className="flex items-center justify-center gap-1.5">
                         <Button
                           size="sm"
                           variant="secondary"
                           onClick={() => handlePrint(expense)}
                           title={locale === 'ar' ? 'طباعة' : 'Print'}
+                          className="!p-1.5"
                         >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
                           </svg>
                         </Button>
                         
-                        {/* Print Request Button - only if request exists */}
                         {expense.expense_request_id && (
                           <Button
                             size="sm"
                             variant="secondary"
                             onClick={() => window.open(`/requests/expense/${expense.expense_request_id}/print`, '_blank')}
                             title={locale === 'ar' ? 'طباعة الطلب' : 'Print Request'}
-                            className="!bg-blue-100 hover:!bg-blue-200 dark:!bg-blue-900 dark:hover:!bg-blue-800"
+                            className="!p-1.5 !bg-blue-100 hover:!bg-blue-200 dark:!bg-blue-900 dark:hover:!bg-blue-800"
                           >
-                            <svg className="w-4 h-4 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                             </svg>
                           </Button>
@@ -2480,14 +2444,15 @@ export default function ShipmentExpensesTabV2({
                           </Button>
                         )}
                         
-                        {canApprove && expense.approval_status === 'draft' && !expense.is_posted && (
+                        {canSubmit && expense.approval_status === 'draft' && !expense.is_posted && (
                           <Button
                             size="sm"
                             variant="secondary"
-                            onClick={() => handleApprove(expense.id)}
-                            title={locale === 'ar' ? 'اعتماد' : 'Approve'}
+                            onClick={() => handleSubmitForApproval(expense.id)}
+                            title={locale === 'ar' ? 'تقديم للاعتماد' : 'Submit for Approval'}
+                            className="!bg-indigo-100 hover:!bg-indigo-200 dark:!bg-indigo-900 dark:hover:!bg-indigo-800"
                           >
-                            <CheckIcon className="w-4 h-4" />
+                            <PaperAirplaneIcon className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
                           </Button>
                         )}
                         
@@ -2507,7 +2472,8 @@ export default function ShipmentExpensesTabV2({
                       </div>
                     </td>
                   </tr>
-                ))
+                  );
+                })
               )}
             </tbody>
           </table>

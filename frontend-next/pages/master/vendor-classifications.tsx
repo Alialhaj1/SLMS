@@ -14,12 +14,12 @@ import React from 'react';
 import { withPermission } from '../../utils/withPermission';
 import { MenuPermissions } from '@/config/menu.permissions';
 import EnterpriseMasterPage from '@/components/enterprise/EnterpriseMasterPage';
-import { supplierCategoryConfig, type SupplierCategory } from '@/config/pages/master/supplierCategories.config';
+import { supplierCategoriesConfig, type SupplierCategory } from '@/config/pages/master/supplierCategories.config';
 
 function VendorClassificationsPage() {
   return (
     <EnterpriseMasterPage<SupplierCategory>
-      config={supplierCategoryConfig}
+      config={supplierCategoriesConfig}
       buildDetailSections={(record) => [
         {
           title: 'Basic Information / البيانات الأساسية',

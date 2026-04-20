@@ -179,13 +179,26 @@ interface BankAccount {
   account_number: string;
   iban?: string;
   swift_code?: string;
+  bank_swift_code?: string;
   currency_id?: number;
   currency_code?: string;
   country_id?: number;
   country_name?: string;
   branch_name?: string;
+  branch_address?: string;
+  beneficiary_address?: string;
+  bank_address?: string;
   is_default: boolean;
   is_active: boolean;
+}
+
+interface VendorCurrency {
+  id: number;
+  currency_id: number;
+  currency_code: string;
+  currency_name?: string;
+  currency_symbol?: string;
+  is_default: boolean;
 }
 
 interface VendorDocument {
@@ -486,6 +499,7 @@ function OverviewTab({ vendor, stats, isArabic, onTabChange }: { vendor: VendorP
 
 function BankAccountsTab({ 
   vendorId, 
+  vendorName,
   bankAccounts, 
   loading, 
   onRefresh,
@@ -493,6 +507,7 @@ function BankAccountsTab({
   isArabic 
 }: { 
   vendorId: number; 
+  vendorName?: string;
   bankAccounts: BankAccount[]; 
   loading: boolean; 
   onRefresh: () => void;
@@ -505,20 +520,37 @@ function BankAccountsTab({
   const [submitting, setSubmitting] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [banks, setBanks] = useState<{id:number;name:string;name_ar?:string;swift_code?:string}[]>([]);
 
   const [formData, setFormData] = useState({
+    bank_id: '' as string,
     bank_name: '',
     account_name: '',
     account_number: '',
     iban: '',
     swift_code: '',
     branch_name: '',
+    branch_address: '',
+    beneficiary_address: '',
     is_default: false,
   });
 
+  // Load banks list
+  useEffect(() => {
+    const token = localStorage.getItem('accessToken');
+    fetch('/api/banks?is_active=true&limit=100', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data?.data) setBanks(data.data); })
+      .catch(() => {});
+  }, []);
+
   const handleSubmit = async () => {
-    if (!formData.account_name || !formData.account_number) {
-      showToast(isArabic ? 'يرجى ملء الحقول المطلوبة' : 'Please fill required fields', 'error');
+    if (!formData.account_name) {
+      showToast(isArabic ? 'اسم المستفيد مطلوب' : 'Beneficiary name is required', 'error');
+      return;
+    }
+    if (!formData.account_number && !formData.iban) {
+      showToast(isArabic ? 'رقم الحساب أو الآيبان مطلوب' : 'Account number or IBAN is required', 'error');
       return;
     }
 
@@ -529,13 +561,19 @@ function BankAccountsTab({
         ? `/api/procurement/vendors/${vendorId}/bank-accounts/${editing.id}`
         : `/api/procurement/vendors/${vendorId}/bank-accounts`;
       
+      const body = {
+        ...formData,
+        bank_id: formData.bank_id ? Number(formData.bank_id) : null,
+        account_number: formData.account_number || formData.iban || '',
+      };
+
       const res = await fetch(url, {
         method: editing ? 'PUT' : 'POST',
         headers: { 
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}` 
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(body),
       });
 
       if (res.ok) {
@@ -578,13 +616,16 @@ function BankAccountsTab({
   const openAddModal = () => {
     setEditing(null);
     setFormData({
+      bank_id: '',
       bank_name: '',
-      account_name: '',
+      account_name: vendorName || '',
       account_number: '',
       iban: '',
       swift_code: '',
       branch_name: '',
-      is_default: false,
+      branch_address: '',
+      beneficiary_address: '',
+      is_default: bankAccounts.length === 0,
     });
     setModalOpen(true);
   };
@@ -592,12 +633,15 @@ function BankAccountsTab({
   const openEditModal = (account: BankAccount) => {
     setEditing(account);
     setFormData({
+      bank_id: account.bank_id ? String(account.bank_id) : '',
       bank_name: account.bank_name || account.bank_name_lookup || '',
       account_name: account.account_name,
       account_number: account.account_number,
       iban: account.iban || '',
-      swift_code: account.swift_code || '',
+      swift_code: account.swift_code || account.bank_swift_code || '',
       branch_name: account.branch_name || '',
+      branch_address: account.branch_address || '',
+      beneficiary_address: account.beneficiary_address || '',
       is_default: account.is_default,
     });
     setModalOpen(true);
@@ -631,6 +675,12 @@ function BankAccountsTab({
         <div className="text-center py-12 text-gray-500">
           <BuildingLibraryIcon className="w-12 h-12 mx-auto mb-3 text-gray-300" />
           <p>{isArabic ? 'لا توجد حسابات بنكية' : 'No bank accounts found'}</p>
+          {canManage && (
+            <Button size="sm" variant="secondary" className="mt-3" onClick={openAddModal}>
+              <PlusIcon className="w-4 h-4 mr-1" />
+              {isArabic ? 'إضافة أول حساب' : 'Add First Account'}
+            </Button>
+          )}
         </div>
       ) : (
         <div className="space-y-3">
@@ -651,29 +701,44 @@ function BankAccountsTab({
                         {isArabic ? 'افتراضي' : 'Default'}
                       </span>
                     )}
+                    {account.branch_name && (
+                      <span className="text-xs text-gray-500">— {account.branch_name}</span>
+                    )}
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
                     <div>
-                      <p className="text-gray-500 dark:text-gray-400">{isArabic ? 'اسم الحساب' : 'Account Name'}</p>
+                      <p className="text-gray-500 dark:text-gray-400">{isArabic ? 'اسم المستفيد' : 'Beneficiary'}</p>
                       <p className="font-medium text-gray-900 dark:text-white">{account.account_name}</p>
                     </div>
                     <div>
                       <p className="text-gray-500 dark:text-gray-400">{isArabic ? 'رقم الحساب' : 'Account No.'}</p>
-                      <p className="font-medium text-gray-900 dark:text-white">{account.account_number}</p>
+                      <p className="font-medium text-gray-900 dark:text-white font-mono text-xs">{account.account_number || '-'}</p>
                     </div>
-                    {account.iban && (
-                      <div>
-                        <p className="text-gray-500 dark:text-gray-400">IBAN</p>
-                        <p className="font-medium text-gray-900 dark:text-white text-xs">{account.iban}</p>
-                      </div>
-                    )}
-                    {account.swift_code && (
-                      <div>
-                        <p className="text-gray-500 dark:text-gray-400">SWIFT</p>
-                        <p className="font-medium text-gray-900 dark:text-white">{account.swift_code}</p>
-                      </div>
-                    )}
+                    <div>
+                      <p className="text-gray-500 dark:text-gray-400">IBAN</p>
+                      <p className="font-medium text-gray-900 dark:text-white font-mono text-xs">{account.iban || '-'}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500 dark:text-gray-400">SWIFT</p>
+                      <p className="font-medium text-gray-900 dark:text-white font-mono">{account.swift_code || account.bank_swift_code || '-'}</p>
+                    </div>
                   </div>
+                  {(account.beneficiary_address || account.branch_address) && (
+                    <div className="grid grid-cols-2 gap-3 text-sm mt-2">
+                      {account.beneficiary_address && (
+                        <div>
+                          <p className="text-gray-500 dark:text-gray-400">{isArabic ? 'عنوان المستفيد' : 'Beneficiary Address'}</p>
+                          <p className="text-gray-700 dark:text-gray-300 text-xs">{account.beneficiary_address}</p>
+                        </div>
+                      )}
+                      {account.branch_address && (
+                        <div>
+                          <p className="text-gray-500 dark:text-gray-400">{isArabic ? 'عنوان البنك' : 'Bank Address'}</p>
+                          <p className="text-gray-700 dark:text-gray-300 text-xs">{account.branch_address}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
                 {canManage && (
                   <div className="flex gap-1">
@@ -699,43 +764,106 @@ function BankAccountsTab({
           ? (isArabic ? 'تعديل الحساب البنكي' : 'Edit Bank Account')
           : (isArabic ? 'إضافة حساب بنكي' : 'Add Bank Account')
         }
-        size="md"
+        size="lg"
       >
         <div className="space-y-4">
-          <Input
-            label={isArabic ? 'اسم البنك' : 'Bank Name'}
-            value={formData.bank_name}
-            onChange={(e) => setFormData({ ...formData, bank_name: e.target.value })}
-          />
-          <Input
-            label={isArabic ? 'اسم الحساب' : 'Account Name'}
-            value={formData.account_name}
-            onChange={(e) => setFormData({ ...formData, account_name: e.target.value })}
-            required
-          />
-          <Input
-            label={isArabic ? 'رقم الحساب' : 'Account Number'}
-            value={formData.account_number}
-            onChange={(e) => setFormData({ ...formData, account_number: e.target.value })}
-            required
-          />
-          <div className="grid grid-cols-2 gap-4">
-            <Input
-              label="IBAN"
-              value={formData.iban}
-              onChange={(e) => setFormData({ ...formData, iban: e.target.value })}
-            />
-            <Input
-              label="SWIFT Code"
-              value={formData.swift_code}
-              onChange={(e) => setFormData({ ...formData, swift_code: e.target.value })}
-            />
+          {/* Beneficiary Section */}
+          <div className="border-b border-gray-200 dark:border-gray-700 pb-3 mb-3">
+            <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+              {isArabic ? 'بيانات المستفيد' : 'Beneficiary Details'}
+            </h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Input
+                label={isArabic ? 'اسم المستفيد' : 'Beneficiary Name'}
+                value={formData.account_name}
+                onChange={(e) => setFormData({ ...formData, account_name: e.target.value })}
+                required
+                placeholder={isArabic ? 'اسم المورد أو المستفيد' : 'Vendor or beneficiary name'}
+              />
+              <Input
+                label={isArabic ? 'عنوان المستفيد' : 'Beneficiary Address'}
+                value={formData.beneficiary_address}
+                onChange={(e) => setFormData({ ...formData, beneficiary_address: e.target.value })}
+                placeholder={isArabic ? 'عنوان المستفيد' : 'Beneficiary address'}
+              />
+            </div>
           </div>
-          <Input
-            label={isArabic ? 'اسم الفرع' : 'Branch Name'}
-            value={formData.branch_name}
-            onChange={(e) => setFormData({ ...formData, branch_name: e.target.value })}
-          />
+
+          {/* Bank Section */}
+          <div className="border-b border-gray-200 dark:border-gray-700 pb-3 mb-3">
+            <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+              {isArabic ? 'بيانات البنك' : 'Bank Details'}
+            </h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  {isArabic ? 'اسم البنك' : 'Bank Name'}
+                </label>
+                <div className="relative">
+                  <input
+                    list="bank-list"
+                    value={formData.bank_name}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const match = banks.find(b => (isArabic ? (b.name_ar || b.name) : b.name) === val);
+                      if (match) {
+                        setFormData(prev => ({ ...prev, bank_id: String(match.id), bank_name: val, swift_code: match.swift_code || prev.swift_code }));
+                      } else {
+                        setFormData(prev => ({ ...prev, bank_id: '', bank_name: val }));
+                      }
+                    }}
+                    placeholder={isArabic ? 'اختر أو اكتب اسم البنك' : 'Select or type bank name'}
+                    className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                  />
+                  <datalist id="bank-list">
+                    {banks.map(b => (
+                      <option key={b.id} value={isArabic ? (b.name_ar || b.name) : b.name} />
+                    ))}
+                  </datalist>
+                </div>
+              </div>
+              <Input
+                label={isArabic ? 'الفرع' : 'Branch'}
+                value={formData.branch_name}
+                onChange={(e) => setFormData({ ...formData, branch_name: e.target.value })}
+                placeholder={isArabic ? 'اسم الفرع' : 'Branch name'}
+              />
+              <Input
+                label={isArabic ? 'عنوان البنك / الفرع' : 'Bank / Branch Address'}
+                value={formData.branch_address}
+                onChange={(e) => setFormData({ ...formData, branch_address: e.target.value })}
+                placeholder={isArabic ? 'عنوان البنك' : 'Bank address'}
+              />
+              <Input
+                label={isArabic ? 'رمز السويفت' : 'SWIFT Code'}
+                value={formData.swift_code}
+                onChange={(e) => setFormData({ ...formData, swift_code: e.target.value })}
+                placeholder="e.g. RJHISARI"
+              />
+            </div>
+          </div>
+
+          {/* Account Section */}
+          <div>
+            <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+              {isArabic ? 'بيانات الحساب' : 'Account Details'}
+            </h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Input
+                label={isArabic ? 'رقم الحساب' : 'Account Number'}
+                value={formData.account_number}
+                onChange={(e) => setFormData({ ...formData, account_number: e.target.value })}
+                placeholder={isArabic ? 'رقم الحساب البنكي' : 'Bank account number'}
+              />
+              <Input
+                label={isArabic ? 'رقم الآيبان' : 'IBAN'}
+                value={formData.iban}
+                onChange={(e) => setFormData({ ...formData, iban: e.target.value })}
+                placeholder="e.g. SA0380000000608010167519"
+              />
+            </div>
+          </div>
+
           <label className="flex items-center gap-2 cursor-pointer">
             <input
               type="checkbox"
@@ -769,6 +897,186 @@ function BankAccountsTab({
         variant="danger"
         loading={deleting}
       />
+    </div>
+  );
+}
+
+// ========================================
+// VENDOR CURRENCIES TAB
+// ========================================
+function VendorCurrenciesTab({
+  vendorId,
+  canManage,
+  isArabic,
+}: {
+  vendorId: number;
+  canManage: boolean;
+  isArabic: boolean;
+}) {
+  const { showToast } = useToast();
+  const [currencies, setCurrencies] = useState<VendorCurrency[]>([]);
+  const [allCurrencies, setAllCurrencies] = useState<{id:number;code:string;name:string;symbol?:string}[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [adding, setAdding] = useState(false);
+  const [selectedCurrencyId, setSelectedCurrencyId] = useState('');
+  const [removingId, setRemovingId] = useState<number | null>(null);
+
+  const fetchCurrencies = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      const headers = { Authorization: `Bearer ${token}` };
+      const res = await fetch(`/api/procurement/vendors/${vendorId}/currencies`, { headers });
+      if (res.ok) {
+        const data = await res.json();
+        setCurrencies(data.data || []);
+      }
+    } catch {} finally { setLoading(false); }
+  }, [vendorId]);
+
+  useEffect(() => {
+    fetchCurrencies();
+    const token = localStorage.getItem('accessToken');
+    fetch('/api/finance/currencies?is_active=true&limit=100', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data?.data) setAllCurrencies(data.data); })
+      .catch(() => {});
+  }, [fetchCurrencies]);
+
+  const handleAdd = async () => {
+    if (!selectedCurrencyId) return;
+    setAdding(true);
+    try {
+      const token = localStorage.getItem('accessToken');
+      const res = await fetch(`/api/procurement/vendors/${vendorId}/currencies`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ currency_id: Number(selectedCurrencyId), is_default: currencies.length === 0 }),
+      });
+      if (res.ok) {
+        showToast(isArabic ? 'تمت الإضافة' : 'Added', 'success');
+        setSelectedCurrencyId('');
+        fetchCurrencies();
+      } else {
+        const err = await res.json();
+        showToast(err.error || 'Failed', 'error');
+      }
+    } catch { showToast('Error', 'error'); }
+    finally { setAdding(false); }
+  };
+
+  const handleRemove = async (id: number) => {
+    setRemovingId(id);
+    try {
+      const token = localStorage.getItem('accessToken');
+      const res = await fetch(`/api/procurement/vendors/${vendorId}/currencies/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        showToast(isArabic ? 'تمت الإزالة' : 'Removed', 'success');
+        fetchCurrencies();
+      }
+    } catch {} finally { setRemovingId(null); }
+  };
+
+  const handleSetDefault = async (id: number) => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      await fetch(`/api/procurement/vendors/${vendorId}/currencies/${id}/default`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      fetchCurrencies();
+    } catch {}
+  };
+
+  const availableCurrencies = allCurrencies.filter(c => !currencies.some(vc => vc.currency_id === c.id));
+
+  if (loading) {
+    return <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" /></div>;
+  }
+
+  return (
+    <div>
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+          {isArabic ? 'العملات المرتبطة بالمورد' : 'Vendor Currencies'}
+        </h3>
+      </div>
+
+      <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 mb-4">
+        <p className="text-sm text-amber-800 dark:text-amber-300">
+          {isArabic
+            ? 'لا يمكن إجراء أي عملية دفع أو تحويل للمورد بعملة غير مرتبطة به. يرجى إضافة جميع العملات المسموح بها.'
+            : 'No payment or transfer can be made to this vendor in a currency not linked here. Please add all allowed currencies.'}
+        </p>
+      </div>
+
+      {/* Add currency */}
+      {canManage && availableCurrencies.length > 0 && (
+        <div className="flex items-end gap-3 mb-4">
+          <div className="flex-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              {isArabic ? 'إضافة عملة' : 'Add Currency'}
+            </label>
+            <select
+              value={selectedCurrencyId}
+              onChange={(e) => setSelectedCurrencyId(e.target.value)}
+              className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm"
+            >
+              <option value="">{isArabic ? '-- اختر عملة --' : '-- Select Currency --'}</option>
+              {availableCurrencies.map(c => (
+                <option key={c.id} value={c.id}>{c.code} — {c.name}</option>
+              ))}
+            </select>
+          </div>
+          <Button size="sm" onClick={handleAdd} loading={adding} disabled={!selectedCurrencyId}>
+            <PlusIcon className="w-4 h-4 mr-1" />
+            {isArabic ? 'إضافة' : 'Add'}
+          </Button>
+        </div>
+      )}
+
+      {/* Currency list */}
+      {currencies.length === 0 ? (
+        <div className="text-center py-8 text-gray-500">
+          <CurrencyDollarIcon className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+          <p>{isArabic ? 'لم يتم ربط أي عملة بعد' : 'No currencies linked yet'}</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {currencies.map((vc) => (
+            <div key={vc.id} className={`flex items-center justify-between p-3 rounded-lg border ${vc.is_default ? 'border-blue-300 bg-blue-50 dark:bg-blue-900/20' : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800'}`}>
+              <div className="flex items-center gap-3">
+                <span className="text-lg font-bold text-gray-900 dark:text-white">{vc.currency_code}</span>
+                <span className="text-sm text-gray-600 dark:text-gray-400">{vc.currency_name}</span>
+                {vc.currency_symbol && <span className="text-gray-400">{vc.currency_symbol}</span>}
+                {vc.is_default && (
+                  <span className="px-2 py-0.5 text-xs bg-blue-100 text-blue-800 rounded-full">
+                    {isArabic ? 'افتراضي' : 'Default'}
+                  </span>
+                )}
+              </div>
+              {canManage && (
+                <div className="flex items-center gap-2">
+                  {!vc.is_default && (
+                    <button onClick={() => handleSetDefault(vc.id)} className="text-xs text-blue-600 hover:underline">
+                      {isArabic ? 'تعيين كافتراضي' : 'Set Default'}
+                    </button>
+                  )}
+                  <button
+                    onClick={() => handleRemove(vc.id)}
+                    disabled={removingId === vc.id}
+                    className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
+                  >
+                    <TrashIcon className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -1829,6 +2137,7 @@ function VendorProfilePage() {
     { id: 'overview', label: isArabic ? 'نظرة عامة' : 'Overview', icon: ChartBarIcon },
     { id: 'documents', label: isArabic ? 'المستندات' : 'Documents', icon: FolderIcon, permission: 'vendors:documents:view' },
     { id: 'bank-accounts', label: isArabic ? 'الحسابات البنكية' : 'Bank Accounts', icon: BuildingLibraryIcon },
+    { id: 'currencies', label: isArabic ? 'العملات' : 'Currencies', icon: CurrencyDollarIcon },
     { id: 'projects', label: isArabic ? 'المشاريع' : 'Projects', icon: BriefcaseIcon, permission: 'vendors:projects:view' },
     { id: 'purchase-orders', label: isArabic ? 'أوامر الشراء' : 'Purchase Orders', icon: ClipboardDocumentListIcon },
     { id: 'invoices', label: isArabic ? 'الفواتير' : 'Invoices', icon: DocumentTextIcon },
@@ -2059,9 +2368,18 @@ function VendorProfilePage() {
           {activeTab === 'bank-accounts' && (
             <BankAccountsTab
               vendorId={Number(id)}
+              vendorName={vendor?.name || ''}
               bankAccounts={bankAccounts}
               loading={bankAccountsLoading}
               onRefresh={fetchBankAccounts}
+              canManage={hasPermission('vendors:bank_accounts:manage')}
+              isArabic={isArabic}
+            />
+          )}
+
+          {activeTab === 'currencies' && (
+            <VendorCurrenciesTab
+              vendorId={Number(id)}
               canManage={hasPermission('vendors:bank_accounts:manage')}
               isArabic={isArabic}
             />

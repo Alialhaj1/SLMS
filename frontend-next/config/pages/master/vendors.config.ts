@@ -28,6 +28,11 @@ export interface Vendor {
   payment_term_id?: number;
   supply_term_id?: number;
   currency_id?: number;
+  bank_id?: number;
+  bank_account_name?: string;
+  bank_account_number?: string;
+  bank_iban?: string;
+  bank_swift?: string;
   contact_person?: string;
   notes?: string;
   is_active: boolean;
@@ -224,13 +229,91 @@ const formSections: PageSection[] = [
         placeholder: 'Select currency',
         dataSource: {
           type: 'api',
-          endpoint: '/api/master/currencies',
+          endpoint: '/api/finance/currencies?is_active=true',
           valueField: 'id',
           labelField: 'name',
           labelArField: 'name_ar',
         },
         colSpan: 6,
       },
+    ],
+  },
+  {
+    key: 'accounting',
+    label: 'Accounting',
+    collapsible: true,
+    fields: [
+      {
+        key: 'payable_account_id',
+        label: 'Payable Account (AP)',
+        type: 'searchable-select',
+        required: 'recommended',
+        placeholder: 'Select accounts payable GL account',
+        dataSource: {
+          type: 'api',
+          endpoint: '/api/accounts?type=liability&is_group=false',
+          valueField: 'id',
+          labelField: 'code',
+          secondaryLabelField: 'name',
+        },
+        colSpan: 4,
+      },
+      {
+        key: 'expense_account_id',
+        label: 'Default Expense Account',
+        type: 'searchable-select',
+        required: 'optional',
+        placeholder: 'Select default expense GL account',
+        dataSource: {
+          type: 'api',
+          endpoint: '/api/accounts?type=expense&is_group=false',
+          valueField: 'id',
+          labelField: 'code',
+          secondaryLabelField: 'name',
+        },
+        colSpan: 4,
+      },
+      {
+        key: 'advance_account_id',
+        label: 'Advance Payment Account',
+        type: 'searchable-select',
+        required: 'optional',
+        placeholder: 'Select vendor advance GL account',
+        dataSource: {
+          type: 'api',
+          endpoint: '/api/accounts?type=asset&is_group=false',
+          valueField: 'id',
+          labelField: 'code',
+          secondaryLabelField: 'name',
+        },
+        colSpan: 4,
+      },
+    ],
+  },
+  {
+    key: 'banking',
+    label: 'Banking',
+    collapsible: true,
+    fields: [
+      {
+        key: 'bank_id',
+        label: 'Bank',
+        type: 'searchable-select',
+        required: 'optional',
+        placeholder: 'Select bank',
+        dataSource: {
+          type: 'api',
+          endpoint: '/api/banks?is_active=true',
+          valueField: 'id',
+          labelField: 'name',
+          labelArField: 'name_ar',
+        },
+        colSpan: 4,
+      },
+      { key: 'bank_account_name',   label: 'Beneficiary Name',  type: 'text', required: 'optional', placeholder: 'Account holder / beneficiary name', colSpan: 4 },
+      { key: 'bank_account_number',  label: 'Account Number',    type: 'text', required: 'optional', placeholder: 'Bank account number',               colSpan: 4 },
+      { key: 'bank_iban',            label: 'IBAN',              type: 'text', required: 'optional', placeholder: 'e.g. SA0380000000608010167519',     colSpan: 6 },
+      { key: 'bank_swift',           label: 'SWIFT Code',        type: 'text', required: 'optional', placeholder: 'e.g. RJHISARI',                     colSpan: 6 },
     ],
   },
   {
@@ -247,6 +330,7 @@ const formSections: PageSection[] = [
 
 const actions: ActionMeta[] = [
   { key: 'create', label: 'Create New',  icon: 'PlusIcon',           variant: 'primary',   permission: 'master:vendors:create', position: ['toolbar'] },
+  { key: 'details', label: 'View Details', icon: 'EyeIcon',          variant: 'secondary', permission: 'master:vendors:view',   position: ['row'] },
   { key: 'edit',   label: 'Edit',        icon: 'PencilSquareIcon',   variant: 'secondary', permission: 'master:vendors:edit',   position: ['row'] },
   { key: 'delete', label: 'Delete',      icon: 'TrashIcon',          variant: 'danger',    permission: 'master:vendors:delete', position: ['row', 'bulk'], requireConfirmation: true, isDangerous: true },
   { key: 'export', label: 'Export',      icon: 'ArrowDownTrayIcon',  variant: 'secondary', permission: 'master:vendors:view',   position: ['toolbar'] },

@@ -14,13 +14,16 @@ import pool from '../db';
 import { authenticate } from '../middleware/auth';
 import { requirePermission } from '../middleware/rbac';
 import { loadCompanyContext, requireCompany } from '../middleware/companyContext';
+import { loadBranchAccess, buildBranchFilter, resolveBranchId } from '../middleware/branchAccess';
 import { getPaginationParams, sendPaginated } from '../utils/response';
 import { freezeGuard } from '../middleware/freezeGuard';
+import { ApprovalWorkflowEngine } from '../services/approvalWorkflowEngine';
 
 const router = Router();
 
 router.use(authenticate);
 router.use(loadCompanyContext);
+router.use(loadBranchAccess);
 
 // =============================================
 // GET /api/journals - List journal entries
@@ -55,6 +58,14 @@ router.get(
 
       const params: any[] = [req.companyId];
       let paramIndex = 2;
+
+      // Branch access filter
+      const branchFilter = buildBranchFilter(req, 'je', paramIndex);
+      if (branchFilter.clause !== '1=1') {
+        query += ` AND ${branchFilter.clause}`;
+        params.push(...branchFilter.params);
+        paramIndex = branchFilter.nextIndex;
+      }
 
       if (status) {
         query += ` AND je.status = $${paramIndex}`;
@@ -276,21 +287,28 @@ router.post(
         [req.companyId, entry_date]
       );
 
+      // Resolve branch for this document
+      const { branchId: resolvedBranchId, error: branchError } = resolveBranchId(req, 'write');
+      if (branchError) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ success: false, error: branchError });
+      }
+
       // Insert header
-      const tenantId = req.companyContext?.tenant_id || req.companyContext?.tenantId;
+      const tenantId = (req as any).tenantId || null;
       const header = await client.query(
         `INSERT INTO journal_entries (
-          tenant_id, company_id, entry_number, entry_date,
+          tenant_id, company_id, branch_id, entry_number, entry_date,
           fiscal_year_id, period_id,
           entry_type, currency_id, exchange_rate,
           total_debit, total_credit,
           description, narration, reference,
           status, created_by, created_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, 'draft', $15, NOW())
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 'draft', $16, NOW())
         RETURNING *`,
         [
           tenantId,
-          req.companyId, number, entry_date,
+          req.companyId, resolvedBranchId, number, entry_date,
           fiscalInfo.rows[0]?.fiscal_year_id, fiscalInfo.rows[0]?.period_id,
           entry_type, currency_id || req.companyContext?.currency_id, exchange_rate || 1,
           totalDebit, totalCredit,
@@ -442,6 +460,85 @@ router.post(
       });
     } finally {
       client.release();
+    }
+  }
+);
+
+// =============================================
+// POST /api/journals/:id/submit-for-approval - Submit journal for approval workflow
+// =============================================
+router.post(
+  '/:id/submit-for-approval',
+  requirePermission('accounting:journal:create'),
+  requireCompany,
+  async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+
+      // Verify journal exists and is draft
+      const journal = await pool.query(
+        `SELECT je.*, 
+                COALESCE(SUM(jl.debit_amount), 0) as total_amount
+         FROM journal_entries je
+         LEFT JOIN journal_lines jl ON jl.journal_entry_id = je.id
+         WHERE je.id = $1 AND je.company_id = $2
+         GROUP BY je.id`,
+        [id, req.companyId]
+      );
+
+      if (journal.rows.length === 0) {
+        return res.status(404).json({ success: false, error: 'Journal entry not found' });
+      }
+
+      const j = journal.rows[0];
+      if (j.status !== 'draft') {
+        return res.status(400).json({ success: false, error: `Cannot submit journal in status: ${j.status}` });
+      }
+
+      const result = await ApprovalWorkflowEngine.submitDocument({
+        companyId: req.companyId!,
+        tenantId: (req as any).tenantId,
+        documentType: 'journal_entry',
+        referenceId: j.id,
+        referenceTable: 'journal_entries',
+        documentNumber: j.entry_number,
+        title: j.description || `Journal Entry ${j.entry_number}`,
+        amount: parseFloat(j.total_amount) || 0,
+        currency: 'SAR',
+        createdBy: req.user!.id,
+        branchId: j.branch_id,
+        notes: req.body.notes,
+        priority: req.body.priority || 'normal',
+        watchers: req.body.watchers,
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent'),
+      });
+
+      if (!result.success) {
+        return res.status(422).json({ success: false, error: result.message });
+      }
+
+      // Update journal status to pending_approval
+      await pool.query(
+        `UPDATE journal_entries 
+         SET status = 'pending_approval', approval_document_id = $1, updated_by = $2, updated_at = NOW()
+         WHERE id = $3`,
+        [result.approvalDocumentId, req.user!.id, id]
+      );
+
+      res.json({
+        success: true,
+        message: result.autoApproved
+          ? 'Journal entry auto-approved and posted'
+          : 'Journal entry submitted for approval',
+        data: {
+          approvalDocumentId: result.approvalDocumentId,
+          autoApproved: result.autoApproved,
+        },
+      });
+    } catch (error: any) {
+      console.error('Error submitting journal for approval:', error);
+      res.status(500).json({ success: false, error: 'Failed to submit for approval', message: error.message });
     }
   }
 );

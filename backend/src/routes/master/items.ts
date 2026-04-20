@@ -34,12 +34,6 @@ const ITEM_SELECT = `
     it.code as item_type_code,
     it.name_en as item_type_name,
     it.name_ar as item_type_name_ar,
-    ig.code as item_grade_code,
-    ig.name_en as item_grade_name,
-    ig.name_ar as item_grade_name_ar,
-    tp.code as tracking_policy_code,
-    tp.name_en as tracking_policy_name,
-    tp.name_ar as tracking_policy_name_ar,
     v.code as default_vendor_code,
     v.name as default_vendor_name,
     v.name_ar as default_vendor_name_ar,
@@ -52,13 +46,11 @@ const ITEM_SELECT = `
     item_has_movement(i.id) as has_movement
   FROM items i
   LEFT JOIN item_categories cat ON i.category_id = cat.id
-  LEFT JOIN item_groups grp ON COALESCE(i.item_group_id, i.group_id) = grp.id AND grp.deleted_at IS NULL
+  LEFT JOIN item_groups grp ON i.group_id = grp.id AND grp.deleted_at IS NULL
   LEFT JOIN units_of_measure uom ON i.base_uom_id = uom.id AND uom.deleted_at IS NULL
   LEFT JOIN units_of_measure puom ON i.purchase_uom_id = puom.id AND puom.deleted_at IS NULL
   LEFT JOIN units_of_measure suom ON i.sales_uom_id = suom.id AND suom.deleted_at IS NULL
   LEFT JOIN reference_data it ON i.item_type_id = it.id AND it.deleted_at IS NULL
-  LEFT JOIN item_grades ig ON i.item_grade_id = ig.id AND ig.deleted_at IS NULL
-  LEFT JOIN tracking_policies tp ON i.tracking_policy_id = tp.id AND tp.deleted_at IS NULL
   LEFT JOIN vendors v ON i.default_vendor_id = v.id AND v.deleted_at IS NULL
   LEFT JOIN countries co ON i.country_of_origin = co.id
   LEFT JOIN users uc ON i.created_by = uc.id
@@ -67,8 +59,8 @@ const ITEM_SELECT = `
 
 const SORT_WHITELIST: Record<string, string> = {
   code: 'i.code', name: 'i.name', name_en: 'i.name_en', name_ar: 'i.name_ar',
-  sku: 'i.sku', barcode: 'i.barcode', item_type: 'i.item_type',
-  group_name: 'grp.name_en', item_type_name: 'it.name_en', grade_name: 'ig.name_en',
+  barcode: 'i.barcode', item_type: 'i.item_type',
+  group_name: 'grp.name_en', item_type_name: 'it.name_en',
   base_selling_price: 'i.base_selling_price', standard_cost: 'i.standard_cost',
   is_active: 'i.is_active', created_at: 'i.created_at',
 };
@@ -90,7 +82,7 @@ router.get(
           COUNT(*) FILTER (WHERE deleted_at IS NULL AND is_active = false) AS inactive,
           COUNT(*) FILTER (WHERE deleted_at IS NULL AND is_stockable = true) AS stockable,
           COUNT(*) FILTER (WHERE deleted_at IS NULL AND item_type = 'service') AS services,
-          COUNT(DISTINCT COALESCE(item_group_id, group_id)) FILTER (WHERE deleted_at IS NULL) AS group_count
+          COUNT(DISTINCT group_id) FILTER (WHERE deleted_at IS NULL) AS group_count
         FROM items WHERE company_id = $1
       `, [companyId]);
 
@@ -126,6 +118,33 @@ router.get(
   }
 );
 
+// ─── GET /uom-conversions ──────────────────────────────────────────
+
+router.get(
+  '/uom-conversions',
+  requirePermission('master:items:view'),
+  async (req: Request, res: Response) => {
+    try {
+      const companyId = (req as any).companyId ?? (req as any).companyContext?.companyId ?? (req as any).companyContext?.id;
+      if (!companyId) return res.status(400).json({ success: false, error: { code: 'COMPANY_REQUIRED', message: 'Company context required' } });
+
+      const result = await pool.query(`
+        SELECT iuc.item_id, iuc.uom_id, u.code as uom_code, u.name as uom_name, u.name_ar as uom_name_ar,
+               iuc.conversion_factor, COALESCE(iuc.is_base, false) as is_base_uom
+        FROM item_uom_conversions iuc
+        JOIN units_of_measure u ON u.id = iuc.uom_id AND u.deleted_at IS NULL
+        WHERE iuc.company_id = $1 AND iuc.deleted_at IS NULL AND iuc.is_active = true
+        ORDER BY iuc.item_id, iuc.is_base DESC, u.code
+      `, [companyId]);
+
+      res.json({ success: true, data: result.rows });
+    } catch (error) {
+      console.error('Error fetching item UOM conversions:', error);
+      res.status(500).json({ success: false, error: { code: 'FETCH_ERROR', message: 'Failed to fetch UOM conversions' } });
+    }
+  }
+);
+
 // ─── GET /filters ──────────────────────────────────────────────────
 
 router.get(
@@ -136,13 +155,12 @@ router.get(
       const companyId = (req as any).companyId ?? (req as any).companyContext?.companyId ?? (req as any).companyContext?.id;
       if (!companyId) return res.status(400).json({ success: false, error: { code: 'COMPANY_REQUIRED', message: 'Company context required' } });
 
-      const [groups, types, grades, policies, units, groupLevels] = await Promise.all([
-        pool.query(`SELECT id, code, COALESCE(name_en, name) AS name_en, name_ar, parent_group_id, group_level_id FROM item_groups WHERE deleted_at IS NULL AND (is_deleted = false OR is_deleted IS NULL) ORDER BY COALESCE(name_en, name)`),
+      const [groups, types, policies, units, vendors] = await Promise.all([
+        pool.query(`SELECT id, code, COALESCE(name_en, name) AS name_en, name_ar, parent_group_id, level FROM item_groups WHERE deleted_at IS NULL AND (is_deleted = false OR is_deleted IS NULL) ORDER BY COALESCE(name_en, name)`),
         pool.query(`SELECT id, code, name_en, name_ar FROM reference_data WHERE type = 'item_types' AND deleted_at IS NULL ORDER BY name_en`),
-        pool.query(`SELECT id, code, name_en, name_ar FROM item_grades WHERE deleted_at IS NULL ORDER BY sort_order, id`),
-        pool.query(`SELECT id, code, name_en, name_ar FROM tracking_policies WHERE deleted_at IS NULL ORDER BY sort_order, id`),
+        pool.query(`SELECT id, code, name_en, name_ar FROM tracking_policies WHERE deleted_at IS NULL ORDER BY id`),
         pool.query(`SELECT id, code, COALESCE(name_en, name) AS name_en, name_ar, is_base, base_unit_id FROM units_of_measure WHERE deleted_at IS NULL ORDER BY code`),
-        pool.query(`SELECT id, code, name_en, name_ar, level_order FROM group_levels WHERE deleted_at IS NULL ORDER BY level_order`),
+        pool.query(`SELECT id, code, name, name_ar FROM vendors WHERE deleted_at IS NULL AND (is_deleted = false OR is_deleted IS NULL) ORDER BY name`),
       ]);
 
       res.json({
@@ -150,11 +168,12 @@ router.get(
         data: {
           item_groups: groups.rows,
           item_types: types.rows,
-          item_grades: grades.rows,
+          item_grades: [],
           tracking_policies: policies.rows,
           units: units.rows,
           base_units: units.rows.filter((u: any) => u.is_base === true),
-          group_levels: groupLevels.rows,
+          group_levels: [],
+          vendors: vendors.rows,
         },
       });
     } catch (error) {
@@ -188,7 +207,7 @@ router.get(
       const conditions: string[] = [];
 
       if (search) {
-        conditions.push(`(i.code ILIKE $${paramIndex} OR i.name ILIKE $${paramIndex} OR i.name_en ILIKE $${paramIndex} OR i.name_ar ILIKE $${paramIndex} OR i.barcode ILIKE $${paramIndex} OR i.sku ILIKE $${paramIndex} OR i.short_name ILIKE $${paramIndex})`);
+        conditions.push(`(i.code ILIKE $${paramIndex} OR i.name ILIKE $${paramIndex} OR i.name_en ILIKE $${paramIndex} OR i.name_ar ILIKE $${paramIndex} OR i.barcode ILIKE $${paramIndex})`);
         params.push(`%${search}%`);
         paramIndex++;
       }
@@ -197,10 +216,8 @@ router.get(
       if (is_active !== undefined && is_active !== '') { conditions.push(`i.is_active = $${paramIndex}`); params.push(is_active === 'true'); paramIndex++; }
       if (category_id) { conditions.push(`i.category_id = $${paramIndex}`); params.push(category_id); paramIndex++; }
       const gid = item_group_id || group_id;
-      if (gid) { conditions.push(`COALESCE(i.item_group_id, i.group_id) = $${paramIndex}`); params.push(gid); paramIndex++; }
+      if (gid) { conditions.push(`i.group_id = $${paramIndex}`); params.push(gid); paramIndex++; }
       if (item_type_id) { conditions.push(`i.item_type_id = $${paramIndex}`); params.push(item_type_id); paramIndex++; }
-      if (item_grade_id) { conditions.push(`i.item_grade_id = $${paramIndex}`); params.push(item_grade_id); paramIndex++; }
-      if (tracking_policy_id) { conditions.push(`i.tracking_policy_id = $${paramIndex}`); params.push(tracking_policy_id); paramIndex++; }
       if (valuation_method) { conditions.push(`i.valuation_method = $${paramIndex}`); params.push(valuation_method); paramIndex++; }
       if (is_stockable !== undefined && is_stockable !== '') { conditions.push(`i.is_stockable = $${paramIndex}`); params.push(is_stockable === 'true'); paramIndex++; }
       if (is_purchasable !== undefined && is_purchasable !== '') { conditions.push(`i.is_purchasable = $${paramIndex}`); params.push(is_purchasable === 'true'); paramIndex++; }
@@ -211,7 +228,7 @@ router.get(
       const sortDir = order === 'desc' ? 'DESC' : 'ASC';
 
       const pageNum = Math.max(1, parseInt(page) || 1);
-      const pageSize = Math.min(500, Math.max(1, parseInt(limit) || 25));
+      const pageSize = Math.min(10000, Math.max(1, parseInt(limit) || 25));
       const offset = (pageNum - 1) * pageSize;
 
       const countQ = `SELECT COUNT(*) FROM items i WHERE i.company_id = $1 AND i.deleted_at IS NULL${whereClause}`;
@@ -499,14 +516,6 @@ router.put(
           });
         }
 
-        if (r.conversion_factor === 1) {
-          await client.query('ROLLBACK');
-          return res.status(400).json({
-            success: false,
-            error: { code: 'VALIDATION_ERROR', message: 'Additional unit conversion_factor cannot equal 1' },
-          });
-        }
-
         if (Number(r.uom_id) === Number(baseUomId)) {
           await client.query('ROLLBACK');
           return res.status(400).json({
@@ -665,9 +674,9 @@ router.post(
 
       const result = await pool.query(
         `INSERT INTO items (
-          company_id, tenant_id, code, barcode, sku, name, name_en, name_ar, short_name,
-          description, description_en, description_ar,
-          category_id, group_id, item_group_id, brand_id, item_type, item_type_id, item_grade_id,
+          company_id, tenant_id, code, barcode, name, name_en, name_ar,
+          description, description_en,
+          category_id, group_id, brand_id, item_type, item_type_id,
           is_purchasable, is_sellable, is_stockable,
           base_uom_id, sales_uom_id, purchase_uom_id,
           track_inventory, allow_negative_stock,
@@ -675,42 +684,42 @@ router.post(
           costing_method, standard_cost, last_purchase_cost, average_cost,
           base_selling_price, min_selling_price, max_discount_percent,
           weight, weight_uom_id, length, width, height, dimension_uom_id, volume,
-          hs_code, country_of_origin, tax_category,
+          hs_code, country_of_origin,
           sales_account_id, cogs_account_id, inventory_account_id, purchase_account_id,
           revenue_account_id, adjustment_account_id,
           tax_type_id, is_tax_inclusive, image_url, is_active,
           default_vendor_id, harvest_schedule_id, expected_harvest_date,
-          shelf_life_days, expiry_alert_days, min_order_qty, manufacturer, manufacturer_part_no,
+          shelf_life_days, min_order_qty, manufacturer, manufacturer_part_no,
           warranty_months, additional_images, specifications, tags,
-          tracking_policy, tracking_policy_id, valuation_method,
+          tracking_policy, valuation_method,
           created_by, created_at
         ) VALUES (
-          $1, $2, $3, $4, $5, $6, $7, $8, $9,
-          $10, $11, $12,
-          $13, $14, $15, $16, $17, $18, $19,
-          $20, $21, $22,
-          $23, $24, $25,
-          $26, $27,
-          $28, $29, $30, $31, $32,
-          $33, $34, $35, $36,
-          $37, $38, $39,
-          $40, $41, $42, $43, $44, $45, $46,
-          $47, $48, $49,
+          $1, $2, $3, $4, $5, $6, $7,
+          $8, $9,
+          $10, $11, $12, $13, $14,
+          $15, $16, $17,
+          $18, $19, $20,
+          $21, $22,
+          $23, $24, $25, $26, $27,
+          $28, $29, $30, $31,
+          $32, $33, $34,
+          $35, $36, $37, $38, $39, $40, $41,
+          $42, $43,
+          $44, $45, $46, $47,
+          $48, $49,
           $50, $51, $52, $53,
-          $54, $55,
-          $56, $57, $58, $59,
-          $60, $61, $62,
-          $63, $64, $65, $66, $67,
-          $68, $69, $70, $71,
-          $72, $73, $74,
-          $75, NOW()
+          $54, $55, $56,
+          $57, $58, $59, $60,
+          $61, $62, $63, $64,
+          $65, $66,
+          $67, NOW()
         ) RETURNING *`,
         [
           companyId, (req as any).tenantId ?? companyId,
-          code, barcode, sku, resolvedName, name_en || resolvedName, name_ar, short_name,
-          description, description, description_ar,
-          category_id, group_id || item_group_id, item_group_id || group_id, brand_id,
-          item_type || 'trading_goods', item_type_id, item_grade_id,
+          code, barcode, resolvedName, name_en || resolvedName, name_ar,
+          description, description,
+          category_id, group_id || item_group_id, brand_id,
+          item_type || 'trading_goods', item_type_id,
           is_purchasable ?? true, is_sellable ?? true, is_stockable ?? true,
           base_uom_id, sales_uom_id, purchase_uom_id,
           track_inventory ?? true, allow_negative_stock ?? false,
@@ -718,14 +727,14 @@ router.post(
           costing_method || 'weighted_average', standard_cost || 0, last_purchase_cost || 0, average_cost || 0,
           base_selling_price || 0, min_selling_price, max_discount_percent,
           weight, weight_uom_id, length, width, height, dimension_uom_id, volume,
-          hs_code, country_of_origin, tax_category || 'standard',
+          hs_code, country_of_origin,
           sales_account_id, cogs_account_id, inventory_account_id, purchase_account_id,
           revenue_account_id, adjustment_account_id,
           tax_type_id, is_tax_inclusive ?? false, image_url, is_active ?? true,
           default_vendor_id, harvest_schedule_id, expected_harvest_date,
-          shelf_life_days, expiry_alert_days, min_order_qty, manufacturer, manufacturer_part_no,
+          shelf_life_days, min_order_qty, manufacturer, manufacturer_part_no,
           warranty_months, additional_images || '[]', specifications || '{}', tags,
-          tracking_policy, tracking_policy_id, valuation_method || 'fifo',
+          tracking_policy, valuation_method || 'fifo',
           userId
         ]
       );
@@ -835,18 +844,13 @@ router.put(
       // Preserve existing values for any fields not sent by the UI/client.
       // This avoids accidentally setting NOT NULL columns to NULL.
       const barcodeParam = has('barcode') ? barcode : current.barcode;
-      const skuParam = has('sku') ? sku : current.sku;
       const nameEnParam = has('name_en') ? (name_en || resolvedName) : current.name_en;
       const nameArParam = has('name_ar') ? name_ar : current.name_ar;
-      const shortNameParam = has('short_name') ? short_name : current.short_name;
       const descriptionParam = has('description') ? description : current.description;
-      const descriptionArParam = has('description_ar') ? description_ar : current.description_ar;
       const categoryIdParam = has('category_id') ? category_id : current.category_id;
       const groupIdParam = has('group_id') ? (group_id || item_group_id) : current.group_id;
-      const itemGroupIdParam = has('item_group_id') ? (item_group_id || group_id) : current.item_group_id;
       const brandIdParam = has('brand_id') ? brand_id : current.brand_id;
       const itemTypeParam = item_type ?? current.item_type;
-      const itemGradeIdParam = has('item_grade_id') ? item_grade_id : current.item_grade_id;
       const isPurchasableParam = is_purchasable ?? current.is_purchasable;
       const isSellableParam = is_sellable ?? current.is_sellable;
       const isStockableParam = is_stockable ?? current.is_stockable;
@@ -880,7 +884,6 @@ router.put(
       const volumeParam = has('volume') ? volume : current.volume;
       const hsCodeParam = has('hs_code') ? hs_code : current.hs_code;
       const countryOfOriginParam = has('country_of_origin') ? country_of_origin : current.country_of_origin;
-      const taxCategoryParam = has('tax_category') ? tax_category : current.tax_category;
       const salesAccountIdParam = has('sales_account_id') ? sales_account_id : current.sales_account_id;
       const cogsAccountIdParam = has('cogs_account_id') ? cogs_account_id : current.cogs_account_id;
       const inventoryAccountIdParam = has('inventory_account_id') ? inventory_account_id : current.inventory_account_id;
@@ -896,7 +899,6 @@ router.put(
       const harvestScheduleIdParam = has('harvest_schedule_id') ? harvest_schedule_id : current.harvest_schedule_id;
       const expectedHarvestDateParam = has('expected_harvest_date') ? expected_harvest_date : current.expected_harvest_date;
       const shelfLifeDaysParam = has('shelf_life_days') ? shelf_life_days : current.shelf_life_days;
-      const expiryAlertDaysParam = has('expiry_alert_days') ? expiry_alert_days : current.expiry_alert_days;
       const minOrderQtyParam = has('min_order_qty') ? min_order_qty : current.min_order_qty;
       const manufacturerParam = has('manufacturer') ? manufacturer : current.manufacturer;
       const manufacturerPartNoParam = has('manufacturer_part_no') ? manufacturer_part_no : current.manufacturer_part_no;
@@ -904,7 +906,7 @@ router.put(
       const additionalImagesParam = has('additional_images') ? (additional_images || '[]') : current.additional_images;
       const specificationsParam = has('specifications') ? (specifications || '{}') : current.specifications;
       const tagsParam = has('tags') ? tags : current.tags;
-      const trackingPolicyIdParam = has('tracking_policy_id') ? tracking_policy_id : current.tracking_policy_id;
+      const trackingPolicyParam = has('tracking_policy') ? tracking_policy : current.tracking_policy;
 
       // Check for duplicate code (excluding current item)
       const duplicate = await pool.query(
@@ -921,34 +923,34 @@ router.put(
 
       const result = await pool.query(
         `UPDATE items SET
-          code = $1, barcode = $2, sku = $3, name = $4, name_en = $5, name_ar = $6, short_name = $7,
-          description = $8, description_ar = $9,
-          category_id = $10, group_id = $11, item_group_id = $12, brand_id = $13, item_type = $14,
-          item_type_id = $15, item_grade_id = $16,
-          is_purchasable = $17, is_sellable = $18, is_stockable = $19,
-          base_uom_id = $20, sales_uom_id = $21, purchase_uom_id = $22,
-          track_inventory = $23, allow_negative_stock = $24,
-          min_stock_level = $25, max_stock_level = $26, reorder_level = $27, reorder_qty = $28, lead_time_days = $29,
-          costing_method = $30, standard_cost = $31, last_purchase_cost = $32, average_cost = $33,
-          base_selling_price = $34, min_selling_price = $35, max_discount_percent = $36,
-          weight = $37, weight_uom_id = $38, length = $39, width = $40, height = $41, dimension_uom_id = $42, volume = $43,
-          hs_code = $44, country_of_origin = $45, tax_category = $46,
-          sales_account_id = $47, cogs_account_id = $48, inventory_account_id = $49, purchase_account_id = $50,
-          revenue_account_id = $51, adjustment_account_id = $52,
-          tax_type_id = $53, is_tax_inclusive = $54, image_url = $55, is_active = $56,
-          default_vendor_id = $57, harvest_schedule_id = $58, expected_harvest_date = $59,
-          shelf_life_days = $60, expiry_alert_days = $61, min_order_qty = $62,
-          manufacturer = $63, manufacturer_part_no = $64,
-          warranty_months = $65, additional_images = $66, specifications = $67, tags = $68,
-          tracking_policy_id = $69,
-          updated_by = $70, updated_at = NOW()
-        WHERE id = $71 AND company_id = $72 AND deleted_at IS NULL
+          code = $1, barcode = $2, name = $3, name_en = $4, name_ar = $5,
+          description = $6,
+          category_id = $7, group_id = $8, brand_id = $9, item_type = $10,
+          item_type_id = $11,
+          is_purchasable = $12, is_sellable = $13, is_stockable = $14,
+          base_uom_id = $15, sales_uom_id = $16, purchase_uom_id = $17,
+          track_inventory = $18, allow_negative_stock = $19,
+          min_stock_level = $20, max_stock_level = $21, reorder_level = $22, reorder_qty = $23, lead_time_days = $24,
+          costing_method = $25, standard_cost = $26, last_purchase_cost = $27, average_cost = $28,
+          base_selling_price = $29, min_selling_price = $30, max_discount_percent = $31,
+          weight = $32, weight_uom_id = $33, length = $34, width = $35, height = $36, dimension_uom_id = $37, volume = $38,
+          hs_code = $39, country_of_origin = $40,
+          sales_account_id = $41, cogs_account_id = $42, inventory_account_id = $43, purchase_account_id = $44,
+          revenue_account_id = $45, adjustment_account_id = $46,
+          tax_type_id = $47, is_tax_inclusive = $48, image_url = $49, is_active = $50,
+          default_vendor_id = $51, harvest_schedule_id = $52, expected_harvest_date = $53,
+          shelf_life_days = $54, min_order_qty = $55,
+          manufacturer = $56, manufacturer_part_no = $57,
+          warranty_months = $58, additional_images = $59, specifications = $60, tags = $61,
+          tracking_policy = $62,
+          updated_by = $63, updated_at = NOW()
+        WHERE id = $64 AND company_id = $65 AND deleted_at IS NULL
         RETURNING *`,
         [
-          code, barcodeParam, skuParam, resolvedName, nameEnParam, nameArParam, shortNameParam,
-          descriptionParam, descriptionArParam,
-          categoryIdParam, groupIdParam, itemGroupIdParam, brandIdParam, itemTypeParam,
-          itemTypeIdParam, itemGradeIdParam,
+          code, barcodeParam, resolvedName, nameEnParam, nameArParam,
+          descriptionParam,
+          categoryIdParam, groupIdParam, brandIdParam, itemTypeParam,
+          itemTypeIdParam,
           isPurchasableParam, isSellableParam, isStockableParam,
           baseUomIdParam, salesUomIdParam, purchaseUomIdParam,
           trackInventoryParam, allowNegativeStockParam,
@@ -956,18 +958,65 @@ router.put(
           costingMethodParam, standardCostParam, lastPurchaseCostParam, averageCostParam,
           baseSellingPriceParam, minSellingPriceParam, maxDiscountPercentParam,
           weightParam, weightUomIdParam, lengthParam, widthParam, heightParam, dimensionUomIdParam, volumeParam,
-          hsCodeParam, countryOfOriginParam, taxCategoryParam,
+          hsCodeParam, countryOfOriginParam,
           salesAccountIdParam, cogsAccountIdParam, inventoryAccountIdParam, purchaseAccountIdParam,
           revenueAccountIdParam, adjustmentAccountIdParam,
           taxTypeIdParam, isTaxInclusiveParam, imageUrlParam, isActiveParam,
           defaultVendorIdParam, harvestScheduleIdParam, expectedHarvestDateParam,
-          shelfLifeDaysParam, expiryAlertDaysParam, minOrderQtyParam,
+          shelfLifeDaysParam, minOrderQtyParam,
           manufacturerParam, manufacturerPartNoParam,
           warrantyMonthsParam, additionalImagesParam, specificationsParam, tagsParam,
-          trackingPolicyIdParam,
+          trackingPolicyParam,
           userId, id, companyId
         ]
       );
+
+      // ─── Sync barcode change to item_barcodes table ───────────────────
+      if (has('barcode') && barcodeParam !== current.barcode) {
+        try {
+          if (barcodeParam && barcodeParam.trim()) {
+            // Check if old primary barcode exists in item_barcodes
+            const existingPrimary = await pool.query(
+              `SELECT id, barcode FROM item_barcodes
+               WHERE item_id = $1 AND company_id = $2 AND is_primary = true AND deleted_at IS NULL`,
+              [id, companyId]
+            );
+            if (existingPrimary.rows.length > 0) {
+              // Update existing primary barcode to new value
+              await pool.query(
+                `UPDATE item_barcodes SET barcode = $1, updated_at = NOW(), updated_by = $2
+                 WHERE id = $3 AND company_id = $4`,
+                [barcodeParam.trim(), userId, existingPrimary.rows[0].id, companyId]
+              );
+            } else {
+              // No primary barcode exists — create one
+              const detectType = (v: string) => {
+                if (/^\d{13}$/.test(v)) return 'EAN-13';
+                if (/^\d{12}$/.test(v)) return 'UPC-A';
+                if (/^\d{8}$/.test(v)) return 'EAN-8';
+                return 'CODE-128';
+              };
+              await pool.query(
+                `INSERT INTO item_barcodes (company_id, item_id, barcode, barcode_type, is_primary, is_active, created_by)
+                 VALUES ($1, $2, $3, $4, true, true, $5)
+                 ON CONFLICT (company_id, barcode, deleted_at) DO UPDATE SET
+                   item_id = EXCLUDED.item_id, is_primary = true, updated_at = NOW()`,
+                [companyId, id, barcodeParam.trim(), detectType(barcodeParam.trim()), userId]
+              );
+            }
+          } else if (current.barcode) {
+            // Barcode cleared — deactivate primary barcode in item_barcodes
+            await pool.query(
+              `UPDATE item_barcodes SET is_active = false, updated_at = NOW(), updated_by = $1
+               WHERE item_id = $2 AND company_id = $3 AND is_primary = true AND deleted_at IS NULL`,
+              [userId, id, companyId]
+            );
+          }
+        } catch (syncErr) {
+          // Log but don't fail the item update
+          logger.error('Failed to sync barcode to item_barcodes', { itemId: id, error: (syncErr as any)?.message });
+        }
+      }
 
       res.json({ success: true, data: result.rows[0] });
     } catch (error: any) {
@@ -1017,10 +1066,70 @@ router.delete(
         return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Item not found' } });
       }
 
+      // Also soft-delete related barcodes
+      await pool.query(
+        `UPDATE item_barcodes SET deleted_at = NOW(), updated_by = $1
+         WHERE item_id = $2 AND company_id = $3 AND deleted_at IS NULL`,
+        [userId, id, companyId]
+      ).catch(() => {});
+
       res.json({ success: true, message: 'Item deleted successfully' });
     } catch (error) {
       console.error('Error deleting item:', error);
       res.status(500).json({ success: false, error: { code: 'DELETE_ERROR', message: 'Failed to delete item' } });
+    }
+  }
+);
+
+// POST /api/master/items/bulk/delete - Bulk soft delete items
+router.post(
+  '/bulk/delete',
+  requirePermission('master:items:delete'),
+  async (req: Request, res: Response) => {
+    try {
+      const companyId = (req as any).companyContext?.companyId;
+      const userId = (req as any).user?.id;
+      const { ids } = req.body;
+
+      if (!Array.isArray(ids) || ids.length === 0) {
+        return res.status(400).json({ success: false, error: { message: 'ids array is required' } });
+      }
+
+      // Check which items have movements
+      const movementCheck = await pool.query(
+        `SELECT id FROM items WHERE id = ANY($1) AND company_id = $2 AND deleted_at IS NULL
+         AND item_has_movement(id) = true`,
+        [ids, companyId]
+      );
+      const protectedIds = new Set(movementCheck.rows.map((r: any) => r.id));
+      const deletableIds = ids.filter((id: number) => !protectedIds.has(id));
+
+      let deleted = 0;
+      if (deletableIds.length > 0) {
+        const result = await pool.query(
+          `UPDATE items SET deleted_at = NOW(), deleted_by = $1
+           WHERE id = ANY($2) AND company_id = $3 AND deleted_at IS NULL
+           RETURNING id`,
+          [userId, deletableIds, companyId]
+        );
+        deleted = result.rowCount || 0;
+
+        // Also soft-delete related barcodes
+        await pool.query(
+          `UPDATE item_barcodes SET deleted_at = NOW(), updated_by = $1
+           WHERE item_id = ANY($2) AND company_id = $3 AND deleted_at IS NULL`,
+          [userId, deletableIds, companyId]
+        ).catch(() => {});
+      }
+
+      res.json({
+        success: true,
+        data: { deleted, skipped: protectedIds.size, total: ids.length },
+        message: `${deleted} item(s) deleted${protectedIds.size > 0 ? `, ${protectedIds.size} skipped (have movements)` : ''}`
+      });
+    } catch (error) {
+      console.error('Error bulk deleting items:', error);
+      res.status(500).json({ success: false, error: { code: 'BULK_DELETE_ERROR', message: 'Failed to bulk delete' } });
     }
   }
 );

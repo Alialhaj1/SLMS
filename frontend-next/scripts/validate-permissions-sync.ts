@@ -183,11 +183,13 @@ function normalizePermission(perm: string): string {
 // =============================================
 
 function validateSync(): ValidationResult {
-  console.log(`\n${COLORS.cyan}${COLORS.bold}🔍 Scanning Backend Routes...${COLORS.reset}`);
+  console.log(`
+${COLORS.cyan}${COLORS.bold}🔍 Scanning Backend Routes...${COLORS.reset}`);
   const backendPerms = extractBackendPermissions();
   console.log(`   Found ${backendPerms.length} permission checks`);
   
-  console.log(`\n${COLORS.cyan}${COLORS.bold}🔍 Scanning Frontend Permissions...${COLORS.reset}`);
+  console.log(`
+${COLORS.cyan}${COLORS.bold}🔍 Scanning Frontend Permissions...${COLORS.reset}`);
   const frontendPerms = extractFrontendPermissions();
   console.log(`   Found ${frontendPerms.length} defined permissions`);
   
@@ -227,30 +229,37 @@ function validateSync(): ValidationResult {
 // =============================================
 
 function printReport(result: ValidationResult): void {
-  console.log(`\n${'='.repeat(80)}`);
+  console.log(`
+${'='.repeat(80)}`);
   console.log(`${COLORS.bold}🔐 PERMISSION SYNC VALIDATION REPORT${COLORS.reset}`);
-  console.log(`${'='.repeat(80)}\n`);
+  console.log(`${'='.repeat(80)}
+`);
   
   // Perfect Matches
   console.log(`${COLORS.green}✅ Perfect Matches: ${result.perfectMatches.length}${COLORS.reset}`);
   
   // Backend-Only (CRITICAL)
   if (result.backendOnly.length > 0) {
-    console.log(`\n${COLORS.red}${COLORS.bold}❌ Backend Permissions WITHOUT Frontend Definition: ${result.backendOnly.length}${COLORS.reset}`);
-    console.log(`${COLORS.yellow}   ⚠️  CRITICAL: These APIs are protected but Frontend doesn't know!${COLORS.reset}\n`);
+    console.log(`
+${COLORS.red}${COLORS.bold}❌ Backend Permissions WITHOUT Frontend Definition: ${result.backendOnly.length}${COLORS.reset}`);
+    console.log(`${COLORS.yellow}   ⚠️  CRITICAL: These APIs are protected but Frontend doesn't know!${COLORS.reset}
+`);
     
     for (const perm of result.backendOnly) {
       console.log(`   ${COLORS.red}•${COLORS.reset} ${perm.permission}`);
       console.log(`     ${COLORS.cyan}File:${COLORS.reset} ${perm.file}:${perm.line}`);
       console.log(`     ${COLORS.cyan}Endpoint:${COLORS.reset} ${perm.method} ${perm.endpoint}`);
-      console.log(`     ${COLORS.yellow}Action:${COLORS.reset} Add to MenuPermissions in menu.permissions.ts\n`);
+      console.log(`     ${COLORS.yellow}Action:${COLORS.reset} Add to MenuPermissions in menu.permissions.ts
+`);
     }
   }
   
   // Frontend-Only (Warning)
   if (result.frontendOnly.length > 0) {
-    console.log(`\n${COLORS.yellow}⚠️  Frontend Permissions WITHOUT Backend Usage: ${result.frontendOnly.length}${COLORS.reset}`);
-    console.log(`${COLORS.yellow}   May be OK if planned for future or used in UI-only checks${COLORS.reset}\n`);
+    console.log(`
+${COLORS.yellow}⚠️  Frontend Permissions WITHOUT Backend Usage: ${result.frontendOnly.length}${COLORS.reset}`);
+    console.log(`${COLORS.yellow}   May be OK if planned for future or used in UI-only checks${COLORS.reset}
+`);
     
     for (const perm of result.frontendOnly.slice(0, 10)) { // Show first 10
       console.log(`   ${COLORS.yellow}•${COLORS.reset} ${perm}`);
@@ -262,7 +271,8 @@ function printReport(result: ValidationResult): void {
   }
   
   // Summary
-  console.log(`\n${'='.repeat(80)}`);
+  console.log(`
+${'='.repeat(80)}`);
   
   const totalIssues = result.backendOnly.length;
   
@@ -276,7 +286,8 @@ function printReport(result: ValidationResult): void {
     console.log(`   ${result.frontendOnly.length} Frontend permissions not used in Backend (warning only)`);
   }
   
-  console.log(`${'='.repeat(80)}\n`);
+  console.log(`${'='.repeat(80)}
+`);
 }
 
 // =============================================
@@ -293,11 +304,13 @@ function main(): void {
   
   // Exit with error if critical issues found
   if (result.backendOnly.length > 0) {
-    console.log(`${COLORS.red}❌ Build Failed: Fix permission mismatches before proceeding.${COLORS.reset}\n`);
+    console.log(`${COLORS.red}❌ Build Failed: Fix permission mismatches before proceeding.${COLORS.reset}
+`);
     process.exit(1);
   }
   
-  console.log(`${COLORS.green}✅ Validation Passed!${COLORS.reset}\n`);
+  console.log(`${COLORS.green}✅ Validation Passed!${COLORS.reset}
+`);
   process.exit(0);
 }
 

@@ -5,6 +5,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useTranslation } from '../../hooks/useTranslation';
 import { useToast } from '../../contexts/ToastContext';
 import { withPermission } from '../../utils/withPermission';
+import { useCurrencies } from '../../hooks/useReferenceData';
 
 interface TenantConfig {
   tenant_name: string;
@@ -57,6 +58,7 @@ function TenantSettingsPage() {
   const { t } = useTranslation();
   const { user } = useAuth();
   const { showToast } = useToast();
+  const { currencies: currencyList } = useCurrencies();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [config, setConfig] = useState<TenantConfig>(defaults);
@@ -123,7 +125,7 @@ function TenantSettingsPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Select label={t('settings.timezone') || 'Timezone'} value={config.timezone} options={TIMEZONE_OPTIONS} onChange={v => setConfig(p => ({ ...p, timezone: v }))} />
                 <Select label={t('settings.locale') || 'Locale'} value={config.locale} options={LOCALE_OPTIONS} onChange={v => setConfig(p => ({ ...p, locale: v }))} />
-                <Select label={t('settings.currency') || 'Default Currency'} value={config.currency} options={['SAR', 'USD', 'EUR', 'GBP', 'AED', 'KWD', 'BHD']} onChange={v => setConfig(p => ({ ...p, currency: v }))} />
+                <Select label={t('settings.currency') || 'Default Currency'} value={config.currency} options={currencyList.map(c => c.code)} onChange={v => setConfig(p => ({ ...p, currency: v }))} />
                 <Select label={t('settings.weekStartsOn') || 'Week Starts On'} value={config.week_starts_on} options={[{ value: 'sunday', label: 'Sunday' }, { value: 'monday', label: 'Monday' }, { value: 'saturday', label: 'Saturday' }]} onChange={v => setConfig(p => ({ ...p, week_starts_on: v }))} />
               </div>
             </div>

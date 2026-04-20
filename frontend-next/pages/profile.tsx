@@ -26,12 +26,14 @@ import {
   DevicePhoneMobileIcon,
   ComputerDesktopIcon,
   CameraIcon,
+  PencilSquareIcon,
+  TrashIcon,
 } from '@heroicons/react/24/outline';
 
-type TabType = 'overview' | 'security' | 'history';
+type TabType = 'overview' | 'security' | 'history' | 'signature';
 
-// API base URL for images
-const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || '') + '/api';
+// API base URL for images (uploads are served at /uploads, not /api/uploads)
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
 export default function ProfilePage() {
   const { user, refreshUser } = useAuth();
@@ -46,6 +48,7 @@ export default function ProfilePage() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [loginStats, setLoginStats] = useState<any>(null);
   const [imageLoading, setImageLoading] = useState(false);
+  const [signatureLoading, setSignatureLoading] = useState(false);
 
   // Load login history
   useEffect(() => {
@@ -248,6 +251,13 @@ export default function ProfilePage() {
               >
                 {t('profile.tabs.activity')}
               </TabButton>
+              <TabButton
+                active={activeTab === 'signature'}
+                onClick={() => setActiveTab('signature')}
+                icon={<PencilSquareIcon className="w-5 h-5" />}
+              >
+                {locale === 'ar' ? 'التوقيع' : 'Signature'}
+              </TabButton>
             </nav>
           </div>
 
@@ -271,9 +281,209 @@ export default function ProfilePage() {
                 t={t}
               />
             )}
+            {activeTab === 'signature' && (
+              <SignatureTab userId={(user as any).id} locale={locale} showToast={showToast} />
+            )}
           </div>
       </MainLayout>
     </AuthGuard>
+  );
+}
+
+// ===========================
+// Signature Tab
+// ===========================
+
+function SignatureTab({ userId, locale, showToast }: { userId: number; locale: string; showToast: any }) {
+  const isArabic = locale === 'ar';
+  const [signatureData, setSignatureData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [titleEn, setTitleEn] = useState('');
+  const [titleAr, setTitleAr] = useState('');
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [base64Image, setBase64Image] = useState<string | null>(null);
+  const fileInputRef = { current: null as HTMLInputElement | null };
+
+  useEffect(() => {
+    const fetchSignature = async () => {
+      try {
+        const token = localStorage.getItem('accessToken');
+        const res = await fetch(`/api/users/${userId}/signature`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setSignatureData(data);
+          setTitleEn(data.signature_title_en || '');
+          setTitleAr(data.signature_title_ar || '');
+          if (data.signature_image_url) setPreviewUrl(data.signature_image_url);
+        }
+      } catch (e) {
+        // ignore
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchSignature();
+  }, [userId]);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const result = ev.target?.result as string;
+      setPreviewUrl(result);
+      setBase64Image(result);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const token = localStorage.getItem('accessToken');
+      const body: any = { signature_title_en: titleEn, signature_title_ar: titleAr };
+      if (base64Image) body.signature_image = base64Image;
+      const res = await fetch(`/api/users/${userId}/signature`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || 'Save failed');
+      const data = await res.json();
+      setSignatureData(data);
+      setBase64Image(null);
+      if (data.signature_image_url) setPreviewUrl(data.signature_image_url);
+      showToast({ type: 'success', message: isArabic ? 'تم حفظ التوقيع' : 'Signature saved' });
+    } catch (err: any) {
+      showToast({ type: 'error', message: err.message });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    setSaving(true);
+    try {
+      const token = localStorage.getItem('accessToken');
+      const res = await fetch(`/api/users/${userId}/signature`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error('Delete failed');
+      setPreviewUrl(null);
+      setBase64Image(null);
+      setSignatureData((prev: any) => ({ ...prev, signature_image_url: null }));
+      showToast({ type: 'success', message: isArabic ? 'تم حذف التوقيع' : 'Signature removed' });
+    } catch (err: any) {
+      showToast({ type: 'error', message: err.message });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-xl space-y-6">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 border border-gray-200 dark:border-gray-700">
+        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-1 flex items-center gap-2">
+          <PencilSquareIcon className="w-6 h-6" />
+          {isArabic ? 'توقيعي' : 'My Signature'}
+        </h2>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
+          {isArabic
+            ? 'يظهر توقيعك على طلبات الموافقة والمراجعة التي تعتمدها'
+            : 'Your signature appears on approval and review requests you process.'}
+        </p>
+
+        {/* Signature Preview */}
+        <div className="mb-6">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            {isArabic ? 'صورة التوقيع' : 'Signature Image'}
+          </label>
+          <div className="w-64 h-32 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg flex items-center justify-center bg-gray-50 dark:bg-gray-700 overflow-hidden mb-3">
+            {previewUrl ? (
+              <img src={previewUrl} alt="signature preview" className="max-w-full max-h-full object-contain p-2" />
+            ) : (
+              <span className="text-sm text-gray-400">{isArabic ? 'لا يوجد توقيع' : 'No signature'}</span>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <label className="cursor-pointer inline-flex items-center gap-2 px-3 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors">
+              <CameraIcon className="w-4 h-4" />
+              {isArabic ? 'رفع صورة' : 'Upload Image'}
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleFileChange}
+              />
+            </label>
+            {previewUrl && (
+              <button
+                onClick={handleDelete}
+                disabled={saving}
+                className="inline-flex items-center gap-2 px-3 py-2 text-sm border border-red-300 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg font-medium transition-colors disabled:opacity-50"
+              >
+                <TrashIcon className="w-4 h-4" />
+                {isArabic ? 'حذف' : 'Remove'}
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Title fields */}
+        <div className="space-y-4 mb-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              {isArabic ? 'المسمى الوظيفي (إنجليزي)' : 'Job Title (English)'}
+            </label>
+            <input
+              type="text"
+              value={titleEn}
+              onChange={e => setTitleEn(e.target.value)}
+              className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="e.g. Finance Manager"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              {isArabic ? 'المسمى الوظيفي (عربي)' : 'Job Title (Arabic)'}
+            </label>
+            <input
+              type="text"
+              value={titleAr}
+              onChange={e => setTitleAr(e.target.value)}
+              dir="rtl"
+              className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="مثال: مدير مالي"
+            />
+          </div>
+        </div>
+
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors"
+        >
+          {saving ? (
+            <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+          ) : (
+            <CheckCircleIcon className="w-4 h-4" />
+          )}
+          {isArabic ? 'حفظ التغييرات' : 'Save Changes'}
+        </button>
+      </div>
+    </div>
   );
 }
 

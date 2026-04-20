@@ -10,6 +10,7 @@ import pool from '../db';
 import { authenticate } from '../middleware/auth';
 import { requirePermission, requireAnyPermission } from '../middleware/rbac';
 import { loadCompanyContext } from '../middleware/companyContext';
+import { recordApprovalHistory, notifyOnAction } from '../services/approvalService';
 
 const router = express.Router();
 router.use(authenticate, loadCompanyContext);
@@ -36,6 +37,7 @@ router.get(
         vendor_id,
         is_printed,
         is_posted,
+        deleted_only,
         date_from,
         date_to,
         search,
@@ -45,11 +47,12 @@ router.get(
 
       const offset = (parseInt(page as string) - 1) * parseInt(limit as string);
 
-      let whereConditions = ['pr.deleted_at IS NULL'];
+      let whereConditions = deleted_only === 'true' ? ['pr.deleted_at IS NOT NULL'] : ['pr.deleted_at IS NULL'];
       const queryParams: any[] = [];
       let paramIndex = 1;
 
-      if (!isSuperAdmin && companyId) {
+      // Company filter — always enforce company isolation (even for super_admin)
+      if (companyId) {
         whereConditions.push(`pr.company_id = $${paramIndex}`);
         queryParams.push(companyId);
         paramIndex++;
@@ -201,7 +204,8 @@ router.get(
       const queryParams: any[] = [id];
       let paramIndex = 2;
 
-      if (!isSuperAdmin && companyId) {
+      // Company filter — always enforce company isolation
+      if (companyId) {
         whereConditions.push(`pr.company_id = $${paramIndex}`);
         queryParams.push(companyId);
         paramIndex++;
@@ -220,9 +224,12 @@ router.get(
           rs.name_ar as status_name_ar,
           rs.color as status_color,
           rs.icon as status_icon,
+          rs.code as status_code,
           rs.allows_edit,
           rs.allows_delete,
           rs.allows_print,
+          rs.allows_submit,
+          rs.allows_approve,
           et.name as expense_type_name,
           et.name_ar as expense_type_name_ar,
           p.name as project_name,
@@ -237,6 +244,11 @@ router.get(
           c.name as currency_name,
           u.email as requested_by_email,
           u.full_name as requested_by_name,
+          approver.email as approved_by_email,
+          approver.full_name as approved_by_name,
+          rejector.email as rejected_by_email,
+          rejector.full_name as rejected_by_name,
+          executor.full_name as executed_by_name,
           tr.request_number as transfer_request_number,
           er.request_number as expense_request_number,
           ba.account_number as bank_account_number,
@@ -249,6 +261,9 @@ router.get(
         LEFT JOIN vendors v ON pr.vendor_id = v.id
         LEFT JOIN currencies c ON pr.currency_id = c.id
         LEFT JOIN users u ON pr.requested_by = u.id
+        LEFT JOIN users approver ON pr.approved_by = approver.id
+        LEFT JOIN users rejector ON pr.rejected_by = rejector.id
+        LEFT JOIN users executor ON pr.executed_by = executor.id
         LEFT JOIN transfer_requests tr ON pr.transfer_request_id = tr.id
         LEFT JOIN expense_requests er ON pr.expense_request_id = er.id
         LEFT JOIN bank_accounts ba ON pr.bank_account_id = ba.id
@@ -267,8 +282,13 @@ router.get(
           rah.*,
           u.email as performed_by_email,
           u.full_name as performed_by_name,
+          u.signature_image_url as performer_signature_url,
+          u.signature_title_en as performer_title_en,
+          u.signature_title_ar as performer_title_ar,
           ps.name as previous_status_name,
-          ns.name as new_status_name
+          ps.name_ar as previous_status_name_ar,
+          ns.name as new_status_name,
+          ns.name_ar as new_status_name_ar
         FROM request_approval_history rah
         LEFT JOIN users u ON rah.performed_by = u.id
         LEFT JOIN request_statuses ps ON rah.previous_status_id = ps.id
@@ -438,6 +458,236 @@ router.post(
       res.status(500).json({ error: 'Failed to create payment request' });
     } finally {
       client.release();
+    }
+  }
+);
+
+/**
+ * POST /api/payment-requests/:id/submit
+ * Submit payment request for approval
+ */
+router.post(
+  '/:id/submit',
+  authenticate,
+  requirePermission('payment_requests:submit'),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const userId = req.user!.id;
+      const companyId = req.user!.companyId;
+
+      const statusQuery = `SELECT id FROM request_statuses WHERE code = 'SUBMITTED'`;
+      const statusResult = await pool.query(statusQuery);
+      const submittedStatusId = statusResult.rows[0]?.id;
+
+      const updateQuery = `
+        UPDATE payment_requests
+        SET status_id = $1, submitted_at = NOW(), submitted_by = $2, updated_by = $2
+        WHERE id = $3 AND company_id = $4 AND deleted_at IS NULL
+          AND status_id = (SELECT id FROM request_statuses WHERE code = 'DRAFT')
+        RETURNING *
+      `;
+
+      const result = await pool.query(updateQuery, [submittedStatusId, userId, id, companyId]);
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: 'Payment request not found or cannot be submitted' });
+      }
+
+      const request = result.rows[0];
+
+      const draftStatusId = (await pool.query(`SELECT id FROM request_statuses WHERE code = 'DRAFT'`)).rows[0]?.id;
+      await recordApprovalHistory({
+        requestType: 'payment', requestId: parseInt(id), companyId: companyId!,
+        userId, action: 'submitted', previousStatusId: draftStatusId, newStatusId: submittedStatusId,
+        ipAddress: req.ip, userAgent: req.headers['user-agent'],
+      });
+      await notifyOnAction({
+        companyId: companyId!, requestType: 'payment', requestId: parseInt(id),
+        requestNumber: request.request_number || `PAY-${id}`,
+        action: 'submitted', actorId: userId, requestedBy: request.requested_by,
+      });
+
+      res.json({ message: 'Payment request submitted for approval', data: request });
+    } catch (error: any) {
+      console.error('Error submitting payment request:', error);
+      res.status(500).json({ error: 'Failed to submit payment request' });
+    }
+  }
+);
+
+/**
+ * POST /api/payment-requests/:id/review
+ * Review payment request (3-level: SUBMITTED → REVIEWED)
+ */
+router.post(
+  '/:id/review',
+  authenticate,
+  requireAnyPermission(['payment_requests:review', 'payment_requests:approve']),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { comments } = req.body;
+      const userId = req.user!.id;
+      const companyId = req.user!.companyId;
+
+      const statusResult = await pool.query(`SELECT id FROM request_statuses WHERE code = 'REVIEWED'`);
+      const reviewedStatusId = statusResult.rows[0]?.id;
+      if (!reviewedStatusId) return res.status(500).json({ error: 'REVIEWED status not found' });
+
+      const currentReq = await pool.query(
+        `SELECT pr.*, rs.code as status_code FROM payment_requests pr
+         JOIN request_statuses rs ON pr.status_id = rs.id
+         WHERE pr.id = $1 AND pr.company_id = $2 AND pr.deleted_at IS NULL`,
+        [id, companyId]
+      );
+      if (currentReq.rows.length === 0) return res.status(404).json({ error: 'Payment request not found' });
+      if (currentReq.rows[0].status_code !== 'SUBMITTED') {
+        return res.status(400).json({ error: 'Payment request must be in SUBMITTED status to review' });
+      }
+
+      const previousStatusId = currentReq.rows[0].status_id;
+      const result = await pool.query(
+        `UPDATE payment_requests SET status_id = $1, reviewed_at = NOW(), reviewed_by = $2, updated_by = $2
+         WHERE id = $3 AND company_id = $4 AND deleted_at IS NULL RETURNING *`,
+        [reviewedStatusId, userId, id, companyId]
+      );
+      const request = result.rows[0];
+
+      await recordApprovalHistory({
+        requestType: 'payment', requestId: parseInt(id), companyId: companyId!,
+        userId, action: 'reviewed', previousStatusId, newStatusId: reviewedStatusId,
+        comments, ipAddress: req.ip, userAgent: req.headers['user-agent'],
+      });
+      await notifyOnAction({
+        companyId: companyId!, requestType: 'payment', requestId: parseInt(id),
+        requestNumber: request.request_number || `PAY-${id}`,
+        action: 'reviewed', actorId: userId, requestedBy: request.requested_by,
+      });
+
+      res.json({ message: 'Payment request reviewed successfully', data: request });
+    } catch (error: any) {
+      console.error('Error reviewing payment request:', error);
+      res.status(500).json({ error: 'Failed to review payment request' });
+    }
+  }
+);
+
+/**
+ * POST /api/payment-requests/:id/approve
+ * Approve payment request (accepts from SUBMITTED or REVIEWED)
+ */
+router.post(
+  '/:id/approve',
+  authenticate,
+  requirePermission('payment_requests:approve'),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { comments } = req.body;
+      const userId = req.user!.id;
+      const companyId = req.user!.companyId;
+
+      const statusResult = await pool.query(`SELECT id FROM request_statuses WHERE code = 'APPROVED'`);
+      const approvedStatusId = statusResult.rows[0]?.id;
+
+      const currentReq = await pool.query(
+        `SELECT pr.*, rs.code as status_code FROM payment_requests pr
+         JOIN request_statuses rs ON pr.status_id = rs.id
+         WHERE pr.id = $1 AND pr.company_id = $2 AND pr.deleted_at IS NULL`,
+        [id, companyId]
+      );
+      if (currentReq.rows.length === 0) return res.status(404).json({ error: 'Payment request not found' });
+      const currentStatus = currentReq.rows[0].status_code;
+      if (currentStatus !== 'SUBMITTED' && currentStatus !== 'REVIEWED') {
+        return res.status(400).json({ error: 'Payment request must be in SUBMITTED or REVIEWED status to approve' });
+      }
+      const previousStatusId = currentReq.rows[0].status_id;
+
+      const result = await pool.query(
+        `UPDATE payment_requests SET status_id = $1, approved_at = NOW(), approved_by = $2, updated_by = $2
+         WHERE id = $3 AND company_id = $4 AND deleted_at IS NULL RETURNING *`,
+        [approvedStatusId, userId, id, companyId]
+      );
+      const request = result.rows[0];
+
+      await recordApprovalHistory({
+        requestType: 'payment', requestId: parseInt(id), companyId: companyId!,
+        userId, action: 'approved', previousStatusId, newStatusId: approvedStatusId,
+        comments, ipAddress: req.ip, userAgent: req.headers['user-agent'],
+      });
+      await notifyOnAction({
+        companyId: companyId!, requestType: 'payment', requestId: parseInt(id),
+        requestNumber: request.request_number || `PAY-${id}`,
+        action: 'approved', actorId: userId, requestedBy: request.requested_by,
+      });
+
+      res.json({ message: 'Payment request approved', data: request });
+    } catch (error: any) {
+      console.error('Error approving payment request:', error);
+      res.status(500).json({ error: 'Failed to approve payment request' });
+    }
+  }
+);
+
+/**
+ * POST /api/payment-requests/:id/reject
+ * Reject payment request
+ */
+router.post(
+  '/:id/reject',
+  authenticate,
+  requirePermission('payment_requests:approve'),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { rejection_reason, comments } = req.body;
+      const userId = req.user!.id;
+      const companyId = req.user!.companyId;
+
+      if (!rejection_reason || !rejection_reason.trim()) {
+        return res.status(400).json({ error: 'Rejection reason is required' });
+      }
+
+      const statusResult = await pool.query(`SELECT id FROM request_statuses WHERE code = 'REJECTED'`);
+      const rejectedStatusId = statusResult.rows[0]?.id;
+
+      const currentReq = await pool.query(
+        `SELECT pr.*, rs.code as status_code FROM payment_requests pr
+         JOIN request_statuses rs ON pr.status_id = rs.id
+         WHERE pr.id = $1 AND pr.company_id = $2 AND pr.deleted_at IS NULL`,
+        [id, companyId]
+      );
+      if (currentReq.rows.length === 0) return res.status(404).json({ error: 'Payment request not found' });
+      const currentStatus = currentReq.rows[0].status_code;
+      if (currentStatus !== 'SUBMITTED' && currentStatus !== 'REVIEWED') {
+        return res.status(400).json({ error: 'Payment request must be in SUBMITTED or REVIEWED status to reject' });
+      }
+      const previousStatusId = currentReq.rows[0].status_id;
+
+      const result = await pool.query(
+        `UPDATE payment_requests SET status_id = $1, rejected_at = NOW(), rejected_by = $2, rejection_reason = $3, updated_by = $2
+         WHERE id = $4 AND company_id = $5 AND deleted_at IS NULL RETURNING *`,
+        [rejectedStatusId, userId, rejection_reason.trim(), id, companyId]
+      );
+      const request = result.rows[0];
+
+      await recordApprovalHistory({
+        requestType: 'payment', requestId: parseInt(id), companyId: companyId!,
+        userId, action: 'rejected', previousStatusId, newStatusId: rejectedStatusId,
+        comments, rejectionReason: rejection_reason.trim(),
+        ipAddress: req.ip, userAgent: req.headers['user-agent'],
+      });
+      await notifyOnAction({
+        companyId: companyId!, requestType: 'payment', requestId: parseInt(id),
+        requestNumber: request.request_number || `PAY-${id}`,
+        action: 'rejected', actorId: userId, requestedBy: request.requested_by,
+      });
+
+      res.json({ message: 'Payment request rejected', data: request });
+    } catch (error: any) {
+      console.error('Error rejecting payment request:', error);
+      res.status(500).json({ error: 'Failed to reject payment request' });
     }
   }
 );

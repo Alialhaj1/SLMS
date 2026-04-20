@@ -47,7 +47,7 @@ export default function ApprovalWorkflowsPage() {
       const data = await res.json();
       setWorkflows(data.data || []);
     } catch {
-      showToast('error', t('errors.load') || 'Failed to load workflows');
+      showToast('error', t('adminApprovalWorkflows.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -73,7 +73,7 @@ export default function ApprovalWorkflowsPage() {
   const removeStep = (i: number) => setFormSteps(formSteps.filter((_, idx) => idx !== i).map((s, idx) => ({ ...s, order: idx + 1 })));
 
   const handleSave = async () => {
-    if (!formName || !formModule) { showToast('error', 'Name and module are required'); return; }
+    if (!formName || !formModule) { showToast('error', t('adminApprovalWorkflows.nameModuleRequired')); return; }
     setSaving(true);
     try {
       const token = localStorage.getItem('accessToken');
@@ -87,11 +87,11 @@ export default function ApprovalWorkflowsPage() {
         body: JSON.stringify({ name: formName, module: formModule, steps: formSteps }),
       });
       if (!res.ok) throw new Error('Failed to save');
-      showToast('success', editing ? 'Workflow updated' : 'Workflow created');
+      showToast('success', editing ? t('adminApprovalWorkflows.workflowUpdated') : t('adminApprovalWorkflows.workflowCreated'));
       setShowForm(false);
       fetchWorkflows();
     } catch {
-      showToast('error', 'Failed to save workflow');
+      showToast('error', t('adminApprovalWorkflows.saveFailed'));
     } finally {
       setSaving(false);
     }
@@ -107,45 +107,45 @@ export default function ApprovalWorkflowsPage() {
 
   return (
     <MainLayout>
-      <Head><title>{t('approvalWorkflows.title') || 'Approval Workflows'} - SLMS</title></Head>
+      <Head><title>{t('adminApprovalWorkflows.title')} - SLMS</title></Head>
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
               <CogIcon className="w-7 h-7 text-blue-500" />
-              {t('approvalWorkflows.title') || 'Approval Workflows'}
+              {t('adminApprovalWorkflows.title')}
             </h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('approvalWorkflows.subtitle') || 'Configure multi-step approval logic per module'}</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('adminApprovalWorkflows.subtitle')}</p>
           </div>
           <button onClick={openCreate} className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium transition-colors">
-            <PlusIcon className="w-4 h-4" /> {t('common.create') || 'Create Workflow'}
+            <PlusIcon className="w-4 h-4" /> {t('adminApprovalWorkflows.createWorkflow')}
           </button>
         </div>
 
         {showForm && (
           <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-6 space-y-4">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{editing ? 'Edit Workflow' : 'New Workflow'}</h2>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{editing ? t('adminApprovalWorkflows.editWorkflow') : t('adminApprovalWorkflows.newWorkflow')}</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <input value={formName} onChange={(e) => setFormName(e.target.value)} placeholder="Workflow Name" className="px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500" />
-              <input value={formModule} onChange={(e) => setFormModule(e.target.value)} placeholder="Module (e.g. purchase_orders)" className="px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500" />
+              <input value={formName} onChange={(e) => setFormName(e.target.value)} placeholder={t('adminApprovalWorkflows.workflowName')} className="px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500" />
+              <input value={formModule} onChange={(e) => setFormModule(e.target.value)} placeholder={t('adminApprovalWorkflows.modulePlaceholder')} className="px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500" />
             </div>
             <div className="space-y-2">
-              <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Steps</p>
+              <p className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('adminApprovalWorkflows.steps')}</p>
               {formSteps.map((step, i) => (
                 <div key={i} className="flex items-center gap-2">
                   <span className="text-xs text-gray-400 w-6">{step.order}.</span>
-                  <input value={step.role} onChange={(e) => { const s = [...formSteps]; s[i].role = e.target.value; setFormSteps(s); }} placeholder="Role" className="flex-1 px-3 py-1.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white text-sm" />
+                  <input value={step.role} onChange={(e) => { const s = [...formSteps]; s[i].role = e.target.value; setFormSteps(s); }} placeholder={t('adminApprovalWorkflows.role')} className="flex-1 px-3 py-1.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white text-sm" />
                   <select value={step.action} onChange={(e) => { const s = [...formSteps]; s[i].action = e.target.value; setFormSteps(s); }} className="px-3 py-1.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white text-sm">
-                    <option value="approve">Approve</option><option value="review">Review</option><option value="sign">Sign</option>
+                    <option value="approve">{t('adminApprovalWorkflows.approve')}</option><option value="review">{t('adminApprovalWorkflows.review')}</option><option value="sign">{t('adminApprovalWorkflows.sign')}</option>
                   </select>
                   {formSteps.length > 1 && <button onClick={() => removeStep(i)} className="text-red-500 hover:text-red-700 text-sm">✕</button>}
                 </div>
               ))}
-              <button onClick={addStep} className="text-blue-600 hover:text-blue-700 text-sm font-medium">+ Add Step</button>
+              <button onClick={addStep} className="text-blue-600 hover:text-blue-700 text-sm font-medium">{t('adminApprovalWorkflows.addStep')}</button>
             </div>
             <div className="flex gap-2 pt-2">
-              <button onClick={handleSave} disabled={saving} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium disabled:opacity-50">{saving ? 'Saving...' : 'Save'}</button>
-              <button onClick={() => setShowForm(false)} className="px-4 py-2 bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-gray-300 rounded-lg text-sm">Cancel</button>
+              <button onClick={handleSave} disabled={saving} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium disabled:opacity-50">{saving ? t('adminApprovalWorkflows.saving') : t('adminApprovalWorkflows.save')}</button>
+              <button onClick={() => setShowForm(false)} className="px-4 py-2 bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-gray-300 rounded-lg text-sm">{t('adminApprovalWorkflows.cancel')}</button>
             </div>
           </div>
         )}
@@ -154,7 +154,7 @@ export default function ApprovalWorkflowsPage() {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 dark:bg-slate-900/50">
               <tr>
-                {['Name', 'Module', 'Steps', 'Status'].map((h) => (
+                {[t('adminApprovalWorkflows.name'), t('adminApprovalWorkflows.module'), t('adminApprovalWorkflows.steps'), t('adminApprovalWorkflows.status')].map((h) => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{h}</th>
                 ))}
                 <th className="px-4 py-3" />
@@ -162,15 +162,15 @@ export default function ApprovalWorkflowsPage() {
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
               {loading ? Array.from({ length: 4 }).map((_, i) => <SkeletonRow key={i} />) : workflows.length === 0 ? (
-                <tr><td colSpan={5} className="px-4 py-12 text-center text-gray-400 dark:text-gray-500">No workflows configured</td></tr>
+                <tr><td colSpan={5} className="px-4 py-12 text-center text-gray-400 dark:text-gray-500">{t('adminApprovalWorkflows.noWorkflows')}</td></tr>
               ) : workflows.map((wf) => (
                 <tr key={wf.id} className="hover:bg-gray-50 dark:hover:bg-slate-700/30 transition-colors">
                   <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{wf.name}</td>
                   <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{wf.module}</td>
-                  <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{wf.steps?.length || 0} steps</td>
+                  <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{t('adminApprovalWorkflows.stepsCount', { count: wf.steps?.length || 0 })}</td>
                   <td className="px-4 py-3">
                     <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${wf.is_active ? 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-400' : 'bg-gray-100 text-gray-500 dark:bg-slate-700 dark:text-gray-400'}`}>
-                      {wf.is_active ? 'Active' : 'Inactive'}
+                      {wf.is_active ? t('adminApprovalWorkflows.active') : t('adminApprovalWorkflows.inactive')}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right">

@@ -12,6 +12,7 @@ const SUPER_ADMIN_ROLES = [
 
 type LegacyUseAuthResult = {
   user: UserProfile | null;
+  token: string | null;
   loading: boolean;
   /** True once fresh profile from API has been loaded (not just cached) */
   profileReady: boolean;
@@ -26,7 +27,7 @@ type LegacyUseAuthResult = {
  * duplicated `/api/me` calls and keep RBAC state consistent across the app.
  */
 export function useAuth(): LegacyUseAuthResult {
-  const { user, loading, logout, isAuthenticated, profileReady } = useAuthContext();
+  const { user, token, loading, logout, isAuthenticated, profileReady } = useAuthContext();
 
   const normalizedUser = useMemo(() => {
     if (!user) return null;
@@ -36,7 +37,14 @@ export function useAuth(): LegacyUseAuthResult {
     // Super admin check: must have super_admin role AND be a platform user (no tenant_id)
     const isSuperAdmin = !user.tenant_id && roles.some((role) => SUPER_ADMIN_ROLES.includes(role));
 
-    if (!isSuperAdmin) {
+    // Tenant admin check: has tenant_id AND is_tenant_admin flag
+    const userAny = user as any;
+    const isTenantAdmin = !!userAny.tenant_id && (
+      userAny.is_tenant_admin === true ||
+      roles.includes('tenant_admin')
+    );
+
+    if (!isSuperAdmin && !isTenantAdmin) {
       return {
         ...user,
         roles,
@@ -44,12 +52,14 @@ export function useAuth(): LegacyUseAuthResult {
       };
     }
 
-    // Super admin: ensure wildcard permissions exist for any legacy checks.
+    // Super admin or tenant admin: ensure wildcard permissions exist for permission checks.
     const expanded = new Set<string>(permissions);
     expanded.add('*:*');
     expanded.add('*.*');
-    expanded.add('admin:*');
-    expanded.add('system:*');
+    if (isSuperAdmin) {
+      expanded.add('admin:*');
+      expanded.add('system:*');
+    }
 
     return {
       ...user,
@@ -60,6 +70,7 @@ export function useAuth(): LegacyUseAuthResult {
 
   return {
     user: normalizedUser,
+    token,
     loading,
     profileReady,
     isAuthenticated,

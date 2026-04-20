@@ -160,12 +160,12 @@ export default function UsersPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   // Permissions
-  const canCreate = hasPermission('users:create');
-  const canEdit = hasPermission('users:edit');
-  const canDelete = hasPermission('users:delete');
-  const canManageStatus = hasPermission('users:manage_status');
-  const canAssignRoles = hasPermission('users:assign_roles');
-  const canResetPassword = hasPermission('users:edit') || hasPermission('password_requests:approve');
+  const canCreate = hasPermission('users:create') || hasPermission('tenant_users:create');
+  const canEdit = hasPermission('users:edit') || hasPermission('tenant_users:edit');
+  const canDelete = hasPermission('users:delete') || hasPermission('tenant_users:delete');
+  const canManageStatus = hasPermission('users:manage_status') || hasPermission('tenant_users:edit');
+  const canAssignRoles = hasPermission('users:assign_roles') || hasPermission('tenant_users:edit');
+  const canResetPassword = hasPermission('users:edit') || hasPermission('tenant_users:edit') || hasPermission('password_requests:approve');
 
   const authHeaders = () => {
     const token = localStorage.getItem('accessToken');
@@ -184,10 +184,10 @@ export default function UsersPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const baseUrl = (process.env.NEXT_PUBLIC_API_URL || '') + '/api';
+      const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api').replace(/\/api\/?$/, '') + '/api';
 
-      // *** CRITICAL: Tenant users must use /api/tenant-roles to exclude platform roles ***
-      const rolesEndpoint = isTenantUser ? 'tenant-roles' : 'roles';
+      // Roles endpoint - /api/roles handles tenant isolation automatically
+      const rolesEndpoint = 'roles';
 
       const [usersRes, rolesRes, companiesRes] = await Promise.all([
         fetch(`${baseUrl}/users?limit=500&page=1`, { headers: authHeaders() }),
@@ -210,7 +210,7 @@ export default function UsersPage() {
         setCompanies(companiesJson.data || []);
       }
     } catch (error) {
-      showToast(t('messages.error'), 'error');
+      showToast({ type: 'error', message: t('messages.error') });
     } finally {
       setLoading(false);
     }
@@ -278,8 +278,21 @@ export default function UsersPage() {
       if (formData.password !== formData.confirmPassword) {
         newErrors.confirmPassword = t('master.users.validation.passwordMismatch');
       }
-    } else if (formData.password && formData.password.length < 8) {
-      newErrors.password = t('master.users.validation.passwordLength');
+    } else if (formData.password) {
+      if (formData.password.length < 8) {
+        newErrors.password = t('master.users.validation.passwordLength');
+      } else if (!/[A-Z]/.test(formData.password)) {
+        newErrors.password = t('master.users.validation.passwordUppercase') || 'Password must contain at least one uppercase letter';
+      } else if (!/[a-z]/.test(formData.password)) {
+        newErrors.password = t('master.users.validation.passwordLowercase') || 'Password must contain at least one lowercase letter';
+      } else if (!/[0-9]/.test(formData.password)) {
+        newErrors.password = t('master.users.validation.passwordNumber') || 'Password must contain at least one number';
+      } else if (!/[^A-Za-z0-9]/.test(formData.password)) {
+        newErrors.password = t('master.users.validation.passwordSpecial') || 'Password must contain at least one special character';
+      }
+      if (formData.password !== formData.confirmPassword) {
+        newErrors.confirmPassword = t('master.users.validation.passwordMismatch');
+      }
     }
 
     if (formData.role_ids.length === 0) {
@@ -311,7 +324,7 @@ export default function UsersPage() {
   const openEditModal = async (user: User) => {
     try {
       // Fetch full user details including role_ids and company assignments
-      const baseUrl = (process.env.NEXT_PUBLIC_API_URL || '') + '/api';
+      const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api').replace(/\/api\/?$/, '') + '/api';
       const res = await fetch(`${baseUrl}/users/${user.id}`, { headers: authHeaders() });
       if (res.ok) {
         const json = await res.json();
@@ -370,7 +383,7 @@ export default function UsersPage() {
     setSaving(true);
 
     try {
-      const baseUrl = (process.env.NEXT_PUBLIC_API_URL || '') + '/api';
+      const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api').replace(/\/api\/?$/, '') + '/api';
       const url = editingUser
         ? `${baseUrl}/users/${editingUser.id}`
         : `${baseUrl}/users`;
@@ -415,22 +428,22 @@ export default function UsersPage() {
           }
         }
 
-        showToast(
-          editingUser ? t('master.users.messages.updated') : t('master.users.messages.created'),
-          'success'
-        );
+        showToast({
+          type: 'success',
+          message: editingUser ? t('master.users.messages.updated') : t('master.users.messages.created'),
+        });
         setIsModalOpen(false);
         await loadData();
       } else {
         const json = await res.json();
         if (json.error === 'USER_LIMIT_REACHED') {
-          showToast(json.message || 'تم الوصول للحد الأقصى من المستخدمين', 'error');
+          showToast({ type: 'error', message: json.message || 'تم الوصول للحد الأقصى من المستخدمين' });
         } else {
-          showToast(json.error || t('messages.error'), 'error');
+          showToast({ type: 'error', message: json.error || t('messages.error') });
         }
       }
     } catch (error) {
-      showToast(t('messages.error'), 'error');
+      showToast({ type: 'error', message: t('messages.error') });
     } finally {
       setSaving(false);
     }
@@ -442,22 +455,22 @@ export default function UsersPage() {
     setSaving(true);
 
     try {
-      const baseUrl = (process.env.NEXT_PUBLIC_API_URL || '') + '/api';
+      const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api').replace(/\/api\/?$/, '') + '/api';
       const res = await fetch(`${baseUrl}/users/${deleteUserId}`, {
         method: 'DELETE',
         headers: authHeaders(),
       });
 
       if (res.ok) {
-        showToast(t('master.users.messages.deleted'), 'success');
+        showToast({ type: 'success', message: t('master.users.messages.deleted') });
         setDeleteUserId(null);
         await loadData();
       } else {
         const json = await res.json();
-        showToast(json.error || t('messages.error'), 'error');
+        showToast({ type: 'error', message: json.error || t('messages.error') });
       }
     } catch (error) {
-      showToast(t('messages.error'), 'error');
+      showToast({ type: 'error', message: t('messages.error') });
     } finally {
       setSaving(false);
     }
@@ -469,7 +482,7 @@ export default function UsersPage() {
     setSaving(true);
 
     try {
-      const baseUrl = (process.env.NEXT_PUBLIC_API_URL || '') + '/api';
+      const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api').replace(/\/api\/?$/, '') + '/api';
       const res = await fetch(`${baseUrl}/users/${disableUserId}/disable`, {
         method: 'PATCH',
         headers: authHeaders(),
@@ -477,16 +490,16 @@ export default function UsersPage() {
       });
 
       if (res.ok) {
-        showToast(t('master.users.messages.disabled'), 'success');
+        showToast({ type: 'success', message: t('master.users.messages.disabled') });
         setDisableUserId(null);
         setDisableReason('');
         await loadData();
       } else {
         const json = await res.json();
-        showToast(json.error || t('messages.error'), 'error');
+        showToast({ type: 'error', message: json.error || t('messages.error') });
       }
     } catch (error) {
-      showToast(t('messages.error'), 'error');
+      showToast({ type: 'error', message: t('messages.error') });
     } finally {
       setSaving(false);
     }
@@ -496,21 +509,21 @@ export default function UsersPage() {
   const handleEnable = async (userId: number) => {
     setSaving(true);
     try {
-      const baseUrl = (process.env.NEXT_PUBLIC_API_URL || '') + '/api';
+      const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api').replace(/\/api\/?$/, '') + '/api';
       const res = await fetch(`${baseUrl}/users/${userId}/enable`, {
         method: 'PATCH',
         headers: authHeaders(),
       });
 
       if (res.ok) {
-        showToast(t('master.users.messages.enabled'), 'success');
+        showToast({ type: 'success', message: t('master.users.messages.enabled') });
         await loadData();
       } else {
         const json = await res.json();
-        showToast(json.error || t('messages.error'), 'error');
+        showToast({ type: 'error', message: json.error || t('messages.error') });
       }
     } catch (error) {
-      showToast(t('messages.error'), 'error');
+      showToast({ type: 'error', message: t('messages.error') });
     } finally {
       setSaving(false);
     }
@@ -520,21 +533,21 @@ export default function UsersPage() {
   const handleUnlock = async (userId: number) => {
     setSaving(true);
     try {
-      const baseUrl = (process.env.NEXT_PUBLIC_API_URL || '') + '/api';
+      const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api').replace(/\/api\/?$/, '') + '/api';
       const res = await fetch(`${baseUrl}/users/${userId}/unlock`, {
         method: 'PATCH',
         headers: authHeaders(),
       });
 
       if (res.ok) {
-        showToast(t('master.users.messages.unlocked'), 'success');
+        showToast({ type: 'success', message: t('master.users.messages.unlocked') });
         await loadData();
       } else {
         const json = await res.json();
-        showToast(json.error || t('messages.error'), 'error');
+        showToast({ type: 'error', message: json.error || t('messages.error') });
       }
     } catch (error) {
-      showToast(t('messages.error'), 'error');
+      showToast({ type: 'error', message: t('messages.error') });
     } finally {
       setSaving(false);
     }
@@ -560,7 +573,7 @@ export default function UsersPage() {
     setSaving(true);
 
     try {
-      const baseUrl = (process.env.NEXT_PUBLIC_API_URL || '') + '/api';
+      const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api').replace(/\/api\/?$/, '') + '/api';
       const res = await fetch(`${baseUrl}/users/${resetPasswordUserId}/reset-password`, {
         method: 'PATCH',
         headers: authHeaders(),
@@ -568,16 +581,16 @@ export default function UsersPage() {
       });
 
       if (res.ok) {
-        showToast(t('master.users.messages.passwordReset'), 'success');
+        showToast({ type: 'success', message: t('master.users.messages.passwordReset') });
         setResetPasswordUserId(null);
         setResetPasswordData({ newPassword: '', confirmNewPassword: '' });
         setResetPasswordErrors({});
       } else {
         const json = await res.json();
-        showToast(json.error || t('messages.error'), 'error');
+        showToast({ type: 'error', message: json.error || t('messages.error') });
       }
     } catch (error) {
-      showToast(t('messages.error'), 'error');
+      showToast({ type: 'error', message: t('messages.error') });
     } finally {
       setSaving(false);
     }
@@ -664,7 +677,7 @@ export default function UsersPage() {
     return date.toLocaleDateString();
   };
 
-  if (!hasPermission('users:view')) {
+  if (!hasPermission('users:view') && !hasPermission('tenant_users:view')) {
     return (
       <MainLayout>
         <div className="p-6 text-center text-red-600">{t('messages.accessDenied')}</div>

@@ -39,8 +39,18 @@ router.get(
           description,
           description_ar,
           payment_type,
+          payment_behavior,
           requires_bank_account,
+          requires_reference,
+          requires_cheque_number,
+          requires_due_date,
           requires_bank AS requires_cheque_details,
+          clearing_days,
+          default_debit_account_id,
+          default_credit_account_id,
+          gl_account_id,
+          min_amount,
+          max_amount,
           is_active,
           company_id
         FROM payment_methods

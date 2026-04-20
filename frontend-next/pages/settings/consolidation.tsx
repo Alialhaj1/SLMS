@@ -5,6 +5,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useTranslation } from '../../hooks/useTranslation';
 import { useToast } from '../../contexts/ToastContext';
 import { withPermission } from '../../utils/withPermission';
+import { useCurrencies } from '../../hooks/useReferenceData';
 
 interface ConsolidationConfig {
   reporting_currency: string;
@@ -43,7 +44,7 @@ const MOCK_GROUPS: ConsolidationGroup[] = [
   { id: 3, name: 'Global Consolidation', parent_entity: 'Parent Corp', entities: ['Saudi Ops', 'Gulf Region', 'Egypt Branch'], elimination_rules: 8 },
 ];
 
-const CURRENCY_OPTIONS = ['SAR', 'USD', 'EUR', 'GBP', 'AED', 'BHD', 'KWD'];
+
 const RATE_SOURCES = [
   { value: 'central_bank', label: 'Central Bank' },
   { value: 'reuters', label: 'Reuters' },
@@ -55,6 +56,7 @@ function ConsolidationSettingsPage() {
   const { t } = useTranslation();
   const { user } = useAuth();
   const { showToast } = useToast();
+  const { currencies: currencyList } = useCurrencies();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [config, setConfig] = useState<ConsolidationConfig>(defaultConfig);
@@ -105,7 +107,7 @@ function ConsolidationSettingsPage() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('settings.reportingCurrency') || 'Reporting Currency'}</label>
                   <select value={config.reporting_currency} onChange={e => setConfig(p => ({ ...p, reporting_currency: e.target.value }))} className="w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-slate-700 text-gray-900 dark:text-white px-3 py-2 text-sm">
-                    {CURRENCY_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
+                    {currencyList.map(c => <option key={c.code} value={c.code}>{c.code}</option>)}
                   </select>
                 </div>
                 <div>

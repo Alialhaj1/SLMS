@@ -1,0 +1,177 @@
+{
+  "validation": {
+    "required": "This field is required",
+    "requiredField": "{{field}} is required",
+    "email": {
+      "required": "Email is required",
+      "invalid": "Invalid email address",
+      "format": "Please enter a valid email address (e.g., user@example.com)",
+      "exists": "This email address is already in use",
+      "notFound": "Email address not found"
+    },
+    "password": {
+      "required": "Password is required",
+      "minLength": "Password must be at least {{min}} characters long",
+      "maxLength": "Password must not exceed {{max}} characters",
+      "weak": "Password is too weak",
+      "strong": "Password must contain: uppercase letter, lowercase letter, number, and special character",
+      "mismatch": "Passwords do not match",
+      "current": "Current password is required",
+      "incorrect": "Current password is incorrect"
+    },
+    "name": {
+      "required": "Name is required",
+      "minLength": "Name must be at least {{min}} characters long",
+      "maxLength": "Name must not exceed {{max}} characters",
+      "invalid": "Name contains invalid characters",
+      "arabic": "Arabic name is required",
+      "english": "English name is required"
+    },
+    "phone": {
+      "required": "Phone number is required",
+      "invalid": "Invalid phone number",
+      "format": "Please enter a valid phone number (e.g., +966501234567)",
+      "exists": "Phone number is already in use"
+    },
+    "number": {
+      "required": "Number is required",
+      "invalid": "Invalid number",
+      "min": "Number must be at least {{min}}",
+      "max": "Number must not exceed {{max}}",
+      "positive": "Number must be positive",
+      "integer": "Number must be a whole number",
+      "decimal": "Invalid decimal places"
+    },
+    "date": {
+      "required": "Date is required",
+      "invalid": "Invalid date",
+      "format": "Invalid date format (use: DD/MM/YYYY)",
+      "future": "Date cannot be in the future",
+      "past": "Date cannot be in the past",
+      "range": "Date must be between {{start}} and {{end}}",
+      "before": "Date must be before {{date}}",
+      "after": "Date must be after {{date}}",
+      "startAfterEnd": "Start date must be before end date"
+    },
+    "file": {
+      "required": "File is required",
+      "size": "File size is too large (maximum: {{size}})",
+      "type": "File type is not supported",
+      "format": "File must be one of: {{types}}",
+      "upload": "File upload failed",
+      "corrupt": "File is corrupted or invalid"
+    },
+    "url": {
+      "required": "URL is required",
+      "invalid": "Invalid URL",
+      "format": "Please enter a valid URL (e.g., https://example.com)"
+    },
+    "code": {
+      "required": "Code is required",
+      "invalid": "Invalid code",
+      "exists": "Code already exists",
+      "format": "Invalid code format",
+      "length": "Code must be {{length}} characters long"
+    },
+    "quantity": {
+      "required": "Quantity is required",
+      "invalid": "Invalid quantity",
+      "positive": "Quantity must be greater than zero",
+      "insufficient": "Insufficient quantity available",
+      "exceeds": "Quantity exceeds the allowed limit"
+    },
+    "amount": {
+      "required": "Amount is required",
+      "invalid": "Invalid amount",
+      "positive": "Amount must be greater than zero",
+      "format": "Invalid amount format",
+      "currency": "Currency is required"
+    },
+    "selection": {
+      "required": "Please make a selection",
+      "invalid": "Invalid selection",
+      "multiple": "At least one item must be selected"
+    },
+    "checkbox": {
+      "required": "You must agree to the terms",
+      "accept": "You must accept the terms and conditions"
+    }
+  },
+  "server": {
+    "general": "Server error occurred",
+    "network": "Network connection error",
+    "timeout": "Connection timeout",
+    "unavailable": "Service is currently unavailable",
+    "maintenance": "Service is under maintenance",
+    "overload": "Server is overloaded, please try again later"
+  },
+  "authentication": {
+    "required": "Please log in first",
+    "failed": "Login failed",
+    "invalid": "Invalid login credentials",
+    "expired": "Session has expired",
+    "unauthorized": "Unauthorized access",
+    "forbidden": "Access to this page is forbidden",
+    "accountLocked": "Account is locked",
+    "accountDisabled": "Account is disabled",
+    "tooManyAttempts": "Too many login attempts, please try again later"
+  },
+  "authorization": {
+    "insufficient": "Insufficient permissions",
+    "denied": "Access denied",
+    "roleRequired": "Requires {{role}} role",
+    "permissionRequired": "Requires {{permission}} permission",
+    "resourceAccess": "Cannot access this resource",
+    "actionNotAllowed": "Action not allowed"
+  },
+  "database": {
+    "connection": "Database connection error",
+    "query": "Database query error",
+    "constraint": "Database constraint violation",
+    "duplicate": "Data already exists",
+    "notFound": "Data not found",
+    "reference": "Cannot delete data (referenced by other data)",
+    "transaction": "Database transaction failed"
+  },
+  "business": {
+    "invalidOperation": "Invalid operation",
+    "statusConflict": "Status conflict",
+    "workflowViolation": "Workflow rule violation",
+    "dateConflict": "Date conflict",
+    "amountExceeded": "Amount limit exceeded",
+    "quantityExceeded": "Quantity limit exceeded",
+    "balanceInsufficient": "Insufficient balance",
+    "periodClosed": "Period is closed",
+    "documentLocked": "Document is locked"
+  },
+  "ui": {
+    "loadFailed": "Failed to load data",
+    "saveFailed": "Failed to save data",
+    "deleteFailed": "Failed to delete data",
+    "updateFailed": "Failed to update data",
+    "uploadFailed": "Failed to upload file",
+    "downloadFailed": "Failed to download file",
+    "printFailed": "Failed to print",
+    "exportFailed": "Failed to export",
+    "importFailed": "Failed to import",
+    "connectionLost": "Network connection lost",
+    "sessionExpired": "Session expired, please log in again",
+    "pageNotFound": "Page not found",
+    "featureNotAvailable": "Feature not currently available",
+    "browserNotSupported": "Browser not supported"
+  },
+  "codes": {
+    "400": "Bad Request",
+    "401": "Unauthorized",
+    "403": "Forbidden",
+    "404": "Not Found",
+    "405": "Method Not Allowed",
+    "409": "Conflict",
+    "422": "Unprocessable Entity",
+    "429": "Too Many Requests",
+    "500": "Internal Server Error",
+    "502": "Bad Gateway",
+    "503": "Service Unavailable",
+    "504": "Gateway Timeout"
+  }
+}

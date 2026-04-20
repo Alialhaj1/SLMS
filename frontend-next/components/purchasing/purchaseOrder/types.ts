@@ -83,7 +83,11 @@ export interface PurchaseOrderMeta {
   };
   bank?: {
     beneficiary_name?: string;
+    beneficiary_address?: string;
     bank_name?: string;
+    bank_id?: number;
+    branch_name?: string;
+    bank_address?: string;
     iban?: string;
     swift?: string;
     account_no?: string;

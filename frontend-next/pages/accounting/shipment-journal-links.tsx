@@ -1,139 +1,208 @@
-import { useMemo, useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Head from 'next/head';
-import MainLayout from '../../components/layout/MainLayout';
-import Button from '../../components/ui/Button';
-import Input from '../../components/ui/Input';
-import Modal from '../../components/ui/Modal';
-import { useToast } from '../../contexts/ToastContext';
-import { useTranslation } from '../../hooks/useTranslation';
-import { usePermissions } from '../../hooks/usePermissions';
-import { MenuPermissions } from '../../config/menu.permissions';
-import { LinkIcon, EyeIcon } from '@heroicons/react/24/outline';
+import MainLayout from '@/components/layout/MainLayout';
+import { useToast } from '@/hooks/useToast';
+import { useTranslation } from '@/hooks/useTranslation';
+import apiClient from '@/lib/apiClient';
+import { BookOpenIcon, MagnifyingGlassIcon, FunnelIcon } from '@heroicons/react/24/outline';
 
-type ShipmentJournalLink = {
-  id: number;
-  shipmentRef: string;
-  journalNumber: string;
-  journalDate: string;
-  status: 'linked' | 'unlinked';
-};
+interface JournalLink {
+  expense_id: number;
+  shipment_id: number;
+  shipment_number: string;
+  expense_type_name: string;
+  expense_type_name_ar: string;
+  category: string;
+  vendor_name: string;
+  total_amount: number;
+  vat_amount: number;
+  currency: string;
+  journal_entry_number: string;
+  posted_at: string;
+  is_posted: boolean;
+  invoice_number: string;
+}
 
-const mockLinks: ShipmentJournalLink[] = [
-  { id: 1, shipmentRef: 'SHP-2025-0001', journalNumber: 'JV-000123', journalDate: '2025-12-27', status: 'linked' },
-  { id: 2, shipmentRef: 'SHP-2025-0002', journalNumber: '-', journalDate: '-', status: 'unlinked' },
-];
+interface PaginationInfo {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
 
 export default function ShipmentJournalLinksPage() {
-  const { t, locale } = useTranslation();
+  const { locale } = useTranslation();
   const { showToast } = useToast();
-  const { hasAnyPermission } = usePermissions();
-
-  const canView = hasAnyPermission([MenuPermissions.Logistics.ShipmentAccountingBridge.View]);
-
-  const [items] = useState<ShipmentJournalLink[]>(mockLinks);
+  const [items, setItems] = useState<JournalLink[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [selected, setSelected] = useState<ShipmentJournalLink | null>(null);
+  const [statusFilter, setStatusFilter] = useState<'all' | 'posted' | 'unposted'>('all');
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState<PaginationInfo>({ page: 1, limit: 25, total: 0, totalPages: 0 });
 
-  const title = t('menu.logistics.shipmentAccounting.linkJournals');
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({ page: String(page), limit: '25' });
+      if (search) params.set('search', search);
+      if (statusFilter !== 'all') params.set('status', statusFilter);
+      const res = await apiClient.get<{ success: boolean; data: JournalLink[]; pagination: PaginationInfo }>(`/api/shipment-accounting/journal-links?${params}`);
+      setItems(res.data || []);
+      setPagination(res.pagination || { page: 1, limit: 25, total: 0, totalPages: 0 });
+    } catch {
+      showToast('error', locale === 'ar' ? 'فشل تحميل البيانات' : 'Failed to load data');
+    } finally {
+      setLoading(false);
+    }
+  }, [page, search, statusFilter]);
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return items.filter(
-      (l) =>
-        !q ||
-        l.shipmentRef.toLowerCase().includes(q) ||
-        l.journalNumber.toLowerCase().includes(q) ||
-        l.status.toLowerCase().includes(q)
-    );
-  }, [items, search]);
+  useEffect(() => { fetchData(); }, [fetchData]);
 
-  if (!canView) {
-    return (
-      <MainLayout>
-        <Head>
-          <title>{title} - SLMS</title>
-        </Head>
-        <div className="text-center py-12">
-          <LinkIcon className="w-16 h-16 mx-auto text-gray-400 mb-4" />
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{locale === 'ar' ? 'غير مصرح' : 'Access Denied'}</h2>
-        </div>
-      </MainLayout>
-    );
-  }
+  useEffect(() => { setPage(1); }, [search, statusFilter]);
+
+  const fmt = (n: number) => new Intl.NumberFormat(locale === 'ar' ? 'ar-SA' : 'en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n || 0);
+  const fmtDate = (d: string) => d ? new Date(d).toLocaleDateString(locale === 'ar' ? 'ar-SA' : 'en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '—';
+
+  const postedCount = items.filter(i => i.is_posted).length;
+  const unpostedCount = items.filter(i => !i.is_posted).length;
 
   return (
     <MainLayout>
-      <Head>
-        <title>{title} - SLMS</title>
-      </Head>
+      <Head><title>{locale === 'ar' ? 'ربط المصاريف بالقيود' : 'Expense → Journal Links'} - SLMS</title></Head>
+      <div className="space-y-6">
 
-      <div className="space-y-6 animate-fade-in">
+        {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-sky-100 dark:bg-sky-900/30 rounded-lg">
-              <LinkIcon className="h-6 w-6 text-sky-600 dark:text-sky-300" />
+            <div className="p-2.5 bg-gradient-to-br from-teal-500 to-cyan-600 rounded-xl shadow-lg">
+              <BookOpenIcon className="h-6 w-6 text-white" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{title}</h1>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+                {locale === 'ar' ? 'ربط المصاريف بالقيود المحاسبية' : 'Expense → Journal Entry Links'}
+              </h1>
               <p className="text-sm text-gray-500 dark:text-gray-400">
-                {locale === 'ar'
-                  ? 'ربط الشحنات بالقيود المحاسبية'
-                  : 'Link shipments to accounting journal entries'}
+                {locale === 'ar' ? 'تتبع حالة الترحيل لكل مصروف' : 'Track posting status of each expense'}
               </p>
             </div>
           </div>
-          <Button
-            variant="secondary"
-            onClick={() => showToast(locale === 'ar' ? 'مزامنة (تجريبي)' : 'Sync (demo)', 'info')}
-          >
-            {locale === 'ar' ? 'مزامنة' : 'Sync'}
-          </Button>
+          <div className="flex items-center gap-2">
+            <span className="px-3 py-1.5 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 text-xs font-medium rounded-lg">
+              {locale === 'ar' ? 'مرحّل' : 'Posted'}: {postedCount}
+            </span>
+            <span className="px-3 py-1.5 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 text-xs font-medium rounded-lg">
+              {locale === 'ar' ? 'غير مرحّل' : 'Unposted'}: {unpostedCount}
+            </span>
+            <span className="px-3 py-1.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-xs font-medium rounded-lg">
+              {locale === 'ar' ? 'الإجمالي' : 'Total'}: {pagination.total}
+            </span>
+          </div>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
-          <Input label={locale === 'ar' ? 'بحث' : 'Search'} value={search} onChange={(e) => setSearch(e.target.value)} placeholder={locale === 'ar' ? 'بحث...' : 'Search...'} />
+        {/* Filters */}
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1 max-w-md">
+            <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <input type="text" value={search} onChange={e => setSearch(e.target.value)}
+              placeholder={locale === 'ar' ? 'بحث برقم الشحنة، المصروف، أو رقم القيد...' : 'Search by shipment #, expense, or journal #...'}
+              className="w-full pl-9 pr-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-teal-500 text-gray-900 dark:text-white" />
+          </div>
+          <div className="flex items-center gap-2">
+            <FunnelIcon className="h-4 w-4 text-gray-400" />
+            {(['all', 'posted', 'unposted'] as const).map(f => (
+              <button key={f} onClick={() => setStatusFilter(f)}
+                className={`px-3 py-2 text-xs font-medium rounded-lg border transition-colors ${statusFilter === f
+                  ? 'bg-teal-600 text-white border-teal-600'
+                  : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-300 dark:border-gray-600 hover:border-teal-400'}`}>
+                {f === 'all' ? (locale === 'ar' ? 'الكل' : 'All') : f === 'posted' ? (locale === 'ar' ? 'مرحّل' : 'Posted') : (locale === 'ar' ? 'غير مرحّل' : 'Unposted')}
+              </button>
+            ))}
+          </div>
         </div>
 
+        {/* Table */}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-gray-50 dark:bg-gray-700">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{locale === 'ar' ? 'الشحنة' : 'Shipment'}</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{locale === 'ar' ? 'رقم القيد' : 'Journal #'}</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{locale === 'ar' ? 'التاريخ' : 'Date'}</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{locale === 'ar' ? 'الحالة' : 'State'}</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{locale === 'ar' ? 'إجراءات' : 'Actions'}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-              {filtered.map((l) => (
-                <tr key={l.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                  <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{l.shipmentRef}</td>
-                  <td className="px-4 py-3 text-gray-900 dark:text-white">{l.journalNumber}</td>
-                  <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{l.journalDate}</td>
-                  <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{l.status}</td>
-                  <td className="px-4 py-3">
-                    <Button size="sm" variant="secondary" onClick={() => setSelected(l)}>
-                      <EyeIcon className="h-4 w-4" />
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          {loading ? (
+            <div className="p-12 text-center">
+              <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-teal-500 border-r-transparent" />
+            </div>
+          ) : items.length === 0 ? (
+            <div className="p-12 text-center">
+              <BookOpenIcon className="h-12 w-12 mx-auto mb-3 text-gray-300 dark:text-gray-600" />
+              <p className="text-gray-500 dark:text-gray-400">{locale === 'ar' ? 'لا توجد مصاريف' : 'No expenses found'}</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead className="bg-gray-50 dark:bg-gray-900/50">
+                  <tr>
+                    {[
+                      locale === 'ar' ? 'رقم الشحنة' : 'Shipment #',
+                      locale === 'ar' ? 'نوع المصروف' : 'Expense Type',
+                      locale === 'ar' ? 'الفئة' : 'Category',
+                      locale === 'ar' ? 'المورد' : 'Vendor',
+                      locale === 'ar' ? 'المبلغ' : 'Amount',
+                      locale === 'ar' ? 'الضريبة' : 'VAT',
+                      locale === 'ar' ? 'رقم الفاتورة' : 'Invoice #',
+                      locale === 'ar' ? 'رقم القيد' : 'Journal Entry #',
+                      locale === 'ar' ? 'تاريخ الترحيل' : 'Posted Date',
+                      locale === 'ar' ? 'الحالة' : 'Status',
+                    ].map(h => (
+                      <th key={h} className="px-3 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase whitespace-nowrap">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                  {items.map(row => (
+                    <tr key={row.expense_id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                      <td className="px-3 py-3 font-mono text-sm font-medium text-blue-600 dark:text-blue-400">{row.shipment_number}</td>
+                      <td className="px-3 py-3 text-sm text-gray-900 dark:text-white">{locale === 'ar' ? row.expense_type_name_ar : row.expense_type_name}</td>
+                      <td className="px-3 py-3">
+                        <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300">{row.category}</span>
+                      </td>
+                      <td className="px-3 py-3 text-sm text-gray-600 dark:text-gray-400 max-w-[150px] truncate">{row.vendor_name || '—'}</td>
+                      <td className="px-3 py-3 text-sm font-semibold text-gray-900 dark:text-white whitespace-nowrap">{fmt(Number(row.total_amount))} {row.currency}</td>
+                      <td className="px-3 py-3 text-sm text-gray-500 dark:text-gray-400">{fmt(Number(row.vat_amount))}</td>
+                      <td className="px-3 py-3 text-sm font-mono text-gray-600 dark:text-gray-400">{row.invoice_number || '—'}</td>
+                      <td className="px-3 py-3">
+                        {row.journal_entry_number ? (
+                          <span className="px-2 py-0.5 text-xs font-mono font-medium rounded bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">{row.journal_entry_number}</span>
+                        ) : <span className="text-xs text-gray-400">—</span>}
+                      </td>
+                      <td className="px-3 py-3 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">{fmtDate(row.posted_at)}</td>
+                      <td className="px-3 py-3">
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full ${row.is_posted ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' : 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300'}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${row.is_posted ? 'bg-green-500' : 'bg-amber-500'}`} />
+                          {row.is_posted ? (locale === 'ar' ? 'مرحّل' : 'Posted') : (locale === 'ar' ? 'معلق' : 'Pending')}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Pagination */}
+          {pagination.totalPages > 1 && (
+            <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
+              <p className="text-sm text-gray-500">
+                {locale === 'ar' ? `صفحة ${page} من ${pagination.totalPages}` : `Page ${page} of ${pagination.totalPages}`}
+              </p>
+              <div className="flex gap-2">
+                <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1}
+                  className="px-3 py-1.5 text-sm border rounded-lg disabled:opacity-40 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300">
+                  {locale === 'ar' ? 'السابق' : 'Previous'}
+                </button>
+                <button onClick={() => setPage(p => Math.min(pagination.totalPages, p + 1))} disabled={page >= pagination.totalPages}
+                  className="px-3 py-1.5 text-sm border rounded-lg disabled:opacity-40 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300">
+                  {locale === 'ar' ? 'التالي' : 'Next'}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
-
-      <Modal isOpen={!!selected} onClose={() => setSelected(null)} title={locale === 'ar' ? 'تفاصيل' : 'Details'} size="md">
-        {selected && (
-          <div className="space-y-2">
-            <div className="text-gray-900 dark:text-white font-medium">{selected.shipmentRef}</div>
-            <div className="text-sm text-gray-500 dark:text-gray-400">{selected.journalNumber}</div>
-            <div className="text-sm text-gray-500 dark:text-gray-400">{selected.journalDate}</div>
-            <div className="text-sm text-gray-500 dark:text-gray-400">{selected.status}</div>
-          </div>
-        )}
-      </Modal>
     </MainLayout>
   );
 }

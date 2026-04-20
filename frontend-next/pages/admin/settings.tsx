@@ -32,12 +32,7 @@ interface FormData {
   data_type: 'string' | 'number' | 'boolean' | 'json';
 }
 
-const categoryLabels: Record<string, string> = {
-  general: 'General',
-  security: 'Security',
-  appearance: 'Appearance',
-  notifications: 'Notifications',
-};
+const categoryKeys = ['general', 'security', 'appearance', 'notifications'];
 
 const categoryIcons: Record<string, string> = {
   general: '⚙️',
@@ -72,7 +67,7 @@ function SettingsPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch('/api/settings', {
+      const res = await fetch('http://localhost:4000/api/settings', {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -80,13 +75,13 @@ function SettingsPage() {
         const result = await res.json();
         setSettings(result.data || []);
       } else if (res.status === 401 || res.status === 403) {
-        showToast('Access denied', 'error');
+        showToast(t('adminSettings.accessDenied'), 'error');
       } else {
-        showToast('Failed to load settings', 'error');
+        showToast(t('adminSettings.loadFailed'), 'error');
       }
     } catch (error) {
       console.error('Failed to fetch settings:', error);
-      showToast('Failed to load settings', 'error');
+      showToast(t('adminSettings.loadFailed'), 'error');
     } finally {
       setLoading(false);
     }
@@ -96,7 +91,7 @@ function SettingsPage() {
     const errors: Record<string, string> = {};
 
     if (!formData.value.trim()) {
-      errors.value = 'Value is required';
+      errors.value = t('adminSettings.valueRequired');
     }
 
     // Type-specific validation
@@ -105,17 +100,17 @@ function SettingsPage() {
       
       if (dataType === 'number') {
         if (isNaN(Number(formData.value))) {
-          errors.value = 'Must be a valid number';
+          errors.value = t('adminSettings.mustBeNumber');
         }
       } else if (dataType === 'boolean') {
         if (!['true', 'false', '1', '0'].includes(formData.value.toLowerCase())) {
-          errors.value = 'Must be true or false';
+          errors.value = t('adminSettings.mustBeBoolean');
         }
       } else if (dataType === 'json') {
         try {
           JSON.parse(formData.value);
         } catch {
-          errors.value = 'Must be valid JSON';
+          errors.value = t('adminSettings.mustBeJson');
         }
       }
     }
@@ -147,7 +142,7 @@ function SettingsPage() {
     setSubmitting(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`/api/settings/${editingSetting.key}`, {
+      const res = await fetch(`http://localhost:4000/api/settings/${editingSetting.key}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -157,16 +152,16 @@ function SettingsPage() {
       });
 
       if (res.ok) {
-        showToast('Setting updated successfully', 'success');
+        showToast(t('adminSettings.settingUpdated'), 'success');
         handleCloseModal();
         fetchSettings();
       } else {
         const error = await res.json();
-        showToast(error.error || 'Failed to update setting', 'error');
+        showToast(error.error || t('adminSettings.updateFailed'), 'error');
       }
     } catch (error) {
       console.error('Failed to update setting:', error);
-      showToast('Failed to update setting', 'error');
+      showToast(t('adminSettings.updateFailed'), 'error');
     } finally {
       setSubmitting(false);
     }
@@ -198,7 +193,7 @@ function SettingsPage() {
     
     switch (setting.data_type) {
       case 'boolean':
-        return setting.value === 'true' || setting.value === '1' ? '✓ Enabled' : '✗ Disabled';
+        return setting.value === 'true' || setting.value === '1' ? t('adminSettings.enabled') : t('adminSettings.disabled');
       case 'json':
         try {
           return JSON.stringify(JSON.parse(setting.value), null, 2);
@@ -216,9 +211,9 @@ function SettingsPage() {
       <MainLayout>
         <div className="text-center py-12">
           <Cog6ToothIcon className="w-16 h-16 mx-auto text-gray-400 mb-4" />
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Access Denied</h2>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{t('adminSettings.accessDenied')}</h2>
           <p className="text-gray-600 dark:text-gray-400 mt-2">
-            You don't have permission to view system settings.
+            {t('adminSettings.noPermission')}
           </p>
         </div>
       </MainLayout>
@@ -228,15 +223,15 @@ function SettingsPage() {
   return (
     <MainLayout>
       <Head>
-        <title>System Settings - SLMS</title>
+        <title>{t('adminSettings.title')} - SLMS</title>
       </Head>
 
       <div className="space-y-6">
         {/* Page header */}
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">System Settings</h1>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">{t('adminSettings.title')}</h1>
           <p className="text-gray-600 dark:text-gray-400 mt-1">
-            Configure system-wide preferences and options
+            {t('adminSettings.subtitle')}
           </p>
         </div>
 
@@ -248,7 +243,7 @@ function SettingsPage() {
                 <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <input
                   type="text"
-                  placeholder="Search settings..."
+                  placeholder={t('adminSettings.searchPlaceholder')}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="input pl-10 w-full"
@@ -261,10 +256,10 @@ function SettingsPage() {
                 onChange={(e) => setCategoryFilter(e.target.value)}
                 className="input w-full"
               >
-                <option value="">All Categories</option>
-                {Object.entries(categoryLabels).map(([key, label]) => (
+                <option value="">{t('adminSettings.allCategories')}</option>
+                {categoryKeys.map((key) => (
                   <option key={key} value={key}>
-                    {categoryIcons[key]} {label}
+                    {categoryIcons[key]} {t(`adminSettings.${key}` as any)}
                   </option>
                 ))}
               </select>
@@ -276,14 +271,14 @@ function SettingsPage() {
         {loading ? (
           <div className="card text-center py-12">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
-            <p className="text-gray-500 dark:text-gray-400 mt-4">Loading settings...</p>
+            <p className="text-gray-500 dark:text-gray-400 mt-4">{t('adminSettings.loading')}</p>
           </div>
         ) : Object.keys(groupedSettings).length === 0 ? (
           <div className="card text-center py-12">
             <Cog6ToothIcon className="w-16 h-16 mx-auto text-gray-400 mb-4" />
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">No settings found</h3>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('adminSettings.noSettings')}</h3>
             <p className="text-gray-600 dark:text-gray-400 mt-2">
-              Try adjusting your search criteria
+              {t('adminSettings.adjustSearch')}
             </p>
           </div>
         ) : (
@@ -292,7 +287,7 @@ function SettingsPage() {
               <div key={category} className="card">
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
                   <span className="text-2xl">{categoryIcons[category]}</span>
-                  {categoryLabels[category]}
+                  {t(`adminSettings.${category}` as any)}
                 </h2>
                 
                 <div className="space-y-4">
@@ -311,7 +306,7 @@ function SettingsPage() {
                           </span>
                           {setting.is_public && (
                             <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
-                              Public
+                              {t('adminSettings.public')}
                             </span>
                           )}
                         </div>
@@ -324,7 +319,7 @@ function SettingsPage() {
                         
                         <div className="mt-2">
                           <span className="text-xs text-gray-500 dark:text-gray-500 uppercase tracking-wider">
-                            Value:
+                            {t('adminSettings.value')}:
                           </span>
                           <div className={`text-sm font-mono mt-1 ${
                             setting.data_type === 'json' ? 'whitespace-pre-wrap' : ''
@@ -350,7 +345,7 @@ function SettingsPage() {
                         <button
                           onClick={() => handleOpenModal(setting)}
                           className="flex-shrink-0 p-2 text-primary-600 hover:text-primary-900 dark:text-primary-400 dark:hover:text-primary-300 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-lg transition-colors"
-                          title="Edit"
+                          title={t('adminSettings.edit')}
                         >
                           <PencilIcon className="w-5 h-5" />
                         </button>
@@ -368,7 +363,7 @@ function SettingsPage() {
       <Modal
         isOpen={modalOpen}
         onClose={handleCloseModal}
-        title={`Edit Setting: ${editingSetting?.key}`}
+        title={`${t('adminSettings.editSetting')}: ${editingSetting?.key}`}
         size="md"
       >
         <div className="space-y-4">
@@ -376,20 +371,20 @@ function SettingsPage() {
             <>
               <div className="p-4 rounded-lg bg-gray-50 dark:bg-gray-800">
                 <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
-                  Setting Information
+                  {t('adminSettings.settingInfo')}
                 </h4>
                 <dl className="space-y-2 text-sm">
                   <div>
-                    <dt className="text-gray-600 dark:text-gray-400">Key:</dt>
+                    <dt className="text-gray-600 dark:text-gray-400">{t('adminSettings.key')}:</dt>
                     <dd className="font-mono text-gray-900 dark:text-gray-100">{editingSetting.key}</dd>
                   </div>
                   <div>
-                    <dt className="text-gray-600 dark:text-gray-400">Type:</dt>
+                    <dt className="text-gray-600 dark:text-gray-400">{t('adminSettings.type')}:</dt>
                     <dd className="font-mono text-gray-900 dark:text-gray-100">{editingSetting.data_type}</dd>
                   </div>
                   {editingSetting.description && (
                     <div>
-                      <dt className="text-gray-600 dark:text-gray-400">Description:</dt>
+                      <dt className="text-gray-600 dark:text-gray-400">{t('adminSettings.description')}:</dt>
                       <dd className="text-gray-900 dark:text-gray-100">{editingSetting.description}</dd>
                     </div>
                   )}
@@ -399,15 +394,15 @@ function SettingsPage() {
               {editingSetting.data_type === 'boolean' ? (
                 <div className="space-y-1">
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Value <span className="text-red-500">*</span>
+                    {t('adminSettings.value')} <span className="text-red-500">*</span>
                   </label>
                   <select
                     value={formData.value}
                     onChange={(e) => setFormData({ ...formData, value: e.target.value })}
                     className="input"
                   >
-                    <option value="true">Enabled (true)</option>
-                    <option value="false">Disabled (false)</option>
+                    <option value="true">{t('adminSettings.enabledTrue')}</option>
+                    <option value="false">{t('adminSettings.disabledFalse')}</option>
                   </select>
                   {formErrors.value && (
                     <p className="text-sm text-red-600 dark:text-red-400">{formErrors.value}</p>
@@ -416,7 +411,7 @@ function SettingsPage() {
               ) : editingSetting.data_type === 'json' ? (
                 <div className="space-y-1">
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Value (JSON) <span className="text-red-500">*</span>
+                    {t('adminSettings.valueJson')} <span className="text-red-500">*</span>
                   </label>
                   <textarea
                     value={formData.value}
@@ -429,12 +424,12 @@ function SettingsPage() {
                     <p className="text-sm text-red-600 dark:text-red-400">{formErrors.value}</p>
                   )}
                   <p className="text-xs text-gray-500 dark:text-gray-400">
-                    Must be valid JSON format
+                    {t('adminSettings.validJson')}
                   </p>
                 </div>
               ) : (
                 <Input
-                  label="Value"
+                  label={t('adminSettings.value')}
                   required
                   type={editingSetting.data_type === 'number' ? 'number' : 'text'}
                   value={formData.value}
@@ -448,10 +443,10 @@ function SettingsPage() {
 
         <div className="flex justify-end gap-3 mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
           <Button variant="secondary" onClick={handleCloseModal} disabled={submitting}>
-            Cancel
+            {t('adminSettings.cancel')}
           </Button>
           <Button onClick={handleSubmit} loading={submitting}>
-            Update
+            {t('adminSettings.update')}
           </Button>
         </div>
       </Modal>

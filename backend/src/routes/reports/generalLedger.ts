@@ -13,6 +13,7 @@ import {
   getGeneralLedgerByType,
   GLRequest,
 } from '../../services/reports/generalLedger.service';
+import { pool } from '../../db';
 import { authenticate } from '../../middleware/auth';
 import { loadCompanyContext } from '../../middleware/companyContext';
 import { requirePermission } from '../../middleware/rbac';
@@ -36,8 +37,9 @@ router.get(
   asyncHandler(async (req: Request, res: Response) => {
     const companyId = (req as any).companyId;
     const exclude_zero = req.query.exclude_zero === 'true';
+    const account_type = req.query.account_type as string | undefined;
 
-    const accounts = await getAccounts(companyId, exclude_zero);
+    const accounts = await getAccounts(companyId, exclude_zero, account_type);
 
     res.json({
       success: true,
@@ -65,14 +67,14 @@ router.get(
   requireCompany,
   asyncHandler(async (req: Request, res: Response) => {
     const companyId = (req as any).companyId;
-    const { account_id, account_code, from_date, to_date, include_opening } =
+    const { account_id, account_code, from_date, to_date, include_opening, search, project_id, min_amount, max_amount, project_only } =
       req.query;
 
-    // Validation
-    if (!account_id && !account_code) {
+    // Allow project-only mode (no account required)
+    if (!account_id && !account_code && !(project_only === 'true' && project_id)) {
       return res.status(400).json({
         success: false,
-        message: 'Either account_id or account_code is required',
+        message: 'Either account_id or account_code is required (or use project_only=true with project_id)',
       });
     }
 
@@ -97,6 +99,11 @@ router.get(
       from_date: from_date as string,
       to_date: to_date as string,
       include_opening_balance: include_opening !== 'false',
+      search: search as string,
+      project_id: project_id ? parseInt(project_id as string) : undefined,
+      min_amount: min_amount ? parseFloat(min_amount as string) : undefined,
+      max_amount: max_amount ? parseFloat(max_amount as string) : undefined,
+      project_only: project_only === 'true',
     };
 
     const result = await getGeneralLedger(req, companyId, params);
@@ -113,6 +120,24 @@ router.get(
         closing_balance: result.summary.closing_balance,
       },
     });
+  })
+);
+
+/**
+ * GET /api/reports/general-ledger/projects
+ * Returns projects list for project filter selector
+ */
+router.get(
+  '/projects',
+  requirePermission('accounting:reports:general-ledger:view'),
+  requireCompany,
+  asyncHandler(async (req: Request, res: Response) => {
+    const companyId = (req as any).companyId;
+    const result = await pool.query(
+      `SELECT id, code, name, name_ar FROM projects WHERE company_id = $1 AND deleted_at IS NULL ORDER BY code ASC`,
+      [companyId]
+    );
+    res.json({ success: true, data: result.rows });
   })
 );
 

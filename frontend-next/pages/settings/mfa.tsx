@@ -4,7 +4,7 @@ import MainLayout from '../../components/layout/MainLayout';
 import { useAuth } from '../../hooks/useAuth';
 import { useTranslation } from '../../hooks/useTranslation';
 import { useToast } from '../../contexts/ToastContext';
-import { withPermission } from '../../utils/withPermission';
+import { withPermission, withPlatformGuard } from '../../utils/withPermission';
 
 interface MFAConfig {
   mfa_enabled: boolean;
@@ -128,4 +128,4 @@ function MFASettingsPage() {
   );
 }
 
-export default withPermission('system_policies:view', MFASettingsPage);
+export default withPlatformGuard(withPermission('system_policies:view', MFASettingsPage));

@@ -8,6 +8,7 @@ import Input from '../../components/ui/Input';
 import Modal from '../../components/ui/Modal';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import Card from '../../components/ui/Card';
+import { useCurrencies } from '../../hooks/useReferenceData';
 import { usePermissions } from '../../hooks/usePermissions';
 import { useTranslation } from '../../hooks/useTranslation';
 import { useToast } from '../../contexts/ToastContext';
@@ -58,6 +59,7 @@ function JobTitlesPage() {
   const { hasPermission } = usePermissions();
   const { t } = useTranslation();
   const { showToast } = useToast();
+  const { currencies: currencyList } = useCurrencies();
   const hasFetched = useRef(false);
 
   const [items, setItems] = useState<JobTitle[]>([]);
@@ -658,9 +660,9 @@ function JobTitlesPage() {
                   onChange={(e) => setFormData({ ...formData, currency_code: e.target.value })}
                   className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800"
                 >
-                  <option value="SAR">SAR</option>
-                  <option value="USD">USD</option>
-                  <option value="EUR">EUR</option>
+                  {currencyList.map(c => (
+                    <option key={c.code} value={c.code}>{c.code}</option>
+                  ))}
                 </select>
               </div>
             </div>

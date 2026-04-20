@@ -17,6 +17,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useAuthorization } from '../../contexts/AuthorizationContext';
 import { useTranslation } from '../../hooks/useTranslation';
 import NotificationBell from './NotificationBell';
+import ApprovalTrackerBell from './ApprovalTrackerBell';
 import LanguageSelector from '../ui/LanguageSelector';
 import CompanySelector from '../common/CompanySelector';
 import BranchSelector from '../common/BranchSelector';
@@ -74,7 +75,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
           <Bars3Icon className="w-6 h-6" />
         </button>
 
-        <Link href={isPlatformUser ? '/admin/platform' : '/tenant/dashboard'} className="flex items-center gap-3 group">
+        <Link href={isPlatformUser ? '/admin/platform' : '/dashboard'} className="flex items-center gap-3 group">
           <div className="relative">
             <div className={clsx(
               'w-10 h-10 rounded-xl flex items-center justify-center shadow-lg transition-all duration-300 group-hover:scale-105',
@@ -161,6 +162,9 @@ export default function Header({ onMenuClick }: HeaderProps) {
           )}
         </button>
 
+        {/* Approval Tracker */}
+        <ApprovalTrackerBell />
+
         {/* Enhanced Notifications */}
         <NotificationBell />
 
@@ -186,6 +190,12 @@ export default function Header({ onMenuClick }: HeaderProps) {
             <span className="hidden lg:block font-medium text-sm max-w-[120px] truncate">
               {user?.email?.split('@')[0]}
             </span>
+            {/* Role badge next to username (QA 13.09) */}
+            {user?.roles?.[0] === 'super_admin' && (
+              <span className="hidden lg:inline-flex items-center px-1.5 py-0.5 text-[10px] font-bold rounded bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400 uppercase">
+                SA
+              </span>
+            )}
           </button>
 
           {userMenuOpen && (

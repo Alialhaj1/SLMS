@@ -11,10 +11,22 @@ export interface City {
   code?: string;
   name: string;
   name_ar?: string;
+  name_en?: string;
   country_id?: number;
-  region_id?: number;
+  country_name?: string;
+  country_flag?: string;
+  state_province_en?: string;
+  state_province_ar?: string;
+  timezone?: string;
+  latitude?: number;
+  longitude?: number;
+  is_port_city?: boolean;
+  is_capital?: boolean;
   is_active: boolean;
+  is_favorite?: boolean;
+  sort_order?: number;
   created_at?: string;
+  updated_at?: string;
 }
 
 export type { City as CityType };
@@ -26,7 +38,7 @@ const columns: ColumnMeta<City>[] = [
   { key: 'name',       label: 'Name',      sortable: true               },
   { key: 'name_ar',    label: 'Name (AR)', sortable: true               },
   { key: 'country_id', label: 'Country',   sortable: true,  width: 160  },
-  { key: 'region_id',  label: 'Region',    sortable: true,  width: 160  },
+  { key: 'state_province_en', label: 'State/Province', sortable: true, width: 160 },
   { key: 'is_active',  label: 'Active',    sortable: true,  width: 90, format: 'boolean', align: 'center' },
 ];
 
@@ -60,22 +72,6 @@ const formSections: PageSection[] = [
           labelArField: 'name_ar',
         },
       },
-      {
-        key: 'region_id',
-        label: 'Region',
-        type: 'searchable-select',
-        required: 'optional',
-        placeholder: 'Select region',
-        dataSource: {
-          type: 'api',
-          endpoint: '/api/master/regions',
-          valueField: 'id',
-          labelField: 'name',
-          labelArField: 'name_ar',
-          parentField: 'country_id',
-          filterParam: 'country_id',
-        },
-      },
     ],
   },
   {
@@ -96,6 +92,25 @@ const actions: ActionMeta[] = [
   { key: 'export', label: 'Export',      icon: 'ArrowDownTrayIcon',  variant: 'secondary', permission: 'master:cities:view',   position: ['toolbar'] },
 ];
 
+// ─── Filter Fields (for list view filtering) ─────────────────────────────
+
+const filterFields: import('@/lib/governance/types').FieldMeta[] = [
+  {
+    key: 'country_id',
+    label: 'Country',
+    type: 'searchable-select',
+    required: 'optional',
+    placeholder: 'Filter by country',
+    dataSource: {
+      type: 'api',
+      endpoint: '/api/master/countries?limit=500&is_active=true',
+      valueField: 'id',
+      labelField: 'name',
+      labelArField: 'name_ar',
+    },
+  },
+];
+
 // ─── Page Config ──────────────────────────────────────────────────────────────
 
 export const citiesConfig: PageConfig<City> = {
@@ -112,6 +127,7 @@ export const citiesConfig: PageConfig<City> = {
   permissionPrefix: 'master:cities',
   columns,
   formSections,
+  filterFields,
   actions,
   auditEnabled: true,
   exportEnabled: true,

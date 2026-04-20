@@ -78,7 +78,7 @@ const CreateSupplier: React.FC = () => {
       setRefLoading(true);
       const [pt, cur, ctr] = await Promise.all([
         fetchRef('/api/payment-terms?is_active=true'),
-        fetchRef('/api/currencies?is_active=true'),
+        fetchRef('/api/finance/currencies?is_active=true'),
         fetchRef('/api/countries?is_active=true'),
       ]);
 
@@ -163,7 +163,7 @@ const CreateSupplier: React.FC = () => {
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const apiUrl = (process.env.NEXT_PUBLIC_API_URL || '') + '/api';
+      const apiUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api').replace(/\/api\/?$/, '') + '/api';
 
       const response = await fetch(`${apiUrl}/suppliers`, {
         method: 'POST',

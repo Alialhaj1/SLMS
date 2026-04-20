@@ -149,7 +149,7 @@ export class ThreeWayMatchingService {
         const poResult = await pool.query(
           `SELECT po.*, 
             (SELECT json_agg(pol ORDER BY pol.id)
-             FROM purchase_order_lines pol
+             FROM purchase_order_items pol
              WHERE pol.purchase_order_id = po.id AND pol.deleted_at IS NULL) as lines
            FROM purchase_orders po
            WHERE po.id = $1 AND po.deleted_at IS NULL`,
@@ -171,7 +171,7 @@ export class ThreeWayMatchingService {
         const grResult = await pool.query(
           `SELECT gr.*, 
             (SELECT json_agg(grl ORDER BY grl.id)
-             FROM goods_receipt_lines grl
+             FROM goods_receipt_items grl
              WHERE grl.goods_receipt_id = gr.id AND grl.deleted_at IS NULL) as lines
            FROM goods_receipts gr
            WHERE gr.id = $1 AND gr.deleted_at IS NULL`,
@@ -371,7 +371,7 @@ export class ThreeWayMatchingService {
         `SELECT 
           COALESCE(SUM(quantity), 0) as ordered_qty,
           COALESCE(SUM(quantity * unit_price), 0) as ordered_amount
-         FROM purchase_order_lines
+         FROM purchase_order_items
          WHERE purchase_order_id = $1 AND deleted_at IS NULL`,
         [poId]
       );
@@ -384,9 +384,9 @@ export class ThreeWayMatchingService {
         `SELECT 
           COALESCE(SUM(grl.quantity_received), 0) as received_qty,
           COALESCE(SUM(grl.quantity_received * COALESCE(grl.unit_price, pol.unit_price)), 0) as received_amount
-         FROM goods_receipt_lines grl
+         FROM goods_receipt_items grl
          JOIN goods_receipts gr ON gr.id = grl.goods_receipt_id
-         LEFT JOIN purchase_order_lines pol ON pol.id = grl.purchase_order_line_id
+         LEFT JOIN purchase_order_items pol ON pol.id = grl.purchase_order_item_id
          WHERE gr.purchase_order_id = $1 AND gr.deleted_at IS NULL AND grl.deleted_at IS NULL`,
         [poId]
       );

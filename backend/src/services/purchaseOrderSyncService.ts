@@ -270,6 +270,120 @@ export async function syncPurchaseOrderToShipments(
   }
 }
 
+export interface LCSyncResult {
+  lcsUpdated: number;
+  errors: string[];
+}
+
+/**
+ * Sync a Purchase Order's data to all linked Letters of Credit
+ * Called after a PO is updated to keep LC data in sync
+ */
+export async function syncPurchaseOrderToLettersOfCredit(
+  poId: number,
+  companyId: number,
+  userId?: number
+): Promise<LCSyncResult> {
+  const syncResult: LCSyncResult = { lcsUpdated: 0, errors: [] };
+
+  try {
+    // 1. Get the updated PO data
+    const poResult = await pool.query(`
+      SELECT
+        po.vendor_id, po.currency_id, po.exchange_rate, po.total_amount,
+        po.project_id, po.port_of_loading_id, po.port_of_loading_text,
+        po.port_of_discharge_id,
+        dt.incoterm_code AS incoterm,
+        v.name AS vendor_name, v.name_ar AS vendor_name_ar,
+        plp.name_en AS loading_port_name, pdp.name_en AS discharge_port_name
+      FROM purchase_orders po
+      LEFT JOIN vendors v ON po.vendor_id = v.id
+      LEFT JOIN delivery_terms dt ON po.delivery_terms_id = dt.id
+      LEFT JOIN ports plp ON po.port_of_loading_id = plp.id
+      LEFT JOIN ports pdp ON po.port_of_discharge_id = pdp.id
+      WHERE po.id = $1 AND po.company_id = $2 AND po.deleted_at IS NULL
+    `, [poId, companyId]);
+
+    if (poResult.rows.length === 0) {
+      syncResult.errors.push(`Purchase Order ${poId} not found`);
+      return syncResult;
+    }
+
+    const po = poResult.rows[0];
+
+    // 2. Find all LCs linked to this PO
+    const lcsResult = await pool.query(`
+      SELECT id, lc_number FROM letters_of_credit
+      WHERE purchase_order_id = $1 AND company_id = $2 AND deleted_at IS NULL
+    `, [poId, companyId]);
+
+    if (lcsResult.rows.length === 0) {
+      logger.info(`No LCs linked to PO ${poId}, nothing to sync`);
+      return syncResult;
+    }
+
+    logger.info(`Syncing PO ${poId} to ${lcsResult.rows.length} letters of credit`);
+
+    // 3. Update each LC with the PO data
+    for (const lc of lcsResult.rows) {
+      try {
+        const amountInBase = Number(po.total_amount || 0) * Number(po.exchange_rate || 1);
+
+        await pool.query(`
+          UPDATE letters_of_credit SET
+            beneficiary_vendor_id = COALESCE($1, beneficiary_vendor_id),
+            beneficiary_name = COALESCE($2, beneficiary_name),
+            beneficiary_name_ar = COALESCE($3, beneficiary_name_ar),
+            currency_id = COALESCE($4, currency_id),
+            exchange_rate = COALESCE($5, exchange_rate),
+            original_amount = COALESCE($6, original_amount),
+            current_amount = COALESCE($6, current_amount),
+            amount_in_base_currency = COALESCE($7, amount_in_base_currency),
+            project_id = COALESCE($8, project_id),
+            port_of_loading_id = COALESCE($9, port_of_loading_id),
+            port_of_loading = COALESCE($10, port_of_loading),
+            port_of_discharge_id = COALESCE($11, port_of_discharge_id),
+            port_of_discharge = COALESCE($12, port_of_discharge),
+            incoterm = COALESCE($13, incoterm),
+            updated_by = $14,
+            updated_at = NOW()
+          WHERE id = $15 AND company_id = $16
+        `, [
+          po.vendor_id,
+          po.vendor_name,
+          po.vendor_name_ar,
+          po.currency_id,
+          po.exchange_rate,
+          po.total_amount,
+          amountInBase || null,
+          po.project_id,
+          po.port_of_loading_id,
+          po.loading_port_name || po.port_of_loading_text,
+          po.port_of_discharge_id,
+          po.discharge_port_name,
+          po.incoterm,
+          userId,
+          lc.id,
+          companyId,
+        ]);
+
+        syncResult.lcsUpdated++;
+        logger.info(`Synced PO ${poId} to LC ${lc.lc_number}`);
+      } catch (lcError: any) {
+        const errorMsg = `Failed to sync LC ${lc.id}: ${lcError.message}`;
+        syncResult.errors.push(errorMsg);
+        logger.error(errorMsg);
+      }
+    }
+
+    return syncResult;
+  } catch (error: any) {
+    logger.error(`PO→LC Sync failed for PO ${poId}:`, error);
+    syncResult.errors.push(`Sync failed: ${error.message}`);
+    return syncResult;
+  }
+}
+
 /**
  * Get sync status for a PO - shows what would be updated
  */
@@ -313,5 +427,6 @@ export async function getPOSyncPreview(poId: number, companyId: number) {
 
 export default {
   syncPurchaseOrderToShipments,
+  syncPurchaseOrderToLettersOfCredit,
   getPOSyncPreview,
 };

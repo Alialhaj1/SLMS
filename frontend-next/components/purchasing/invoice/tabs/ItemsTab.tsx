@@ -376,7 +376,7 @@ export const ItemsTab: React.FC<ItemsTabProps> = ({
                 </td>
                 <td className="px-3 py-2 text-sm text-right text-slate-900 dark:text-white">{item.quantity}</td>
                 <td className="px-3 py-2 text-sm text-right text-slate-500">{item.bonus_quantity || '-'}</td>
-                <td className="px-3 py-2 text-sm text-slate-700 dark:text-slate-300">{item.uom_code}</td>
+                <td className="px-3 py-2 text-sm text-slate-700 dark:text-slate-300">{item.uom_name || item.uom_code}</td>
                 <td className="px-3 py-2 text-sm text-right text-slate-900 dark:text-white">{item.unit_price.toFixed(2)}</td>
                 <td className="px-3 py-2 text-sm text-right text-slate-700 dark:text-slate-300">{item.discount_percent}%</td>
                 <td className="px-3 py-2 text-sm text-right text-slate-700 dark:text-slate-300">{item.tax_percent}%</td>
@@ -468,7 +468,7 @@ export const ItemsTab: React.FC<ItemsTabProps> = ({
             <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">{t('invoiceItems.uom', 'UOM')}</label>
             <input
               type="text"
-              value={itemForm.uom_code}
+              value={itemForm.uom_name || itemForm.uom_code}
               disabled
               className="w-full px-2 py-1.5 text-sm border rounded bg-slate-100 dark:bg-slate-600 dark:border-slate-600 dark:text-slate-400"
             />

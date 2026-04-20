@@ -24,17 +24,29 @@ export const authRateLimiter = rateLimit({
 });
 
 /**
- * General API rate limiter
+ * General API rate limiter (§14.1 — 1000 requests/minute per tenant)
  * Disabled in development — React StrictMode double-mounts, HMR reconnections,
  * and multiple hooks cause request storms that hit limits during normal dev usage.
- * In production: 300 requests per minute per IP.
+ * In production: 1000 requests per minute per IP.
  */
 export const apiRateLimiter = isDev ? noOpLimiter : rateLimit({
   windowMs: 60 * 1000, // 1 minute
-  max: 300, // 300 in production
-  message: { error: 'Too many requests, please slow down' },
+  max: 1000, // 1000 per minute per tenant (§14.1)
+  message: { 
+    success: false,
+    error: { code: 'RATE_LIMIT_EXCEEDED', message: 'Too many requests, please slow down' },
+    message: 'Too many requests, please slow down'
+  },
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: (req) => {
+    // Rate limit per tenant (not per IP) when authenticated
+    const tenantId = (req as any).user?.tenant_id;
+    if (tenantId) return `tenant:${tenantId}`;
+    const userId = (req as any).user?.id;
+    if (userId) return `user:${userId}`;
+    return req.ip || 'unknown';
+  },
 });
 
 /**
@@ -90,3 +102,49 @@ export const bulkUpdateRateLimiter = rateLimit({
     return userId ? `user:${userId}` : req.ip;
   },
 });
+
+// ════════════════════════════════════════════════════════════════════════════
+// E-Commerce Store Rate Limiters (Public-facing — stricter)
+// ════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Store browsing (products, categories, search) — generous limits
+ */
+export const storeBrowseRateLimiter = isDev ? noOpLimiter : rateLimit({
+  windowMs: 60 * 1000,
+  max: 200, // 200 req/min per IP — browsing is high frequency
+  message: { error: 'Too many requests. Please slow down.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+/**
+ * Store auth (login, register) — strict brute-force protection
+ */
+export const storeAuthRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 min window
+  max: isDev ? 100 : 10, // 10 attempts per 15 min
+  message: { error: 'Too many login attempts. Please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+/**
+ * Store checkout / cart writes — moderate limits
+ */
+export const storeCheckoutRateLimiter = isDev ? noOpLimiter : rateLimit({
+  windowMs: 60 * 1000,
+  max: 30, // 30 req/min — covers add-to-cart, apply coupon, checkout
+  message: { error: 'Too many requests. Please wait before trying again.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    const customerId = (req as any).storeCustomer?.id;
+    return customerId ? `store_customer:${customerId}` : req.ip || 'unknown';
+  },
+});
+
+/**
+ * Store webhooks — no rate limit (payment gateways need reliable delivery)
+ * Instead, verification is handled by webhook signature checks
+ */

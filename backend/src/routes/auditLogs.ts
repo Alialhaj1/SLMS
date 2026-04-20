@@ -35,7 +35,10 @@ router.get(
       const { page, limit, offset } = getPaginationParams(req.query);
 
       // TENANT ISOLATION: Filter audit logs by tenant
-      const tenantFilter = buildTenantFilter(req, 'al');
+      const tenantFilterResult = buildTenantFilter(req, 'al.tenant_id');
+
+      const params: any[] = [...tenantFilterResult.params];
+      let paramIndex = tenantFilterResult.nextIndex;
 
       let query = `
         SELECT 
@@ -44,11 +47,8 @@ router.get(
           u.email as user_email
         FROM audit_logs al
         LEFT JOIN users u ON al.user_id = u.id
-        WHERE 1=1 ${tenantFilter}
+        WHERE ${tenantFilterResult.clause}
       `;
-
-      const params: any[] = [];
-      let paramIndex = 1;
 
       // Filter by user
       if (user_id) {
@@ -129,7 +129,12 @@ router.get(
       } = req.query;
 
       // TENANT ISOLATION: Filter exported audit logs by tenant
-      const exportTenantFilter = buildTenantFilter(req, 'al');
+      const exportTenantFilter = buildTenantFilter(req, 'al.tenant_id');
+
+      let exportWhereExtra = '';
+      if (exportTenantFilter.clause !== '1=1') {
+        exportWhereExtra = ` AND ${exportTenantFilter.clause}`;
+      }
 
       let query = `
         SELECT 
@@ -145,11 +150,11 @@ router.get(
           al.after_data
         FROM audit_logs al
         LEFT JOIN users u ON al.user_id = u.id
-        WHERE 1=1 ${exportTenantFilter}
+        WHERE 1=1${exportWhereExtra}
       `;
 
-      const params: any[] = [];
-      let paramIndex = 1;
+      const params: any[] = [...exportTenantFilter.params];
+      let paramIndex = exportTenantFilter.nextIndex;
 
       if (user_id) {
         query += ` AND al.user_id = $${paramIndex}`;
@@ -225,9 +230,15 @@ router.get(
   async (req: Request, res: Response) => {
     try {
       // TENANT ISOLATION: Only show resources from this tenant's logs
-      const resTenantFilter = buildTenantFilter(req, '');
-      const resQuery = `SELECT DISTINCT resource FROM audit_logs WHERE 1=1 ${resTenantFilter} ORDER BY resource`;
-      const result = await pool.query(resQuery);
+      const resTenantFilter = buildTenantFilter(req, 'tenant_id');
+      let resWhereExtra = '';
+      const resParams: any[] = [];
+      if (resTenantFilter.clause !== '1=1') {
+        resWhereExtra = ` AND ${resTenantFilter.clause}`;
+        resParams.push(...resTenantFilter.params);
+      }
+      const resQuery = `SELECT DISTINCT resource FROM audit_logs WHERE 1=1${resWhereExtra} ORDER BY resource`;
+      const result = await pool.query(resQuery, resParams);
 
       res.json(result.rows.map(row => row.resource));
     } catch (error: any) {
@@ -248,9 +259,15 @@ router.get(
   async (req: Request, res: Response) => {
     try {
       // TENANT ISOLATION: Only show actions from this tenant's logs
-      const actTenantFilter = buildTenantFilter(req, '');
-      const actQuery = `SELECT DISTINCT action FROM audit_logs WHERE 1=1 ${actTenantFilter} ORDER BY action`;
-      const result = await pool.query(actQuery);
+      const actTenantFilter = buildTenantFilter(req, 'tenant_id');
+      let actWhereExtra = '';
+      const actParams: any[] = [];
+      if (actTenantFilter.clause !== '1=1') {
+        actWhereExtra = ` AND ${actTenantFilter.clause}`;
+        actParams.push(...actTenantFilter.params);
+      }
+      const actQuery = `SELECT DISTINCT action FROM audit_logs WHERE 1=1${actWhereExtra} ORDER BY action`;
+      const result = await pool.query(actQuery, actParams);
 
       res.json(result.rows.map(row => row.action));
     } catch (error: any) {
@@ -273,7 +290,13 @@ router.get(
       const { id } = req.params;
 
       // TENANT ISOLATION: Only allow viewing own tenant's logs
-      const detailTenantFilter = buildTenantFilter(req, 'al');
+      const detailTenantFilter = buildTenantFilter(req, 'al.tenant_id', 2);
+      let detailWhereExtra = '';
+      const detailParams: any[] = [id];
+      if (detailTenantFilter.clause !== '1=1') {
+        detailWhereExtra = ` AND ${detailTenantFilter.clause}`;
+        detailParams.push(...detailTenantFilter.params);
+      }
       const result = await pool.query(
         `SELECT 
           al.*,
@@ -281,8 +304,8 @@ router.get(
           u.email as user_email
          FROM audit_logs al
          LEFT JOIN users u ON al.user_id = u.id
-         WHERE al.id = $1 ${detailTenantFilter}`,
-        [id]
+         WHERE al.id = $1${detailWhereExtra}`,
+        detailParams
       );
 
       if (result.rows.length === 0) {
@@ -297,6 +320,66 @@ router.get(
   }
 );
 
+// ============================================================================
+// §17 SECURITY: Audit logs are IMMUTABLE — block all mutation attempts
+// ============================================================================
+
+/**
+ * PUT /api/audit-logs/:id → 405 Method Not Allowed
+ * Audit logs are immutable records and cannot be modified.
+ */
+router.put('/:id', authenticate, (_req: Request, res: Response) => {
+  return res.status(405).json({
+    success: false,
+    error: 'Method Not Allowed',
+    message: 'Audit logs are immutable and cannot be modified',
+    message_ar: 'سجلات التدقيق غير قابلة للتعديل',
+    code: 'AUDIT_LOG_IMMUTABLE',
+  });
+});
+
+/**
+ * PATCH /api/audit-logs/:id → 405 Method Not Allowed
+ * Audit logs are immutable records and cannot be modified.
+ */
+router.patch('/:id', authenticate, (_req: Request, res: Response) => {
+  return res.status(405).json({
+    success: false,
+    error: 'Method Not Allowed',
+    message: 'Audit logs are immutable and cannot be modified',
+    message_ar: 'سجلات التدقيق غير قابلة للتعديل',
+    code: 'AUDIT_LOG_IMMUTABLE',
+  });
+});
+
+/**
+ * DELETE /api/audit-logs/:id → 403 Forbidden
+ * Audit logs cannot be deleted — regulatory compliance requirement.
+ */
+router.delete('/:id', authenticate, (_req: Request, res: Response) => {
+  return res.status(403).json({
+    success: false,
+    error: 'Forbidden',
+    message: 'Audit logs cannot be deleted — regulatory compliance requirement',
+    message_ar: 'لا يمكن حذف سجلات التدقيق — متطلب امتثال تنظيمي',
+    code: 'AUDIT_LOG_DELETE_FORBIDDEN',
+  });
+});
+
+/**
+ * POST /api/audit-logs → 405 Method Not Allowed
+ * Audit logs are created automatically by the system, not manually.
+ */
+router.post('/', authenticate, (_req: Request, res: Response) => {
+  return res.status(405).json({
+    success: false,
+    error: 'Method Not Allowed',
+    message: 'Audit logs are created automatically by the system',
+    message_ar: 'يتم إنشاء سجلات التدقيق تلقائياً بواسطة النظام',
+    code: 'AUDIT_LOG_MANUAL_CREATE_FORBIDDEN',
+  });
+});
+
 /**
  * GET /api/audit-logs/stats/summary
  * Get audit logs statistics
@@ -310,10 +393,10 @@ router.get(
       const { date_from, date_to } = req.query;
 
       // TENANT ISOLATION: Stats filtered by tenant
-      const statsTenantFilter = buildTenantFilter(req, '');
-      let whereClause = `1=1 ${statsTenantFilter}`;
-      const params: any[] = [];
-      let paramIndex = 1;
+      const statsTenantFilter = buildTenantFilter(req, 'tenant_id');
+      const params: any[] = [...statsTenantFilter.params];
+      let paramIndex = statsTenantFilter.nextIndex;
+      let whereClause = statsTenantFilter.clause;
 
       if (date_from) {
         whereClause += ` AND created_at >= $${paramIndex}`;
@@ -348,9 +431,24 @@ router.get(
         params
       );
 
-      // Top users - also filter by tenant
-      const userStatsTenantFilter = buildTenantFilter(req, 'al');
-      const userStatsWhere = whereClause.replace(statsTenantFilter, userStatsTenantFilter);
+      // Top users - also filter by tenant (use 'al' alias)
+      const userTenantFilter = buildTenantFilter(req, 'al.tenant_id', statsTenantFilter.nextIndex);
+      let userWhereClause = userTenantFilter.clause;
+      const userParams: any[] = [...userTenantFilter.params];
+      let userParamIndex = userTenantFilter.nextIndex;
+
+      if (date_from) {
+        userWhereClause += ` AND al.created_at >= $${userParamIndex}`;
+        userParams.push(date_from);
+        userParamIndex++;
+      }
+
+      if (date_to) {
+        userWhereClause += ` AND al.created_at <= $${userParamIndex}`;
+        userParams.push(date_to);
+        userParamIndex++;
+      }
+
       const userStats = await pool.query(
         `SELECT 
            u.full_name,
@@ -358,11 +456,11 @@ router.get(
            COUNT(*) as action_count
          FROM audit_logs al
          LEFT JOIN users u ON al.user_id = u.id
-         WHERE ${userStatsWhere}
+         WHERE ${userWhereClause}
          GROUP BY u.id, u.full_name, u.email
          ORDER BY action_count DESC
          LIMIT 10`,
-        params
+        userParams
       );
 
       res.json({

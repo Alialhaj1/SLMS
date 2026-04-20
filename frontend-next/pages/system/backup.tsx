@@ -99,7 +99,7 @@ export default function BackupCenterPage() {
     try {
       setLoading(true);
       const token = localStorage.getItem('accessToken');
-      const res = await fetch('/api/admin/backup/dashboard', {
+      const res = await fetch('http://localhost:4000/api/admin/backup/dashboard', {
         headers: { Authorization: `Bearer ${token}` }
       });
 
@@ -144,7 +144,7 @@ export default function BackupCenterPage() {
         body.tables = selectedTables;
       }
 
-      const res = await fetch('/api/admin/backup/create', {
+      const res = await fetch('http://localhost:4000/api/admin/backup/create', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -171,7 +171,7 @@ export default function BackupCenterPage() {
   const handleDownload = async (id: number, fileName: string) => {
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`/api/admin/backup/download/${id}`, {
+      const res = await fetch(`http://localhost:4000/api/admin/backup/download/${id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
@@ -201,7 +201,7 @@ export default function BackupCenterPage() {
       setDeleting(true);
       const token = localStorage.getItem('accessToken');
       
-      const res = await fetch(`/api/admin/backup/${deleteId}`, {
+      const res = await fetch(`http://localhost:4000/api/admin/backup/${deleteId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -229,7 +229,7 @@ export default function BackupCenterPage() {
       setRestoring(true);
       const token = localStorage.getItem('accessToken');
       
-      const res = await fetch(`/api/admin/backup/restore/${restoreId}`, {
+      const res = await fetch(`http://localhost:4000/api/admin/backup/restore/${restoreId}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

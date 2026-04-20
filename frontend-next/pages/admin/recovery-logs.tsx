@@ -37,7 +37,7 @@ export default function RecoveryLogs() {
       const data = await res.json();
       setLogs(data.data ?? []);
     } catch {
-      showToast('error', 'Failed to load recovery logs');
+      showToast('error', t('adminRecoveryLogs.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -47,20 +47,21 @@ export default function RecoveryLogs() {
     const cls = action === 'restored'
       ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
       : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400';
-    return <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded-full capitalize ${cls}`}>{action}</span>;
+    const label = action === 'restored' ? t('adminRecoveryLogs.restored') : t('adminRecoveryLogs.purged');
+    return <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded-full capitalize ${cls}`}>{label}</span>;
   };
 
   return (
     <MainLayout>
       <Head>
-        <title>Recovery Logs - SLMS</title>
+        <title>{t('adminRecoveryLogs.title')} - SLMS</title>
       </Head>
 
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Recovery Logs</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('adminRecoveryLogs.title')}</h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Audit trail of data recovery and purge actions performed by administrators.
+            {t('adminRecoveryLogs.subtitle')}
           </p>
         </div>
 
@@ -68,8 +69,8 @@ export default function RecoveryLogs() {
           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
             <thead className="bg-gray-50 dark:bg-gray-900">
               <tr>
-                {['Timestamp', 'Admin', 'Resource', 'Record ID', 'Action'].map((h) => (
-                  <th key={h} className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{h}</th>
+                {(['timestamp', 'admin', 'resource', 'recordId', 'action'] as const).map((h) => (
+                  <th key={h} className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t(`adminRecoveryLogs.${h}`)}</th>
                 ))}
               </tr>
             </thead>
@@ -86,7 +87,7 @@ export default function RecoveryLogs() {
                 <tr>
                   <td colSpan={5} className="px-6 py-12 text-center">
                     <DocumentMagnifyingGlassIcon className="mx-auto h-10 w-10 text-gray-300 dark:text-gray-600" />
-                    <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">No recovery logs recorded yet.</p>
+                    <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">{t('adminRecoveryLogs.noLogs')}</p>
                   </td>
                 </tr>
               ) : (

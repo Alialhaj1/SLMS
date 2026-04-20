@@ -33,11 +33,7 @@ router.get('/stats', requirePermission('payment_terms:view'), async (req: Reques
       SELECT
         COUNT(*)::int                                                    AS total,
         COUNT(*) FILTER (WHERE is_active = true)::int                    AS active,
-        COUNT(*) FILTER (WHERE is_active = false)::int                   AS inactive,
-        COUNT(*) FILTER (WHERE is_installment = true)::int               AS installment,
-        COUNT(*) FILTER (WHERE requires_advance = true)::int             AS with_advance,
-        COUNT(*) FILTER (WHERE early_payment_discount_pct > 0)::int      AS with_early_discount,
-        COUNT(*) FILTER (WHERE penalty_pct_per_month > 0)::int           AS with_penalty
+        COUNT(*) FILTER (WHERE is_active = false)::int                   AS inactive
       FROM payment_terms
       WHERE deleted_at IS NULL
         AND (company_id = $1 OR company_id IS NULL OR $1::int IS NULL)
@@ -92,11 +88,9 @@ router.get('/', requirePermission('payment_terms:view'), async (req: Request, re
 
     const allowedSorts: Record<string, string> = {
       code: 'pt.code',
-      name: 'COALESCE(pt.name_en, pt.name)',
+      name: 'pt.name',
       days: 'pt.days',
       is_active: 'pt.is_active',
-      is_installment: 'pt.is_installment',
-      due_calculation: 'pt.due_calculation',
       created_at: 'pt.created_at',
     };
     const sortCol = allowedSorts[sortBy] || 'pt.days';
@@ -114,7 +108,6 @@ router.get('/', requirePermission('payment_terms:view'), async (req: Request, re
       conditions.push(`(
         pt.code ILIKE $${paramIdx}
         OR pt.name ILIKE $${paramIdx}
-        OR COALESCE(pt.name_en, '') ILIKE $${paramIdx}
         OR COALESCE(pt.name_ar, '') ILIKE $${paramIdx}
       )`);
       params.push(`%${search}%`);
@@ -124,18 +117,6 @@ router.get('/', requirePermission('payment_terms:view'), async (req: Request, re
     if (is_active !== undefined && is_active !== '') {
       conditions.push(`pt.is_active = $${paramIdx}`);
       params.push(is_active === 'true');
-      paramIdx++;
-    }
-
-    if (is_installment !== undefined && is_installment !== '') {
-      conditions.push(`pt.is_installment = $${paramIdx}`);
-      params.push(is_installment === 'true');
-      paramIdx++;
-    }
-
-    if (due_calculation) {
-      conditions.push(`pt.due_calculation = $${paramIdx}`);
-      params.push(due_calculation);
       paramIdx++;
     }
 
@@ -152,22 +133,14 @@ router.get('/', requirePermission('payment_terms:view'), async (req: Request, re
         pt.id,
         pt.company_id,
         pt.code,
-        COALESCE(pt.name_en, pt.name) AS name,
-        pt.name_en,
+        pt.name,
         pt.name_ar,
         pt.description,
+        COALESCE(pt.description_en, pt.description) AS description_en,
         pt.description_ar,
         pt.days,
-        pt.due_calculation,
         pt.discount_percent,
         pt.discount_days,
-        pt.early_payment_discount_pct,
-        pt.early_payment_days,
-        pt.is_installment,
-        pt.installment_count,
-        pt.requires_advance,
-        pt.advance_pct,
-        pt.penalty_pct_per_month,
         pt.is_active,
         pt.is_default,
         pt.created_by,
@@ -175,8 +148,7 @@ router.get('/', requirePermission('payment_terms:view'), async (req: Request, re
         pt.created_at,
         pt.updated_at,
         cu.email AS created_by_name,
-        uu.email AS updated_by_name,
-        (SELECT COUNT(*)::int FROM payment_term_lines l WHERE l.payment_term_id = pt.id) AS lines_count
+        uu.email AS updated_by_name
       FROM payment_terms pt
       LEFT JOIN users cu ON pt.created_by = cu.id
       LEFT JOIN users uu ON pt.updated_by = uu.id
@@ -206,7 +178,7 @@ router.get('/:id', requirePermission('payment_terms:view'), async (req: Request,
     const result = await pool.query(`
       SELECT
         pt.*,
-        COALESCE(pt.name_en, pt.name) AS name_display,
+        pt.name AS name_display,
         cu.email AS created_by_name,
         uu.email AS updated_by_name
       FROM payment_terms pt
@@ -220,14 +192,7 @@ router.get('/:id', requirePermission('payment_terms:view'), async (req: Request,
       return res.status(404).json({ error: 'Payment term not found' });
     }
 
-    const lines = await pool.query(`
-      SELECT id, line_number, percentage, due_days, description, description_ar, is_active
-      FROM payment_term_lines
-      WHERE payment_term_id = $1
-      ORDER BY line_number
-    `, [id]);
-
-    res.json({ ...result.rows[0], lines: lines.rows });
+    res.json({ ...result.rows[0], lines: [] });
   } catch (error) {
     logger.error('Error fetching payment term detail:', error);
     res.status(500).json({ error: 'Failed to fetch payment term' });
@@ -278,38 +243,22 @@ router.post('/', requirePermission('payment_terms:create'), async (req: Request,
 
     const result = await client.query(`
       INSERT INTO payment_terms (
-        company_id, code, name, name_en, name_ar, description, description_ar,
-        days, due_calculation, discount_percent, discount_days,
-        early_payment_discount_pct, early_payment_days,
-        is_installment, installment_count, requires_advance, advance_pct,
-        penalty_pct_per_month, is_active, created_by, updated_by
+        company_id, code, name, name_ar, description, description_ar,
+        days, discount_percent, discount_days,
+        is_active, created_by, updated_by
       ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7,
-        $8, $9, $10, $11,
-        $12, $13,
-        $14, $15, $16, $17,
-        $18, $19, $20, $21
+        $1, $2, $3, $4, $5, $6,
+        $7, $8, $9,
+        $10, $11, $12
       ) RETURNING *
     `, [
-      companyId, finalCode, finalName, finalName, finalNameAr,
+      companyId, finalCode, finalName, finalNameAr,
       description || null, description_ar || null,
-      finalDays, due_calculation || 'from_invoice_date',
-      discount_percent || 0, finalDiscountDays,
-      early_payment_discount_pct || null, early_payment_days || null,
-      is_installment || false, installment_count || null,
-      requires_advance || false, advance_pct || null,
-      penalty_pct_per_month || null, is_active !== false,
-      userId, userId
+      finalDays, discount_percent || 0, finalDiscountDays,
+      is_active !== false, userId, userId
     ]);
 
-    if (Array.isArray(lines) && lines.length > 0) {
-      for (const line of lines) {
-        await client.query(`
-          INSERT INTO payment_term_lines (payment_term_id, line_number, percentage, due_days, description, description_ar)
-          VALUES ($1, $2, $3, $4, $5, $6)
-        `, [result.rows[0].id, line.line_number, line.percentage, line.due_days, line.description || null, line.description_ar || null]);
-      }
-    }
+    // Lines table doesn't exist yet, skip lines insertion
 
     await client.query('COMMIT');
     res.status(201).json({ data: result.rows[0] });
@@ -340,11 +289,9 @@ router.put('/:id', requirePermission('payment_terms:edit'), async (req: Request,
     }
 
     const allowedFields = [
-      'name', 'name_en', 'name_ar', 'description', 'description_ar',
-      'days', 'due_calculation', 'discount_percent', 'discount_days',
-      'early_payment_discount_pct', 'early_payment_days',
-      'is_installment', 'installment_count', 'requires_advance', 'advance_pct',
-      'penalty_pct_per_month', 'is_active', 'is_default',
+      'name', 'name_ar', 'description', 'description_ar', 'description_en',
+      'days', 'discount_percent', 'discount_days',
+      'is_active', 'is_default',
     ];
 
     const body = { ...req.body };
@@ -425,57 +372,17 @@ router.delete('/:id', requirePermission('payment_terms:delete'), async (req: Req
 });
 
 // ════════════════════════════════════════════════════════════════════════
-// LINES — POST /api/payment-terms/:id/lines
+// LINES — POST /api/payment-terms/:id/lines (disabled - table not yet created)
 // ════════════════════════════════════════════════════════════════════════
 router.post('/:id/lines', requirePermission('payment_terms:edit'), async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-    const companyId = (req as any).companyContext?.companyId;
-
-    const parent = await pool.query(
-      `SELECT id FROM payment_terms WHERE id = $1 AND deleted_at IS NULL AND (company_id = $2 OR company_id IS NULL OR $2::int IS NULL)`,
-      [id, companyId]
-    );
-    if (parent.rows.length === 0) {
-      return res.status(404).json({ error: 'Payment term not found' });
-    }
-
-    const { line_number, percentage, due_days, description, description_ar } = req.body;
-
-    const result = await pool.query(`
-      INSERT INTO payment_term_lines (payment_term_id, line_number, percentage, due_days, description, description_ar)
-      VALUES ($1, $2, $3, $4, $5, $6)
-      RETURNING *
-    `, [id, line_number, percentage, due_days, description || null, description_ar || null]);
-
-    res.status(201).json({ data: result.rows[0] });
-  } catch (error) {
-    logger.error('Error creating payment term line:', error);
-    res.status(500).json({ error: 'Failed to create payment term line' });
-  }
+  return res.status(501).json({ error: 'Payment term lines not yet implemented' });
 });
 
 // ════════════════════════════════════════════════════════════════════════
-// LINES — DELETE /api/payment-terms/:id/lines/:lineId
+// LINES — DELETE /api/payment-terms/:id/lines/:lineId (disabled - table not yet created)
 // ════════════════════════════════════════════════════════════════════════
 router.delete('/:id/lines/:lineId', requirePermission('payment_terms:edit'), async (req: Request, res: Response) => {
-  try {
-    const { id, lineId } = req.params;
-
-    const result = await pool.query(
-      `DELETE FROM payment_term_lines WHERE id = $1 AND payment_term_id = $2 RETURNING *`,
-      [lineId, id]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Payment term line not found' });
-    }
-
-    res.json({ message: 'Line deleted' });
-  } catch (error) {
-    logger.error('Error deleting payment term line:', error);
-    res.status(500).json({ error: 'Failed to delete payment term line' });
-  }
+  return res.status(501).json({ error: 'Payment term lines not yet implemented' });
 });
 
 export default router;

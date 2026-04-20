@@ -22,6 +22,7 @@ import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { usePermissions } from '../../hooks/usePermissions';
 import { useTranslation } from '../../hooks/useTranslation';
+import { useAuth } from '../../contexts/AuthContext';
 import MainLayout from '../layout/MainLayout';
 import Button from '../ui/Button';
 import {
@@ -51,6 +52,12 @@ export interface PageGuardProps {
   hideBackButton?: boolean;
   /** إخفاء زر الصفحة الرئيسية */
   hideHomeButton?: boolean;
+  /** Only platform users (no tenant_id) can access */
+  platformOnly?: boolean;
+  /** Only tenant users can access */
+  tenantOnly?: boolean;
+  /** Required module — tenant must have this module enabled */
+  requireModule?: string;
 }
 
 export function PageGuard({
@@ -64,10 +71,14 @@ export function PageGuard({
   redirectTo,
   hideBackButton = false,
   hideHomeButton = false,
+  platformOnly = false,
+  tenantOnly = false,
+  requireModule,
 }: PageGuardProps): React.ReactElement {
   const { can, canAny, canAll, isSuperAdmin, loading } = usePermissions();
   const { t } = useTranslation();
   const router = useRouter();
+  const { user } = useAuth();
 
   // حالة التحميل
   if (loading) {
@@ -86,6 +97,97 @@ export function PageGuard({
   // Super Admin يتخطى جميع الفحوصات
   if (isSuperAdmin) {
     return <>{children}</>;
+  }
+
+  // Platform-only check: tenant users cannot access
+  const isPlatformUser = !user?.tenant_id;
+  if (platformOnly && !isPlatformUser) {
+    const blockedContent = (
+      <>
+        <Head>
+          <title>{t('common.accessDenied')} - SLMS</title>
+        </Head>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="text-center max-w-md px-4">
+            <div className="mx-auto w-20 h-20 bg-red-100 dark:bg-red-900/20 rounded-full flex items-center justify-center mb-6">
+              <ShieldExclamationIcon className="w-10 h-10 text-red-600 dark:text-red-400" />
+            </div>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+              {t('common.accessDenied')}
+            </h1>
+            <p className="text-gray-600 dark:text-gray-400 mb-8">
+              {t('common.platformOnlyPage') || 'This page is only accessible to platform administrators.'}
+            </p>
+            <Button variant="primary" onClick={() => router.push('/dashboard')} className="flex items-center justify-center gap-2">
+              <HomeIcon className="w-5 h-5" />
+              {t('menu.dashboard')}
+            </Button>
+          </div>
+        </div>
+      </>
+    );
+    return useLayout ? <MainLayout>{blockedContent}</MainLayout> : <>{blockedContent}</>;
+  }
+
+  // Tenant-only check: platform users cannot access
+  if (tenantOnly && isPlatformUser) {
+    const blockedContent = (
+      <>
+        <Head>
+          <title>{t('common.accessDenied')} - SLMS</title>
+        </Head>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="text-center max-w-md px-4">
+            <div className="mx-auto w-20 h-20 bg-amber-100 dark:bg-amber-900/20 rounded-full flex items-center justify-center mb-6">
+              <ShieldExclamationIcon className="w-10 h-10 text-amber-600 dark:text-amber-400" />
+            </div>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+              {t('common.accessDenied')}
+            </h1>
+            <p className="text-gray-600 dark:text-gray-400 mb-8">
+              {t('common.tenantOnlyPage') || 'This page is only accessible to tenant users.'}
+            </p>
+            <Button variant="primary" onClick={() => router.push('/dashboard')} className="flex items-center justify-center gap-2">
+              <HomeIcon className="w-5 h-5" />
+              {t('menu.dashboard')}
+            </Button>
+          </div>
+        </div>
+      </>
+    );
+    return useLayout ? <MainLayout>{blockedContent}</MainLayout> : <>{blockedContent}</>;
+  }
+
+  // Module check: tenant must have module enabled
+  if (requireModule && !isPlatformUser && user?.enabled_modules) {
+    const modules = Array.isArray(user.enabled_modules) ? user.enabled_modules : [];
+    if (!modules.includes(requireModule)) {
+      const blockedContent = (
+        <>
+          <Head>
+            <title>{t('common.accessDenied')} - SLMS</title>
+          </Head>
+          <div className="flex items-center justify-center min-h-[60vh]">
+            <div className="text-center max-w-md px-4">
+              <div className="mx-auto w-20 h-20 bg-amber-100 dark:bg-amber-900/20 rounded-full flex items-center justify-center mb-6">
+                <ShieldExclamationIcon className="w-10 h-10 text-amber-600 dark:text-amber-400" />
+              </div>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+                {t('common.accessDenied')}
+              </h1>
+              <p className="text-gray-600 dark:text-gray-400 mb-8">
+                {t('common.moduleNotEnabled') || 'This module is not enabled for your organization.'}
+              </p>
+              <Button variant="primary" onClick={() => router.push('/dashboard')} className="flex items-center justify-center gap-2">
+                <HomeIcon className="w-5 h-5" />
+                {t('menu.dashboard')}
+              </Button>
+            </div>
+          </div>
+        </>
+      );
+      return useLayout ? <MainLayout>{blockedContent}</MainLayout> : <>{blockedContent}</>;
+    }
   }
 
   // التحقق من الصلاحيات

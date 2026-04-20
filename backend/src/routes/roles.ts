@@ -7,7 +7,7 @@
 import { Router, Request, Response } from 'express';
 import { pool } from '../db';
 import { authenticate } from '../middleware/auth';
-import { requirePermission } from '../middleware/rbac';
+import { requirePermission, requireAnyPermission } from '../middleware/rbac';
 import { getIsolatedTenantId } from '../middleware/tenantIsolation';
 import { companyScopeGuard } from '../middleware/companyScopeGuard';
 import { getPaginationParams, sendPaginated } from '../utils/response';
@@ -36,7 +36,7 @@ function isReservedSuperAdminRoleName(name: any): boolean {
 router.get(
   '/permissions',
   authenticate,
-  requirePermission('roles:view'),
+  requireAnyPermission(['roles:view', 'tenant_roles:view']),
   async (req: Request, res: Response) => {
     try {
       const tenantId = getRequestTenantId(req);
@@ -70,19 +70,17 @@ router.get(
 
         // If module_filter=enabled, only show permissions for modules enabled for the tenant
         if (module_filter === 'enabled') {
-          // Try tenant_id first, fallback to company_id
-          const companyId = (req as any).companyId;
           query += ` AND (
             p.module_code IS NULL 
             OR p.module_code IN (
               SELECT DISTINCT tm.module_code FROM tenant_modules tm 
-              WHERE (tm.tenant_id = $${paramIdx} OR tm.company_id = $${paramIdx + 1}) 
+              WHERE tm.tenant_id = $${paramIdx}
                 AND tm.is_enabled = true
             )
             OR m.is_core = true
           )`;
-          params.push(tenantId, companyId || 0);
-          paramIdx += 2;
+          params.push(tenantId);
+          paramIdx += 1;
         }
       } else {
         // Platform users see ALL permissions
@@ -174,7 +172,7 @@ router.get(
 router.get(
   '/templates',
   authenticate,
-  requirePermission('roles:view'),
+  requireAnyPermission(['roles:view', 'tenant_roles:view']),
   async (req: Request, res: Response) => {
     try {
       const result = await pool.query(
@@ -221,7 +219,7 @@ router.get(
 router.get(
   '/templates/:id',
   authenticate,
-  requirePermission('roles:view'),
+  requireAnyPermission(['roles:view', 'tenant_roles:view']),
   async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
@@ -269,7 +267,7 @@ router.get(
 router.post(
   '/from-template',
   authenticate,
-  requirePermission('roles:create'),
+  requireAnyPermission(['roles:create', 'tenant_roles:create']),
   auditLog,
   async (req: Request, res: Response) => {
     try {
@@ -375,7 +373,7 @@ router.post(
 router.get(
   '/',
   authenticate,
-  requirePermission('roles:view'),
+  requireAnyPermission(['roles:view', 'tenant_roles:view']),
   companyScopeGuard,
   async (req: Request, res: Response) => {
     try {
@@ -385,10 +383,12 @@ router.get(
       const excludeNames = isSuperAdminRequest(req) ? undefined : SUPER_ADMIN_ROLE_NAMES;
       const tenantId = getRequestTenantId(req);
 
-      // Use active company from header/context if not explicitly passed
+      // Only filter by company_id if explicitly passed in query string.
+      // Don't fall back to req.companyId — roles are isolated by tenant_id, not company_id.
+      // System/tenant roles have company_id = NULL and would be excluded otherwise.
       const effectiveCompanyId = company_id 
         ? parseInt(company_id as string) 
-        : (req as any).companyId || undefined;
+        : undefined;
 
       // Use RoleService to get roles with pagination
       // Tenant users see system roles + their own custom roles
@@ -429,7 +429,7 @@ router.get(
 router.get(
   '/:id',
   authenticate,
-  requirePermission('roles:view'),
+  requireAnyPermission(['roles:view', 'tenant_roles:view']),
   async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
@@ -489,12 +489,12 @@ router.get(
 router.put(
   '/:id',
   authenticate,
-  requirePermission('roles:edit'),
+  requireAnyPermission(['roles:edit', 'tenant_roles:edit']),
   auditLog,
   async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
-      const { name, permissions, company_id, description } = req.body;
+      const { name, permissions, company_id, description, module_gates } = req.body;
 
       const roleId = parseInt(id, 10);
       if (!Number.isFinite(roleId)) {
@@ -504,17 +504,25 @@ router.put(
         });
       }
 
-      // Tenant isolation: tenant users can only edit their own custom roles
+      // Tenant isolation: tenant users can only edit their own custom roles or update permissions on system roles
       const tenantId = getRequestTenantId(req);
       if (tenantId) {
-        const roleCheck = await pool.query('SELECT tenant_id FROM roles WHERE id = $1', [roleId]);
+        const roleCheck = await pool.query('SELECT tenant_id, is_system, name FROM roles WHERE id = $1', [roleId]);
         if (roleCheck.rows.length === 0) {
           return res.status(404).json({ success: false, error: 'Role not found' });
         }
         const roleTenantId = roleCheck.rows[0].tenant_id;
-        // Tenant users can only edit roles belonging to their tenant (not system roles or other tenants' roles)
-        if (roleTenantId === null || roleTenantId !== tenantId) {
-          return res.status(403).json({ success: false, error: 'لا يمكنك تعديل هذا الدور' });
+        const isSystemRole = roleCheck.rows[0].is_system;
+        const currentName = roleCheck.rows[0].name;
+        if (roleTenantId !== null && roleTenantId !== tenantId) {
+          // Role belongs to another tenant
+          return res.status(403).json({ success: false, error: 'Access denied' });
+        }
+        if (roleTenantId === null && isSystemRole) {
+          // System role: tenant users can only update permissions, not rename
+          if (name && name !== currentName) {
+            return res.status(403).json({ success: false, error: 'Cannot rename system roles' });
+          }
         }
       }
 
@@ -594,7 +602,8 @@ router.put(
         {
           name,
           permissions: filteredPermissions,
-          description
+          description,
+          module_gates: Array.isArray(module_gates) ? module_gates : undefined,
         },
         req.user!.id
       );
@@ -630,11 +639,11 @@ router.put(
 router.post(
   '/',
   authenticate,
-  requirePermission('roles:create'),
+  requireAnyPermission(['roles:create', 'tenant_roles:create']),
   auditLog,
   async (req: Request, res: Response) => {
     try {
-      const { name, permissions, company_id, description } = req.body;
+      const { name, display_name, permissions, company_id, description } = req.body;
       const tenantId = getRequestTenantId(req);
 
       if (!isSuperAdminRequest(req) && isReservedSuperAdminRoleName(name)) {
@@ -705,6 +714,7 @@ router.post(
       const newRole = await RoleService.create(
         {
           name,
+          display_name,
           permissions: filteredPermissions,
           company_id: safeCompanyId,
           description,
@@ -735,7 +745,7 @@ router.post(
 router.delete(
   '/:id',
   authenticate,
-  requirePermission('roles:delete'),
+  requireAnyPermission(['roles:delete', 'tenant_roles:delete']),
   auditLog,
   async (req: Request, res: Response) => {
     try {
@@ -858,7 +868,7 @@ router.delete(
 router.post(
   '/:id/clone',
   authenticate,
-  requirePermission('roles:create'),
+  requireAnyPermission(['roles:create', 'tenant_roles:create']),
   async (req: Request, res: Response) => {
     try {
       const { id } = req.params;

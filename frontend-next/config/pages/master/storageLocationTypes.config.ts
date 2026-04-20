@@ -84,3 +84,5 @@ export const storageLocationTypesConfig: PageConfig<StorageLocationType> = {
   pageSizeOptions: [10, 25, 50, 100],
   bulkOperationsEnabled: true,
 };
+
+export const storageLocationTypeConfig = storageLocationTypesConfig;

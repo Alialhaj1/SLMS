@@ -26,6 +26,7 @@ import { requirePermission } from '../middleware/rbac';
 import { auditLog, captureBeforeState } from '../middleware/auditLog';
 import { getPaginationParams, sendPaginated } from '../utils/response';
 import { getIsolatedTenantId } from '../middleware/tenantIsolation';
+import { clearBranchAccessCache } from '../middleware/branchAccess';
 
 const router = Router();
 
@@ -35,34 +36,55 @@ const branchTypeEnum = z.enum([
   'headquarters', 'regional_office', 'branch', 'warehouse_only', 'sales_point'
 ]);
 
+// Helper: coerce string|number to number (for searchable-select FK fields)
+const coerceId = z.preprocess(
+  (val) => (typeof val === 'string' && /^\d+$/.test(val) ? Number(val) : val),
+  z.number().int().positive()
+);
+const coerceIdOptional = z.preprocess(
+  (val) => (val === '' || val === null || val === undefined ? undefined : typeof val === 'string' && /^\d+$/.test(val) ? Number(val) : val),
+  z.number().int().positive().optional()
+);
+const coerceIdNullable = z.preprocess(
+  (val) => (val === '' || val === null || val === undefined ? null : typeof val === 'string' && /^\d+$/.test(val) ? Number(val) : val),
+  z.number().int().positive().nullable().optional()
+);
+
 const createBranchSchema = z.object({
-  company_id: z.number().int().positive(),
-  parent_branch_id: z.number().int().positive().nullable().optional(),
-  code: z.string().min(1).max(15),
-  name: z.string().min(1).max(255),
-  name_en: z.string().min(1).max(100).optional(),
-  name_ar: z.string().max(100).optional(),
-  type: branchTypeEnum.default('branch'),
-  country_id: z.number().int().positive().nullable().optional(),
-  city_id: z.number().int().positive().nullable().optional(),
-  region_id: z.number().int().positive().nullable().optional(),
-  address: z.string().optional(),
-  postal_code: z.string().max(15).optional(),
-  currency_id: z.number().int().positive().nullable().optional(),
-  timezone_id: z.number().int().positive().nullable().optional(),
-  language_id: z.number().int().positive().nullable().optional(),
-  phone: z.string().max(20).optional(),
-  email: z.string().email().max(100).optional().or(z.literal('')),
-  manager_name: z.string().max(255).optional(),
-  tax_number: z.string().max(30).optional(),
-  cr_number: z.string().max(30).optional(),
-  cost_center_code: z.string().max(20).optional(),
-  profit_center_code: z.string().max(20).optional(),
-  is_active: z.boolean().default(true),
-  is_headquarters: z.boolean().default(false),
-  is_default: z.boolean().default(false),
+  company_id: coerceId,
+  parent_branch_id: coerceIdNullable,
+  code: z.string().max(20).nullable().optional(),
+  name: z.string().min(1).max(255).nullable().optional(),
+  name_en: z.string().min(1).max(255),
+  name_ar: z.string().max(255).nullable().optional(),
+  type: branchTypeEnum.nullable().optional().default('branch'),
+  address_type_id: coerceIdNullable,
+  country_id: coerceIdNullable,
+  city_id: coerceIdNullable,
+  city: z.string().max(100).nullable().optional(),
+  region_id: coerceIdNullable,
+  region: z.string().max(100).nullable().optional(),
+  address: z.string().nullable().optional(),
+  address_line_1: z.string().max(500).nullable().optional(),
+  address_line_2: z.string().max(500).nullable().optional(),
+  postal_code: z.string().max(20).nullable().optional(),
+  currency_id: coerceIdNullable,
+  timezone_id: coerceIdNullable,
+  language_id: coerceIdNullable,
+  phone: z.string().max(30).nullable().optional(),
+  email: z.string().email().max(255).nullable().optional().or(z.literal('')),
+  manager_name: z.string().max(255).nullable().optional(),
+  tax_number: z.string().max(30).nullable().optional(),
+  cr_number: z.string().max(30).nullable().optional(),
+  cost_center_code: z.string().max(20).nullable().optional(),
+  profit_center_code: z.string().max(20).nullable().optional(),
+  is_active: z.preprocess((v) => v === null || v === undefined ? true : v, z.boolean().default(true)),
+  is_headquarters: z.preprocess((v) => v === null || v === undefined ? false : v, z.boolean().default(false)),
+  is_main: z.preprocess((v) => v === null || v === undefined ? false : v, z.boolean().default(false)),
+  is_default: z.preprocess((v) => v === null || v === undefined ? false : v, z.boolean().default(false)),
   latitude: z.number().min(-90).max(90).nullable().optional(),
   longitude: z.number().min(-180).max(180).nullable().optional(),
+  working_hours: z.record(z.any()).nullable().optional(),
 });
 
 const updateBranchSchema = createBranchSchema.partial().omit({ company_id: true });
@@ -91,17 +113,19 @@ const BRANCH_SELECT = `
          co.flag_emoji AS country_flag,
          ci.name AS city_name,
          ci.name_ar AS city_name_ar,
-         rg.name AS region_name,
+         rg.name_en AS region_name,
          rg.name_ar AS region_name_ar,
          cur.code AS currency_code,
          cur.name AS currency_name,
          cur.symbol AS currency_symbol,
-         tz.name AS timezone_name,
-         COALESCE(tz.identifier, tz.code, tz.name) AS timezone_identifier,
-         lg.name AS language_name,
-         lg.native_name AS language_native_name,
+         tz.name_en AS timezone_name,
+         COALESCE(tz.code, tz.name_en) AS timezone_identifier,
+         lg.name_en AS language_name,
+         lg.name_native AS language_native_name,
          pb.name AS parent_branch_name,
          pb.code AS parent_branch_code,
+         adt.name_en AS address_type_name,
+         adt.name_ar AS address_type_name_ar,
          u1.full_name AS created_by_name,
          u2.full_name AS updated_by_name
   FROM branches b
@@ -113,6 +137,7 @@ const BRANCH_SELECT = `
   LEFT JOIN timezones tz ON b.timezone_id = tz.id
   LEFT JOIN languages lg ON b.language_id = lg.id
   LEFT JOIN branches pb ON b.parent_branch_id = pb.id
+  LEFT JOIN address_types adt ON b.address_type_id = adt.id
   LEFT JOIN users u1 ON b.created_by = u1.id
   LEFT JOIN users u2 ON b.updated_by = u2.id
 `;
@@ -480,6 +505,20 @@ router.post(
     try {
       const validatedData = createBranchSchema.parse(req.body);
 
+      // Auto-generate code if not provided
+      if (!validatedData.code) {
+        const countResult = await pool.query(
+          'SELECT COUNT(*)::int AS cnt FROM branches WHERE company_id = $1',
+          [validatedData.company_id]
+        );
+        validatedData.code = `BRN-${String(countResult.rows[0].cnt + 1).padStart(3, '0')}`;
+      }
+
+      // Derive name from name_en if not provided
+      if (!validatedData.name) {
+        validatedData.name = validatedData.name_en;
+      }
+
       // Verify company exists
       const tenantId = getIsolatedTenantId(req);
       let companyQuery = 'SELECT id, tenant_id FROM companies WHERE id = $1 AND deleted_at IS NULL';
@@ -515,41 +554,45 @@ router.post(
         }
       }
 
-      // If this is set as headquarters/default, unset others for this company
-      if (validatedData.is_headquarters || validatedData.type === 'headquarters') {
+      // Determine is_main / is_headquarters (synced via DB trigger)
+      const isMain = validatedData.is_main || validatedData.is_headquarters || validatedData.type === 'headquarters';
+
+      // If this is set as main/headquarters, unset others for this company
+      if (isMain) {
         await pool.query(
-          'UPDATE branches SET is_headquarters = false WHERE company_id = $1',
+          'UPDATE branches SET is_main = false, is_headquarters = false WHERE company_id = $1 AND deleted_at IS NULL',
           [validatedData.company_id]
         );
       }
 
       if (validatedData.is_default) {
         await pool.query(
-          'UPDATE branches SET is_default = false WHERE company_id = $1',
+          'UPDATE branches SET is_default = false WHERE company_id = $1 AND deleted_at IS NULL',
           [validatedData.company_id]
         );
       }
 
-      // Sync is_headquarters with type
-      const isHQ = validatedData.is_headquarters || validatedData.type === 'headquarters';
-
       const result = await pool.query(
         `INSERT INTO branches (
           company_id, parent_branch_id, code, name, name_en, name_ar, type,
-          country_id, city_id, region_id, address, postal_code,
+          address_type_id, country_id, city_id, region_id,
+          address, address_line_1, address_line_2, postal_code,
           currency_id, timezone_id, language_id,
           phone, email, manager_name,
           tax_number, cr_number, cost_center_code, profit_center_code,
-          is_active, is_headquarters, is_default, latitude, longitude,
+          is_active, is_headquarters, is_main, is_default,
+          latitude, longitude, working_hours,
           created_by, created_at, updated_at
         ) VALUES (
           $1, $2, $3, $4, $5, $6, $7,
-          $8, $9, $10, $11, $12,
-          $13, $14, $15,
+          $8, $9, $10, $11,
+          $12, $13, $14, $15,
           $16, $17, $18,
-          $19, $20, $21, $22,
-          $23, $24, $25, $26, $27,
-          $28, NOW(), NOW()
+          $19, $20, $21,
+          $22, $23, $24, $25,
+          $26, $27, $28, $29,
+          $30, $31, $32,
+          $33, NOW(), NOW()
         )
         RETURNING *`,
         [
@@ -560,10 +603,13 @@ router.post(
           validatedData.name_en || validatedData.name,
           validatedData.name_ar || null,
           validatedData.type || 'branch',
+          validatedData.address_type_id || null,
           validatedData.country_id || null,
           validatedData.city_id || null,
           validatedData.region_id || null,
-          validatedData.address || null,
+          validatedData.address || validatedData.address_line_1 || null,
+          validatedData.address_line_1 || validatedData.address || null,
+          validatedData.address_line_2 || null,
           validatedData.postal_code || null,
           validatedData.currency_id || null,
           validatedData.timezone_id || null,
@@ -576,15 +622,17 @@ router.post(
           validatedData.cost_center_code || null,
           validatedData.profit_center_code || null,
           validatedData.is_active,
-          isHQ,
+          isMain,
+          isMain,
           validatedData.is_default,
           validatedData.latitude || null,
           validatedData.longitude || null,
+          validatedData.working_hours ? JSON.stringify(validatedData.working_hours) : null,
           req.user!.id,
         ]
       );
 
-      res.status(201).json(result.rows[0]);
+      res.status(201).json({ success: true, data: result.rows[0] });
     } catch (error: any) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: 'Validation failed', details: error.errors });
@@ -658,33 +706,53 @@ router.put(
         }
       }
 
-      // If setting as headquarters/default, unset others
-      if (validatedData.is_headquarters || validatedData.type === 'headquarters') {
+      // If setting as main/headquarters/default, unset others
+      if (validatedData.is_main || validatedData.is_headquarters || validatedData.type === 'headquarters') {
         await pool.query(
-          'UPDATE branches SET is_headquarters = false WHERE company_id = $1 AND id != $2',
+          'UPDATE branches SET is_headquarters = false, is_main = false WHERE company_id = $1 AND id != $2 AND deleted_at IS NULL',
           [companyId, id]
         );
       }
 
       if (validatedData.is_default) {
         await pool.query(
-          'UPDATE branches SET is_default = false WHERE company_id = $1 AND id != $2',
+          'UPDATE branches SET is_default = false WHERE company_id = $1 AND id != $2 AND deleted_at IS NULL',
           [companyId, id]
         );
       }
 
       // Sync name with name_en
       const dataToUpdate: Record<string, any> = { ...validatedData };
+
+      // Sync is_main ↔ is_headquarters
+      if (dataToUpdate.is_main !== undefined) {
+        dataToUpdate.is_headquarters = dataToUpdate.is_main;
+      } else if (dataToUpdate.is_headquarters !== undefined) {
+        dataToUpdate.is_main = dataToUpdate.is_headquarters;
+      }
+      if (dataToUpdate.type === 'headquarters') {
+        dataToUpdate.is_main = true;
+        dataToUpdate.is_headquarters = true;
+      }
+
+      // Stringify working_hours if present
+      if (dataToUpdate.working_hours !== undefined && dataToUpdate.working_hours !== null) {
+        dataToUpdate.working_hours = JSON.stringify(dataToUpdate.working_hours);
+      }
+
+      // Sync address ↔ address_line_1
+      if (dataToUpdate.address_line_1 && !dataToUpdate.address) {
+        dataToUpdate.address = dataToUpdate.address_line_1;
+      }
+      if (dataToUpdate.address && !dataToUpdate.address_line_1) {
+        dataToUpdate.address_line_1 = dataToUpdate.address;
+      }
+
       if (dataToUpdate.name_en && !dataToUpdate.name) {
         dataToUpdate.name = dataToUpdate.name_en;
       }
       if (dataToUpdate.name && !dataToUpdate.name_en) {
         dataToUpdate.name_en = dataToUpdate.name;
-      }
-
-      // Sync is_headquarters with type
-      if (dataToUpdate.type === 'headquarters') {
-        dataToUpdate.is_headquarters = true;
       }
 
       // Build dynamic update query
@@ -762,33 +830,51 @@ router.delete(
         });
       }
 
-      // Prevent deleting headquarters if it's the only branch
-      if (existingBranch.rows[0].is_headquarters) {
+      // §8.2: Cannot delete main branch if other branches exist
+      if (existingBranch.rows[0].is_main || existingBranch.rows[0].is_headquarters) {
         const branchCount = await pool.query(
           'SELECT COUNT(*) AS count FROM branches WHERE company_id = $1 AND deleted_at IS NULL',
           [existingBranch.rows[0].company_id]
         );
+        const totalBranches = parseInt(branchCount.rows[0].count);
 
-        if (parseInt(branchCount.rows[0].count) === 1) {
+        if (totalBranches > 1) {
+          return res.status(400).json({
+            error: 'Cannot delete the main branch while other branches exist. Reassign main status first.'
+          });
+        }
+        // If it's the only branch, companies must have at least one
+        if (totalBranches === 1) {
           return res.status(400).json({
             error: 'Cannot delete the only branch. Companies must have at least one branch.'
           });
         }
       }
 
-      // Check for users assigned to this branch
+      // Check for users assigned to this branch (via user_branches junction table)
       try {
         const usersCheck = await pool.query(
-          'SELECT COUNT(*) AS count FROM users WHERE branch_id = $1 AND deleted_at IS NULL',
+          'SELECT COUNT(*) AS count FROM user_branches WHERE branch_id = $1',
           [id]
         );
         if (parseInt(usersCheck.rows[0].count) > 0) {
           return res.status(400).json({
-            error: `Cannot delete branch with ${usersCheck.rows[0].count} active users. Reassign users first.`
+            error: `Cannot delete branch with ${usersCheck.rows[0].count} assigned users. Reassign users first.`
           });
         }
       } catch (_) {
-        // branch_id column may not exist in users table yet — ignore
+        // user_branches table may not exist yet — fallback to legacy check
+        try {
+          const legacyCheck = await pool.query(
+            'SELECT COUNT(*) AS count FROM users WHERE branch_id = $1 AND deleted_at IS NULL',
+            [id]
+          );
+          if (parseInt(legacyCheck.rows[0].count) > 0) {
+            return res.status(400).json({
+              error: `Cannot delete branch with ${legacyCheck.rows[0].count} active users. Reassign users first.`
+            });
+          }
+        } catch (_e) { /* column doesn't exist */ }
       }
 
       // Soft delete
@@ -801,6 +887,268 @@ router.delete(
     } catch (error: any) {
       console.error('Failed to delete branch:', error);
       res.status(500).json({ error: 'Failed to delete branch' });
+    }
+  }
+);
+
+// ════════════════════════════════════════════════════════════════════════════
+// §8.2 User-Branch Assignments
+// ════════════════════════════════════════════════════════════════════════════
+
+/**
+ * GET /:id/users — List users assigned to a branch
+ */
+router.get(
+  '/:id/users',
+  authenticate,
+  requirePermission('branches:view'),
+  async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const tenantId = getIsolatedTenantId(req);
+      const params: any[] = [id];
+      let tenantFilter = '';
+
+      if (tenantId !== null) {
+        tenantFilter = ' AND c.tenant_id = $2';
+        params.push(tenantId);
+      }
+
+      // Verify branch exists and tenant has access
+      const branchCheck = await pool.query(
+        `SELECT b.id FROM branches b
+         INNER JOIN companies c ON b.company_id = c.id
+         WHERE b.id = $1 AND b.deleted_at IS NULL${tenantFilter}`,
+        params
+      );
+      if (branchCheck.rows.length === 0) {
+        return res.status(404).json({ error: 'Branch not found' });
+      }
+
+      const result = await pool.query(
+        `SELECT ub.id AS assignment_id, ub.is_home_branch, ub.assigned_at,
+                u.id AS user_id, u.email, u.full_name, u.username, u.is_active,
+                assigner.full_name AS assigned_by_name
+         FROM user_branches ub
+         INNER JOIN users u ON ub.user_id = u.id
+         LEFT JOIN users assigner ON ub.assigned_by = assigner.id
+         WHERE ub.branch_id = $1 AND u.deleted_at IS NULL
+         ORDER BY ub.is_home_branch DESC, u.full_name ASC`,
+        [id]
+      );
+
+      res.json({ success: true, data: result.rows, total: result.rows.length });
+    } catch (error: any) {
+      console.error('Failed to fetch branch users:', error);
+      res.status(500).json({ error: 'Failed to fetch branch users' });
+    }
+  }
+);
+
+/**
+ * POST /:id/users — Assign user(s) to a branch
+ * Body: { user_ids: number[], is_home_branch?: boolean }
+ */
+router.post(
+  '/:id/users',
+  authenticate,
+  requirePermission('branches:assign_users'),
+  auditLog,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const { id } = req.params;
+      const { user_ids, is_home_branch = false } = req.body;
+
+      if (!Array.isArray(user_ids) || user_ids.length === 0) {
+        return res.status(400).json({ error: 'user_ids array is required' });
+      }
+
+      const tenantId = getIsolatedTenantId(req);
+      const params: any[] = [id];
+      let tenantFilter = '';
+      if (tenantId !== null) {
+        tenantFilter = ' AND c.tenant_id = $2';
+        params.push(tenantId);
+      }
+
+      // Verify branch
+      const branchCheck = await pool.query(
+        `SELECT b.id FROM branches b
+         INNER JOIN companies c ON b.company_id = c.id
+         WHERE b.id = $1 AND b.deleted_at IS NULL${tenantFilter}`,
+        params
+      );
+      if (branchCheck.rows.length === 0) {
+        return res.status(404).json({ error: 'Branch not found' });
+      }
+
+      const assigned: number[] = [];
+      const skipped: number[] = [];
+
+      for (const userId of user_ids) {
+        try {
+          // If setting as home branch, clear previous home branch for this user
+          if (is_home_branch) {
+            await pool.query(
+              'UPDATE user_branches SET is_home_branch = false WHERE user_id = $1 AND is_home_branch = true',
+              [userId]
+            );
+          }
+
+          await pool.query(
+            `INSERT INTO user_branches (user_id, branch_id, is_home_branch, assigned_by)
+             VALUES ($1, $2, $3, $4)
+             ON CONFLICT (user_id, branch_id)
+             DO UPDATE SET is_home_branch = EXCLUDED.is_home_branch, updated_at = NOW()`,
+            [userId, id, is_home_branch, req.user!.id]
+          );
+          assigned.push(userId);
+        } catch (e: any) {
+          skipped.push(userId);
+        }
+      }
+
+      // Clear branch access cache for all affected users
+      for (const userId of assigned) {
+        clearBranchAccessCache(userId);
+      }
+
+      res.status(201).json({
+        success: true,
+        message: `Assigned ${assigned.length} user(s) to branch`,
+        assigned,
+        skipped,
+      });
+    } catch (error: any) {
+      console.error('Failed to assign users to branch:', error);
+      res.status(500).json({ error: 'Failed to assign users' });
+    }
+  }
+);
+
+/**
+ * DELETE /:id/users/:userId — Unassign a user from a branch
+ */
+router.delete(
+  '/:id/users/:userId',
+  authenticate,
+  requirePermission('branches:assign_users'),
+  auditLog,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const { id, userId } = req.params;
+
+      const result = await pool.query(
+        'DELETE FROM user_branches WHERE branch_id = $1 AND user_id = $2 RETURNING *',
+        [id, userId]
+      );
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: 'User assignment not found' });
+      }
+
+      // Clear branch access cache for unassigned user
+      clearBranchAccessCache(parseInt(userId, 10));
+
+      res.json({ success: true, message: 'User unassigned from branch' });
+    } catch (error: any) {
+      console.error('Failed to unassign user:', error);
+      res.status(500).json({ error: 'Failed to unassign user' });
+    }
+  }
+);
+
+/**
+ * GET /user/:userId/branches — Get all branches for a user
+ */
+router.get(
+  '/user/:userId/branches',
+  authenticate,
+  requirePermission('branches:view'),
+  async (req: Request, res: Response) => {
+    try {
+      const { userId } = req.params;
+      const tenantId = getIsolatedTenantId(req);
+      let tenantFilter = '';
+      const params: any[] = [userId];
+
+      if (tenantId !== null) {
+        tenantFilter = ' AND c.tenant_id = $2';
+        params.push(tenantId);
+      }
+
+      const result = await pool.query(
+        `SELECT ub.id AS assignment_id, ub.is_home_branch, ub.assigned_at,
+                b.id AS branch_id, b.code, b.name, b.name_en, b.name_ar,
+                b.type, b.city, b.is_active, b.is_main,
+                co.name AS country_name, co.flag_emoji AS country_flag
+         FROM user_branches ub
+         INNER JOIN branches b ON ub.branch_id = b.id
+         INNER JOIN companies c ON b.company_id = c.id
+         LEFT JOIN countries co ON b.country_id = co.id
+         WHERE ub.user_id = $1 AND b.deleted_at IS NULL${tenantFilter}
+         ORDER BY ub.is_home_branch DESC, b.name ASC`,
+        params
+      );
+
+      res.json({ success: true, data: result.rows, total: result.rows.length });
+    } catch (error: any) {
+      console.error('Failed to fetch user branches:', error);
+      res.status(500).json({ error: 'Failed to fetch user branches' });
+    }
+  }
+);
+
+/**
+ * PUT /:id/set-main — Set a branch as the main branch for its company
+ */
+router.put(
+  '/:id/set-main',
+  authenticate,
+  requirePermission('branches:edit'),
+  auditLog,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const { id } = req.params;
+      const tenantId = getIsolatedTenantId(req);
+      let tenantFilter = '';
+      const params: any[] = [id];
+
+      if (tenantId !== null) {
+        tenantFilter = ' AND c.tenant_id = $2';
+        params.push(tenantId);
+      }
+
+      const branch = await pool.query(
+        `SELECT b.id, b.company_id FROM branches b
+         INNER JOIN companies c ON b.company_id = c.id
+         WHERE b.id = $1 AND b.deleted_at IS NULL${tenantFilter}`,
+        params
+      );
+
+      if (branch.rows.length === 0) {
+        return res.status(404).json({ error: 'Branch not found' });
+      }
+
+      const companyId = branch.rows[0].company_id;
+
+      // Remove main from all other branches
+      await pool.query(
+        'UPDATE branches SET is_main = false, is_headquarters = false WHERE company_id = $1 AND deleted_at IS NULL',
+        [companyId]
+      );
+
+      // Set this branch as main
+      const result = await pool.query(
+        `UPDATE branches SET is_main = true, is_headquarters = true, updated_by = $2, updated_at = NOW()
+         WHERE id = $1 RETURNING *`,
+        [id, req.user!.id]
+      );
+
+      res.json({ success: true, data: result.rows[0], message: 'Branch set as main successfully' });
+    } catch (error: any) {
+      console.error('Failed to set main branch:', error);
+      res.status(500).json({ error: 'Failed to set main branch' });
     }
   }
 );

@@ -8,7 +8,8 @@ import { DocumentNumberService } from '../../services/documentNumberService';
 import { VendorComplianceService } from '../../services/vendorComplianceService';
 import { ProcurementSettingsService } from '../../services/procurementSettingsService';
 import { checkNeedsApproval, createApprovalRequest, isDocumentApproved } from '../../utils/approvalHelpers';
-import { syncPurchaseOrderToShipments } from '../../services/purchaseOrderSyncService';
+import { syncPurchaseOrderToShipments, syncPurchaseOrderToLettersOfCredit } from '../../services/purchaseOrderSyncService';
+import { NotificationService } from '../../services/notificationService';
 
 const router = Router();
 
@@ -34,10 +35,56 @@ router.get('/order-types', requirePermission('purchase_orders:view'), async (req
 });
 
 // ============================================
+// PURCHASE ORDER STATS (KPI) — single query
+// ============================================
+
+router.get('/stats', requirePermission('purchase_orders:view'), async (req: Request, res: Response) => {
+  try {
+    const companyId = (req as any).companyContext?.companyId;
+    if (!companyId) {
+      return res.status(400).json({ success: false, error: { code: 'COMPANY_REQUIRED', message: 'Company context required' } });
+    }
+    const result = await pool.query(`
+      SELECT
+        COUNT(*)::int AS total,
+        COUNT(*) FILTER (WHERE po.status = 'draft')::int AS draft,
+        COUNT(*) FILTER (WHERE po.status = 'pending_approval')::int AS pending_approval,
+        COUNT(*) FILTER (WHERE po.status = 'approved')::int AS approved,
+        COUNT(*) FILTER (WHERE po.status = 'partially_received')::int AS partially_received,
+        COUNT(*) FILTER (WHERE po.status = 'fully_received')::int AS fully_received,
+        COUNT(*) FILTER (WHERE po.status = 'cancelled')::int AS cancelled,
+        COALESCE(SUM(po.total_amount), 0)::numeric AS total_value,
+        COALESCE(SUM(po.total_amount) FILTER (WHERE po.status NOT IN ('cancelled', 'closed')), 0)::numeric AS active_value
+      FROM purchase_orders po
+      WHERE po.company_id = $1 AND po.deleted_at IS NULL
+    `, [companyId]);
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    logger.error('Error fetching PO stats:', error);
+    res.status(500).json({ success: false, error: { code: 'FETCH_ERROR', message: 'Failed to fetch PO stats' } });
+  }
+});
+
+// ============================================
 // PURCHASE ORDER STATUSES
 // ============================================
 
 router.get('/order-statuses', requirePermission('purchase_orders:view'), async (req: Request, res: Response) => {
+  try {
+    const companyId = (req as any).companyContext?.companyId;
+    const result = await pool.query(
+      'SELECT * FROM purchase_order_statuses WHERE company_id = $1 AND deleted_at IS NULL ORDER BY sort_order, name',
+      [companyId]
+    );
+    res.json({ success: true, data: result.rows, total: result.rowCount });
+  } catch (error) {
+    logger.error('Error fetching PO statuses:', error);
+    res.status(500).json({ success: false, error: { code: 'FETCH_ERROR', message: 'Failed to fetch PO statuses' } });
+  }
+});
+
+// Alias: /statuses → same as /order-statuses
+router.get('/statuses', requirePermission('purchase_orders:view'), async (req: Request, res: Response) => {
   try {
     const companyId = (req as any).companyContext?.companyId;
     const result = await pool.query(
@@ -493,6 +540,37 @@ router.post('/', requirePermission('purchase_orders:create'), async (req: Reques
 
     await client.query('COMMIT');
 
+    // Send approval notification to users with approve permission
+    try {
+      const approvers = await pool.query(
+        `SELECT DISTINCT ur.user_id FROM user_roles ur
+         JOIN role_permissions rp ON rp.role_id = ur.role_id
+         JOIN permissions p ON p.id = rp.permission_id
+         WHERE p.permission_code = 'purchase_orders:approve'
+         AND ur.user_id != $1`,
+        [userId]
+      );
+      const tenantId = (req as any).user?.tenant_id;
+      for (const row of approvers.rows) {
+        await NotificationService.create({
+          type: 'approval_pending',
+          category: 'user',
+          priority: 'high',
+          titleKey: 'notifications.po_created.title',
+          messageKey: 'notifications.po_created.message',
+          payload: { document_type: 'purchase_order', document_number: orderNumber },
+          targetUserId: row.user_id,
+          relatedEntityType: 'purchase_order',
+          relatedEntityId: orderId,
+          actionUrl: `/purchasing/orders`,
+          tenantId,
+          companyId,
+        });
+      }
+    } catch (notifErr) {
+      logger.warn('Failed to send PO approval notifications', notifErr);
+    }
+
     logger.info('Purchase order created', { orderId, orderNumber, userId });
     res.status(201).json({ success: true, data: poResult.rows[0] });
   } catch (error) {
@@ -813,6 +891,19 @@ router.put(
         logger.error(`Failed to sync PO ${id} to shipments:`, syncError);
       }
 
+      // AUTO-SYNC: Update related letters of credit with the new PO data
+      try {
+        const lcSyncResult = await syncPurchaseOrderToLettersOfCredit(Number(id), companyId, userId);
+        if (lcSyncResult.lcsUpdated > 0) {
+          logger.info(`PO ${id} LC sync: updated ${lcSyncResult.lcsUpdated} letters of credit`);
+        }
+        if (lcSyncResult.errors.length > 0) {
+          logger.warn(`PO ${id} LC sync warnings:`, lcSyncResult.errors);
+        }
+      } catch (syncError) {
+        logger.error(`Failed to sync PO ${id} to letters of credit:`, syncError);
+      }
+
       logger.info('Purchase order updated', { orderId: id, userId });
       return res.json({ success: true, data: updateRes.rows[0] });
     } catch (error) {
@@ -935,7 +1026,7 @@ router.put('/:id/approve', requirePermission('purchase_orders:approve'), async (
   }
 });
 
-// POST /api/procurement/purchase-orders/:id/receive - Receive goods
+// POST /api/procurement/purchase-orders/:id/receive - Receive goods + create GRN (BUG-03 FIX)
 router.post('/:id/receive', requirePermission('purchase_orders:receive'), async (req: Request, res: Response) => {
   const client = await pool.connect();
   
@@ -943,7 +1034,7 @@ router.post('/:id/receive', requirePermission('purchase_orders:receive'), async 
     const companyId = (req as any).companyContext?.companyId;
     const userId = (req as any).user?.id;
     const { id } = req.params;
-    const { items } = req.body; // Array of { po_item_id, quantity_received }
+    const { items, warehouse_id, notes } = req.body; // items: Array of { po_item_id, quantity_received, rejected_qty?, quality_status?, rejection_reason?, batch_number?, expiry_date? }
 
     if (!items || !Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Items required' } });
@@ -953,7 +1044,7 @@ router.post('/:id/receive', requirePermission('purchase_orders:receive'), async 
 
     // Get PO details
     const poResult = await client.query(`
-      SELECT po.*, pos.allows_receive
+      SELECT po.*, pos.allows_receive, pos.code as status_code
       FROM purchase_orders po
       LEFT JOIN purchase_order_statuses pos ON po.status_id = pos.id
       WHERE po.id = $1 AND po.company_id = $2 AND po.deleted_at IS NULL
@@ -970,39 +1061,95 @@ router.post('/:id/receive', requirePermission('purchase_orders:receive'), async 
       return res.status(400).json({ success: false, error: { code: 'RECEIVE_NOT_ALLOWED', message: 'PO status does not allow receiving' } });
     }
 
-    // Update received quantities
+    // Generate GRN number
+    const lastGrn = await client.query(
+      "SELECT receipt_number FROM goods_receipts WHERE company_id = $1 ORDER BY id DESC LIMIT 1",
+      [companyId]
+    );
+    let grnNumber = 'GRN-0001';
+    if (lastGrn.rows.length > 0) {
+      const match = lastGrn.rows[0].receipt_number.match(/(\d+)$/);
+      const lastNum = match ? parseInt(match[1]) : 0;
+      grnNumber = `GRN-${String(lastNum + 1).padStart(4, '0')}`;
+    }
+
+    // Create GRN record
+    const grnResult = await client.query(`
+      INSERT INTO goods_receipts
+      (company_id, receipt_number, receipt_date, purchase_order_id, vendor_id,
+       warehouse_id, status, notes, project_id, received_by, created_by)
+      VALUES ($1, $2, CURRENT_DATE, $3, $4, $5, 'posted', $6, $7, $8, $8)
+      RETURNING id
+    `, [companyId, grnNumber, id, po.vendor_id,
+        warehouse_id || po.warehouse_id, notes || null, po.project_id, userId]);
+    const grnId = grnResult.rows[0].id;
+
+    // Update received quantities + create GRN items
     let allFullyReceived = true;
+    let totalReceivedValue = 0;
     for (const item of items) {
       const updateResult = await client.query(`
         UPDATE purchase_order_items 
         SET received_quantity = COALESCE(received_quantity, 0) + $1, updated_at = CURRENT_TIMESTAMP
         WHERE id = $2 AND order_id = $3
-        RETURNING quantity, received_quantity
+        RETURNING id, item_id, item_code, item_name, uom_id, quantity, received_quantity, unit_price
       `, [item.quantity_received, item.po_item_id, id]);
 
       if (updateResult.rows.length > 0) {
-        const { quantity, received_quantity } = updateResult.rows[0];
-        if (received_quantity < quantity) {
+        const poItem = updateResult.rows[0];
+        if (poItem.received_quantity < poItem.quantity) {
           allFullyReceived = false;
         }
+
+        const lineTotal = (item.quantity_received || 0) * (poItem.unit_price || 0);
+        totalReceivedValue += lineTotal;
+
+        // Create GRN item
+        await client.query(`
+          INSERT INTO goods_receipt_items
+          (receipt_id, purchase_order_item_id, item_id, item_code, item_name,
+           uom_id, ordered_qty, received_qty, rejected_qty, unit_cost, line_total,
+           quality_status, rejection_reason, batch_number, expiry_date,
+           warehouse_id, inspection_status)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, 'passed')
+        `, [grnId, poItem.id, poItem.item_id, poItem.item_code, poItem.item_name,
+            poItem.uom_id, poItem.quantity, item.quantity_received,
+            item.rejected_qty || 0, poItem.unit_price, lineTotal,
+            item.quality_status || 'accepted', item.rejection_reason || null,
+            item.batch_number || null, item.expiry_date || null,
+            warehouse_id || po.warehouse_id]);
       }
     }
 
-    // Update PO status
+    // Update GRN total
+    await client.query(
+      'UPDATE goods_receipts SET total_received_value = $1 WHERE id = $2',
+      [totalReceivedValue, grnId]
+    );
+
+    // Update PO status + status_id (BUG-03 core fix)
     const newStatus = allFullyReceived ? 'fully_received' : 'partially_received';
+    const statusRow = await client.query(
+      `SELECT id FROM purchase_order_statuses
+       WHERE company_id = $1 AND (LOWER(code) = $2 OR LOWER(name) = $2)
+       AND deleted_at IS NULL LIMIT 1`,
+      [companyId, newStatus]
+    );
     await client.query(`
       UPDATE purchase_orders 
-      SET status = $1, updated_by = $2, updated_at = CURRENT_TIMESTAMP
-      WHERE id = $3
-    `, [newStatus, userId, id]);
+      SET status = $1, status_id = $2, updated_by = $3, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $4
+    `, [newStatus, statusRow.rows[0]?.id || null, userId, id]);
 
     await client.query('COMMIT');
 
-    logger.info('Goods received', { orderId: id, items: items.length, status: newStatus, userId });
+    logger.info('Goods received + GRN created', { orderId: id, grnId, grnNumber, status: newStatus, userId });
     res.json({ 
       success: true, 
-      message: 'Goods received successfully',
-      new_status: newStatus
+      message: 'تم استلام البضاعة وإنشاء إذن الاستلام',
+      new_status: newStatus,
+      grn_id: grnId,
+      grn_number: grnNumber
     });
   } catch (error) {
     await client.query('ROLLBACK');
@@ -1010,6 +1157,61 @@ router.post('/:id/receive', requirePermission('purchase_orders:receive'), async 
     res.status(500).json({ success: false, error: { code: 'RECEIVE_ERROR', message: 'Failed to receive goods' } });
   } finally {
     client.release();
+  }
+});
+
+// POST /api/procurement/purchase-orders/:id/revert-to-draft - Revert PO back to draft for editing
+router.post('/:id/revert-to-draft', requirePermission('purchase_orders:edit'), async (req: Request, res: Response) => {
+  try {
+    const companyId = (req as any).companyContext?.companyId;
+    const userId = (req as any).user?.id;
+    const { id } = req.params;
+
+    // Check current PO status
+    const currentPO = await pool.query(`
+      SELECT po.status, po.status_id
+      FROM purchase_orders po
+      WHERE po.id = $1 AND po.company_id = $2 AND po.deleted_at IS NULL
+    `, [id, companyId]);
+
+    if (currentPO.rows.length === 0) {
+      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Purchase order not found' } });
+    }
+
+    // Only allow revert from approved, pending_approval. Not from received/closed/cancelled
+    const currentStatus = currentPO.rows[0].status;
+    if (['fully_received', 'partially_received', 'closed', 'cancelled', 'invoiced'].includes(currentStatus)) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'REVERT_NOT_ALLOWED', message: 'Cannot revert PO to draft in this status' },
+      });
+    }
+
+    // Get draft status_id
+    const draftStatus = await pool.query(
+      `SELECT id FROM purchase_order_statuses WHERE company_id = $1 AND UPPER(code) = 'DRAFT' AND deleted_at IS NULL`,
+      [companyId]
+    );
+
+    const draftStatusId = draftStatus.rows.length > 0 ? draftStatus.rows[0].id : null;
+
+    const result = await pool.query(`
+      UPDATE purchase_orders
+      SET status = 'draft',
+          status_id = COALESCE($1, status_id),
+          approved_by = NULL,
+          approved_at = NULL,
+          updated_by = $2,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $3 AND company_id = $4 AND deleted_at IS NULL
+      RETURNING *
+    `, [draftStatusId, userId, id, companyId]);
+
+    logger.info('Purchase order reverted to draft', { orderId: id, userId });
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    logger.error('Error reverting PO to draft:', error);
+    res.status(500).json({ success: false, error: { code: 'REVERT_ERROR', message: 'Failed to revert purchase order to draft' } });
   }
 });
 

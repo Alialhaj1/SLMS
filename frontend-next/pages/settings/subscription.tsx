@@ -4,7 +4,7 @@ import MainLayout from '../../components/layout/MainLayout';
 import { useAuth } from '../../hooks/useAuth';
 import { useTranslation } from '../../hooks/useTranslation';
 import { useToast } from '../../contexts/ToastContext';
-import { withPermission } from '../../utils/withPermission';
+import { withPermission, withPlatformGuard } from '../../utils/withPermission';
 
 interface UsageMeter {
   name: string;
@@ -186,4 +186,4 @@ function SubscriptionSettingsPage() {
   );
 }
 
-export default withPermission('system_policies:view', SubscriptionSettingsPage);
+export default withPlatformGuard(withPermission('system_policies:view', SubscriptionSettingsPage));

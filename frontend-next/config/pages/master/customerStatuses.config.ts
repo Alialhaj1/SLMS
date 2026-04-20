@@ -93,3 +93,5 @@ export const customerStatusesConfig: PageConfig<CustomerStatus> = {
   pageSizeOptions: [10, 25, 50, 100],
   bulkOperationsEnabled: true,
 };
+
+export const customerStatusConfig = customerStatusesConfig;

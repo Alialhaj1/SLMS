@@ -18,13 +18,18 @@ import {
 
 interface Shipment {
   id: number;
-  tracking_number?: string;
-  origin: string;
-  destination: string;
-  status: string;
+  shipment_number?: string;
+  bl_no?: string;
+  awb_no?: string;
+  origin_city_name?: string;
+  destination_city_name?: string;
+  port_of_loading_name?: string;
+  port_of_discharge_name?: string;
+  status_code?: string;
+  stage_code?: string;
   created_at: string;
   updated_at: string;
-  description?: string;
+  notes?: string;
 }
 
 interface TrackingInfo {
@@ -50,7 +55,7 @@ function TrackingPage() {
   const [searched, setSearched] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const apiBaseUrl = (process.env.NEXT_PUBLIC_API_URL || '') + '/api';
+  const apiBaseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api').replace(/\/api\/?$/, '') + '/api';
 
   const getAuthHeaders = () => {
     const token = localStorage.getItem('accessToken');
@@ -89,18 +94,15 @@ function TrackingPage() {
 
       let shipments: Shipment[] = [];
       if (isIdSearch) {
-        const response = await fetch(`${apiBaseUrl}/shipments/${q}`, { headers });
+        const response = await fetch(`${apiBaseUrl}/logistics-shipments/${q}`, { headers });
         if (!response.ok) throw new Error('Shipment not found');
-        const shipment = await response.json();
-        shipments = shipment ? [shipment] : [];
+        const payload = await response.json();
+        const shipmentData = payload?.data || payload;
+        shipments = shipmentData ? [shipmentData] : [];
       } else {
-        // Search by shipment_number/container_no/bl_no (currently supported as aliases)
-        const queryString = buildQuery({
-          shipment_number: q,
-          container_no: q,
-          bl_no: q,
-        });
-        const response = await fetch(`${apiBaseUrl}/shipments${queryString}`, { headers });
+        // Search by shipment_number/bl_no/awb_no via logistics-shipments search param
+        const queryString = buildQuery({ search: q });
+        const response = await fetch(`${apiBaseUrl}/logistics-shipments${queryString}`, { headers });
         if (!response.ok) throw new Error('Shipment not found');
 
         const payload = await response.json();
@@ -243,20 +245,20 @@ function TrackingPage() {
                   <div className="flex items-center justify-between mb-4">
                     <div>
                       <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                        {tracking.shipment.tracking_number || `#${tracking.shipment.id}`}
+                        {tracking.shipment.shipment_number || tracking.shipment.bl_no || tracking.shipment.awb_no || `#${tracking.shipment.id}`}
                       </h2>
                       <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                        {tracking.shipment.description || 'Standard Shipment'}
+                        {tracking.shipment.notes || 'Standard Shipment'}
                       </p>
                     </div>
                     <div
                       className={`flex items-center gap-2 px-4 py-2 rounded-lg border ${getStatusColor(
-                        tracking.shipment.status
+                        tracking.shipment.status_code || tracking.shipment.stage_code || 'pending'
                       )}`}
                     >
-                      {getStatusIcon(tracking.shipment.status)}
+                      {getStatusIcon(tracking.shipment.status_code || tracking.shipment.stage_code || 'pending')}
                       <span className="font-semibold">
-                        {getStatusLabel(tracking.shipment.status)}
+                        {getStatusLabel(tracking.shipment.status_code || tracking.shipment.stage_code || 'pending')}
                       </span>
                     </div>
                   </div>
@@ -267,7 +269,7 @@ function TrackingPage() {
                         Origin
                       </p>
                       <p className="font-semibold text-gray-900 dark:text-white mt-1">
-                        {tracking.shipment.origin}
+                        {tracking.shipment.origin_city_name || tracking.shipment.port_of_loading_name || '—'}
                       </p>
                     </div>
                     <div>
@@ -275,7 +277,7 @@ function TrackingPage() {
                         Destination
                       </p>
                       <p className="font-semibold text-gray-900 dark:text-white mt-1">
-                        {tracking.shipment.destination}
+                        {tracking.shipment.destination_city_name || tracking.shipment.port_of_discharge_name || '—'}
                       </p>
                     </div>
                     <div>

@@ -10,6 +10,7 @@
 import fs from 'fs';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
+import { validateMagicBytes } from '../middleware/securityHardening';
 
 // Upload configuration
 const UPLOAD_DIR = process.env.UPLOAD_DIR || '/app/uploads';
@@ -114,6 +115,14 @@ export class UploadService {
         return { 
           success: false, 
           error: `File too large. Maximum size: ${MAX_FILE_SIZE / 1024 / 1024}MB` 
+        };
+      }
+
+      // §12 S13: Validate magic bytes — prevent MIME type spoofing
+      if (!validateMagicBytes(buffer, mimeType)) {
+        return {
+          success: false,
+          error: `File content does not match claimed type "${mimeType}". Upload rejected (§12 S13).`
         };
       }
 

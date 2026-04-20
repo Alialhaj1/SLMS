@@ -37,6 +37,14 @@ interface CashBox {
   created_at: string;
 }
 
+interface GlAccount {
+  id: number;
+  code: string;
+  name: string;
+  name_ar?: string | null;
+  already_linked: boolean;
+}
+
 type CashBoxFormData = {
   code: string;
   name: string;
@@ -61,6 +69,7 @@ export default function CashBoxesPage() {
   const hasFetched = useRef(false);
 
   const [items, setItems] = useState<CashBox[]>([]);
+  const [glAccounts, setGlAccounts] = useState<GlAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
@@ -86,7 +95,18 @@ export default function CashBoxesPage() {
     if (hasFetched.current) return;
     hasFetched.current = true;
     void fetchData();
+    void fetchGlAccounts();
   }, []);
+
+  const fetchGlAccounts = async () => {
+    try {
+      const result: any = await apiClient.get('/api/cash-boxes/available-accounts');
+      const rows = Array.isArray(result?.data) ? result.data : [];
+      setGlAccounts(rows);
+    } catch {
+      setGlAccounts([]);
+    }
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -121,7 +141,6 @@ export default function CashBoxesPage() {
     const next: Record<string, string> = {};
     if (!formData.code.trim()) next.code = t('validation.required');
     if (!formData.name.trim()) next.name = t('validation.required');
-    if (!formData.gl_account_code.trim()) next.gl_account_code = t('validation.required');
     if (!formData.currency_code.trim()) next.currency_code = t('validation.required');
     setErrors(next);
     return Object.keys(next).length === 0;
@@ -180,7 +199,7 @@ export default function CashBoxesPage() {
         name: formData.name,
         name_ar: formData.name_ar || undefined,
         currency_code: formData.currency_code,
-        gl_account_code: formData.gl_account_code,
+        gl_account_code: formData.gl_account_code || 'auto',
         is_default: formData.is_default,
         is_active: formData.is_active,
         notes: formData.notes || undefined,
@@ -196,6 +215,7 @@ export default function CashBoxesPage() {
       setShowModal(false);
       resetForm();
       await fetchData();
+      await fetchGlAccounts();
     } catch {
       showToast(locale === 'ar' ? 'فشل الحفظ' : 'Failed to save', 'error');
     } finally {
@@ -482,13 +502,37 @@ export default function CashBoxesPage() {
               />
             </div>
 
-            <Input
-              label={locale === 'ar' ? 'كود الحساب في شجرة الحسابات *' : 'GL Account Code (COA) *'}
-              value={formData.gl_account_code}
-              onChange={(e) => setFormData((p) => ({ ...p, gl_account_code: e.target.value }))}
-              error={errors.gl_account_code}
-              helperText={locale === 'ar' ? 'مثال: 1111' : 'Example: 1111'}
-            />
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                {locale === 'ar' ? 'حساب شجرة الحسابات *' : 'GL Account (COA) *'}
+              </label>
+              <select
+                className={clsx(
+                  'w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white',
+                  errors.gl_account_code ? 'border-red-500' : 'border-gray-200 dark:border-gray-700'
+                )}
+                value={formData.gl_account_code}
+                onChange={(e) => setFormData((p) => ({ ...p, gl_account_code: e.target.value }))}
+              >
+                <option value="">
+                  {locale === 'ar' ? '-- إنشاء حساب تلقائي --' : '-- Auto-create account --'}
+                </option>
+                {glAccounts.map((acc) => (
+                  <option key={acc.id} value={acc.code} disabled={acc.already_linked}>
+                    {acc.code} - {locale === 'ar' ? (acc.name_ar || acc.name) : acc.name}
+                    {acc.already_linked ? (locale === 'ar' ? ' (مرتبط)' : ' (linked)') : ''}
+                  </option>
+                ))}
+              </select>
+              {errors.gl_account_code && (
+                <p className="mt-1 text-sm text-red-500">{errors.gl_account_code}</p>
+              )}
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                {locale === 'ar'
+                  ? 'اختر حساب موجود أو اتركه فارغاً لإنشاء حساب فرعي تلقائياً'
+                  : 'Select existing account or leave empty to auto-create a sub-account'}
+              </p>
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">

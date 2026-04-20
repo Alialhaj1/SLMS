@@ -1,0 +1,80 @@
+  "statusCode": 401,
+  "duration": "1ms"
+}
+2026-03-08 11:02:15 [[32mhttp[39m]: [32mAPI_USAGE[39m | {
+  "requestId": "afb318de-724c-4c0b-ad23-3ff3d28a20d2",
+  "method": "GET",
+  "endpoint": "/api/master/customs-offices",
+  "route": "/",
+  "statusCode": 401,
+  "duration": 1,
+  "userId": "anonymous",
+  "userEmail": "anonymous",
+  "userRoles": [],
+  "companyId": null,
+  "ip": "::ffff:172.18.0.1",
+  "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
+  "success": false
+}
+2026-03-08 11:02:15 [[32mhttp[39m]: [32mIncoming request[39m | {
+  "requestId": "b53ebb48-be56-4aed-8262-260d4aa78d25",
+  "method": "GET",
+  "url": "/api/master/customs-offices",
+  "ip": "::ffff:172.18.0.1",
+  "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+}
+2026-03-08 11:02:15 [[33mwarn[39m]: [33mRequest failed with client error[39m | {
+  "requestId": "b53ebb48-be56-4aed-8262-260d4aa78d25",
+  "method": "GET",
+  "url": "/api/master/customs-offices",
+  "ip": "::ffff:172.18.0.1",
+  "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
+  "statusCode": 401,
+  "duration": "1ms"
+}
+2026-03-08 11:02:15 [[32mhttp[39m]: [32mAPI_USAGE[39m | {
+  "requestId": "b53ebb48-be56-4aed-8262-260d4aa78d25",
+  "method": "GET",
+  "endpoint": "/api/master/customs-offices",
+  "route": "/",
+  "statusCode": 401,
+  "duration": 1,
+  "userId": "anonymous",
+  "userEmail": "anonymous",
+  "userRoles": [],
+  "companyId": null,
+  "ip": "::ffff:172.18.0.1",
+  "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
+  "success": false
+}
+2026-03-08 11:02:15 [[32mhttp[39m]: [32mIncoming request[39m | {
+  "requestId": "a1adfcad-e31d-4adf-9f2d-59e8c28937bc",
+  "method": "GET",
+  "url": "/api/master/customs-offices",
+  "ip": "::ffff:172.18.0.1",
+  "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+}
+2026-03-08 11:02:15 [[33mwarn[39m]: [33mRequest failed with client error[39m | {
+  "requestId": "a1adfcad-e31d-4adf-9f2d-59e8c28937bc",
+  "method": "GET",
+  "url": "/api/master/customs-offices",
+  "ip": "::ffff:172.18.0.1",
+  "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
+  "statusCode": 401,
+  "duration": "1ms"
+}
+2026-03-08 11:02:15 [[32mhttp[39m]: [32mAPI_USAGE[39m | {
+  "requestId": "a1adfcad-e31d-4adf-9f2d-59e8c28937bc",
+  "method": "GET",
+  "endpoint": "/api/master/customs-offices",
+  "route": "/",
+  "statusCode": 401,
+  "duration": 2,
+  "userId": "anonymous",
+  "userEmail": "anonymous",
+  "userRoles": [],
+  "companyId": null,
+  "ip": "::ffff:172.18.0.1",
+  "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
+  "success": false
+}

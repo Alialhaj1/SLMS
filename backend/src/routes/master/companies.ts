@@ -101,9 +101,11 @@ router.get(
       `;
 
       // TENANT ISOLATION: Filter by tenant_id
-      const tenantFilter = buildTenantFilter(req as any, 'c');
-      if (tenantFilter) {
-        query += tenantFilter;
+      const tenantFilter = buildTenantFilter(req as any, 'c.tenant_id', paramIndex);
+      if (tenantFilter.clause !== '1=1') {
+        query += ` AND ${tenantFilter.clause}`;
+        params.push(...tenantFilter.params);
+        paramIndex = tenantFilter.nextIndex;
       }
 
       // Exclude soft-deleted by default
@@ -149,6 +151,14 @@ router.get(
     try {
       const { id } = req.params;
 
+      const detailTenantFilter = buildTenantFilter(req as any, 'c.tenant_id', 2);
+      let detailWhereExtra = '';
+      const detailParams: any[] = [id];
+      if (detailTenantFilter.clause !== '1=1') {
+        detailWhereExtra += ` AND ${detailTenantFilter.clause}`;
+        detailParams.push(...detailTenantFilter.params);
+      }
+
       const result = await pool.query(
         `SELECT 
           c.*,
@@ -164,8 +174,8 @@ router.get(
         LEFT JOIN cities ci ON c.city_id = ci.id
         LEFT JOIN users u1 ON c.created_by = u1.id
         LEFT JOIN users u2 ON c.updated_by = u2.id
-        WHERE c.id = $1 AND c.deleted_at IS NULL${buildTenantFilter(req as any, 'c')}`,
-        [id]
+        WHERE c.id = $1 AND c.deleted_at IS NULL${detailWhereExtra}`,
+        detailParams
       );
 
       if (result.rows.length === 0) {

@@ -14,6 +14,11 @@ const POSTGRES_HOST = process.env.POSTGRES_HOST || 'postgres';
 const POSTGRES_USER = process.env.POSTGRES_USER || 'slms';
 const POSTGRES_DB = process.env.POSTGRES_DB || 'slms_db';
 
+// §12 S17 — Backup encryption key (AES-256-CBC)
+const BACKUP_ENCRYPTION_KEY = process.env.BACKUP_ENCRYPTION_KEY || '';
+const BACKUP_IV_LENGTH = 16;
+const BACKUP_ALGORITHM = 'aes-256-cbc';
+
 // Master data tables
 const MASTER_DATA_TABLES = [
   'items', 'item_groups', 'units', 'vendors', 'customers', 'projects',
@@ -29,6 +34,38 @@ const TRANSACTION_TABLES = [
   'sales_orders', 'journal_entries', 'general_ledger', 'purchase_invoices',
   'sales_invoices', 'customs_declarations'
 ];
+
+/**
+ * §12 S17 — Encrypt a backup file in-place using AES-256-CBC.
+ * Produces a .enc file and removes the original.
+ */
+async function encryptBackupFile(filePath: string): Promise<string> {
+  if (!BACKUP_ENCRYPTION_KEY) {
+    // No encryption key configured — skip encryption
+    return filePath;
+  }
+
+  const key = crypto.createHash('sha256').update(BACKUP_ENCRYPTION_KEY).digest();
+  const iv = crypto.randomBytes(BACKUP_IV_LENGTH);
+  const encPath = filePath + '.enc';
+
+  const input = fs.createReadStream(filePath);
+  const cipher = crypto.createCipheriv(BACKUP_ALGORITHM, key, iv);
+  const output = fs.createWriteStream(encPath);
+
+  // Write IV header (first 16 bytes of .enc file)
+  output.write(iv);
+
+  await new Promise<void>((resolve, reject) => {
+    input.pipe(cipher).pipe(output);
+    output.on('finish', resolve);
+    output.on('error', reject);
+  });
+
+  // Remove unencrypted original
+  fs.unlinkSync(filePath);
+  return encPath;
+}
 
 /**
  * Execute a backup with the given parameters
@@ -69,12 +106,19 @@ async function executeBackup(
     // Execute backup
     await execAsync(command);
 
-    // Get file size
-    const stats = fs.statSync(filePath);
+    // §12 S17 — Encrypt backup if key is configured
+    const isEncrypted = !!BACKUP_ENCRYPTION_KEY;
+    let finalPath = filePath;
+    if (isEncrypted) {
+      finalPath = await encryptBackupFile(filePath);
+    }
+
+    // Get file size (of final file — encrypted or plain)
+    const stats = fs.statSync(finalPath);
     const fileSize = stats.size;
 
-    // Calculate checksum
-    const fileBuffer = fs.readFileSync(filePath);
+    // Calculate checksum (of final file)
+    const fileBuffer = fs.readFileSync(finalPath);
     const checksum = crypto.createHash('sha256').update(fileBuffer).digest('hex');
 
     const duration = Math.round((Date.now() - startTime) / 1000);
@@ -82,9 +126,11 @@ async function executeBackup(
     // Update backup record
     await pool.query(
       `UPDATE backup_history 
-       SET status = 'completed', completed_at = NOW(), file_size = $2, duration_seconds = $3, checksum = $4
+       SET status = 'completed', completed_at = NOW(), file_size = $2, duration_seconds = $3,
+           checksum = $4, file_path = $5, is_encrypted = $6, encryption_algorithm = $7
        WHERE id = $1`,
-      [backupId, fileSize, duration, checksum]
+      [backupId, fileSize, duration, checksum, finalPath,
+       isEncrypted, isEncrypted ? 'AES-256-CBC' : null]
     );
 
     // Update schedule last_run_at

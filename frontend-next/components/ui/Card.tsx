@@ -19,9 +19,9 @@ export default function Card({
   return (
     <div
       className={clsx(
-        'card',
+        'slms-card',
         padding && 'p-6',
-        hoverable && 'cursor-pointer hover:shadow-md transition-shadow',
+        hoverable && 'slms-hover-card cursor-pointer',
         className
       )}
       onClick={onClick}
@@ -56,10 +56,10 @@ export function StatCard({
   onClick,
 }: StatCardProps) {
   const colorClasses = {
-    blue: 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400',
-    green: 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400',
-    yellow: 'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-600 dark:text-yellow-400',
-    red: 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400',
+    blue: 'bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400',
+    green: 'bg-accent-green-50 dark:bg-accent-green-900/20 text-accent-green-600 dark:text-accent-green-400',
+    yellow: 'bg-accent-gold-50 dark:bg-accent-gold-900/20 text-accent-gold-600 dark:text-accent-gold-400',
+    red: 'bg-feedback-error-50 dark:bg-feedback-error-900/20 text-feedback-error-600 dark:text-feedback-error-400',
     purple: 'bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400',
   };
 

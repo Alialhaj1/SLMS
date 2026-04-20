@@ -315,13 +315,20 @@ router.post(
       const totalDebitFc = isForeign ? amountNum : 0;
       const totalCreditFc = isForeign ? amountNum : 0;
 
-      // Generate entry number
-      const entryNumber = await client.query(
-        `SELECT generate_document_number($1, 'journal_entry', $2, NULL, NULL, $3::date) as number`,
-        [companyId, userId, entry_date]
-      );
-
-      const number = entryNumber.rows[0]?.number || `JE-${Date.now()}`;
+      // Generate entry number (with fallback)
+      let number: string;
+      try {
+        await client.query('SAVEPOINT gen_number');
+        const entryNumber = await client.query(
+          `SELECT generate_document_number($1, 'journal_entry', $2, NULL, NULL, $3::date) as number`,
+          [companyId, userId, entry_date]
+        );
+        number = entryNumber.rows[0]?.number || `JE-DEP-${Date.now()}`;
+        await client.query('RELEASE SAVEPOINT gen_number');
+      } catch (_numErr: any) {
+        await client.query('ROLLBACK TO SAVEPOINT gen_number');
+        number = `JE-DEP-${Date.now()}`;
+      }
       const depositNumber = `DEP-${String(Date.now()).slice(-10)}`;
 
       // Get fiscal year and period
@@ -335,9 +342,10 @@ router.post(
         [companyId, entry_date]
       );
 
+      const tenantId = (req as any).tenantId || (req as any).companyContext?.tenant_id || null;
       const header = await client.query(
         `INSERT INTO journal_entries (
-          company_id, entry_number, entry_date,
+          tenant_id, company_id, entry_number, entry_date,
           fiscal_year_id, period_id,
           entry_type,
           source_document_type, source_document_number,
@@ -345,9 +353,10 @@ router.post(
           total_debit, total_credit, total_debit_fc, total_credit_fc,
           description, narration, reference,
           status, created_by, created_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, 'draft', $18, NOW())
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, 'draft', $19, NOW())
         RETURNING *`,
         [
+          tenantId,
           companyId,
           number,
           entry_date,
@@ -421,6 +430,486 @@ router.post(
       return res.status(500).json({ success: false, error: 'Failed to create cash deposit' });
     } finally {
       client.release();
+    }
+  }
+);
+
+// =============================================
+// POST /api/cash-deposits/:id/confirm - Post (confirm) cash deposit/withdrawal
+// =============================================
+router.post(
+  '/:id/confirm',
+  requirePermission('accounting:journal:post'),
+  requireCompany,
+  async (req: Request, res: Response) => {
+    const client = await pool.connect();
+    try {
+      const companyId = req.companyId as number;
+      const userId = req.user!.id;
+      const journalId = Number(req.params.id);
+
+      await client.query('BEGIN');
+
+      const je = await client.query(
+        `SELECT id, status, entry_type FROM journal_entries
+         WHERE id = $1 AND company_id = $2 AND entry_type IN ('cash_deposit', 'cash_withdrawal')`,
+        [journalId, companyId]
+      );
+
+      if (je.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ success: false, error: 'Cash transaction not found' });
+      }
+
+      if (je.rows[0].status === 'posted') {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ success: false, error: 'Already confirmed' });
+      }
+
+      if (je.rows[0].status === 'cancelled') {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ success: false, error: 'Cannot confirm a cancelled deposit' });
+      }
+
+      // Use the database post function
+      const result = await client.query(
+        `SELECT post_journal_entry($1, $2) as success`,
+        [journalId, userId]
+      );
+
+      if (!result.rows[0].success) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ success: false, error: 'Failed to post journal entry' });
+      }
+
+      await client.query(
+        `INSERT INTO journal_audit_log (journal_entry_id, action, performed_by, notes)
+         VALUES ($1, 'posted', $2, 'Cash deposit confirmed')`,
+        [journalId, userId]
+      );
+
+      await client.query('COMMIT');
+      return res.json({ success: true, message: 'Cash deposit confirmed successfully' });
+    } catch (error: any) {
+      await client.query('ROLLBACK');
+      console.error('Error confirming cash deposit:', error);
+      return res.status(500).json({ success: false, error: 'Failed to confirm cash deposit' });
+    } finally {
+      client.release();
+    }
+  }
+);
+
+// =============================================
+// POST /api/cash-deposits/:id/cancel - Cancel cash deposit/withdrawal
+// =============================================
+router.post(
+  '/:id/cancel',
+  requirePermission('accounting:journal:post'),
+  requireCompany,
+  async (req: Request, res: Response) => {
+    const client = await pool.connect();
+    try {
+      const companyId = req.companyId as number;
+      const userId = req.user!.id;
+      const journalId = Number(req.params.id);
+
+      await client.query('BEGIN');
+
+      const je = await client.query(
+        `SELECT id, status, entry_type FROM journal_entries
+         WHERE id = $1 AND company_id = $2 AND entry_type IN ('cash_deposit', 'cash_withdrawal')`,
+        [journalId, companyId]
+      );
+
+      if (je.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ success: false, error: 'Cash transaction not found' });
+      }
+
+      if (je.rows[0].status === 'cancelled') {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ success: false, error: 'Already cancelled' });
+      }
+
+      if (je.rows[0].status === 'posted') {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ success: false, error: 'Cannot cancel a posted deposit. Reverse it instead.' });
+      }
+
+      await client.query(
+        `UPDATE journal_entries SET status = 'cancelled', updated_at = NOW() WHERE id = $1`,
+        [journalId]
+      );
+
+      await client.query(
+        `INSERT INTO journal_audit_log (journal_entry_id, action, performed_by, notes)
+         VALUES ($1, 'cancelled', $2, 'Cash deposit cancelled')`,
+        [journalId, userId]
+      );
+
+      await client.query('COMMIT');
+      return res.json({ success: true, message: 'Cash deposit cancelled successfully' });
+    } catch (error: any) {
+      await client.query('ROLLBACK');
+      console.error('Error cancelling cash deposit:', error);
+      return res.status(500).json({ success: false, error: 'Failed to cancel cash deposit' });
+    } finally {
+      client.release();
+    }
+  }
+);
+
+// =============================================
+// POST /api/cash-deposits/withdraw - Create cash withdrawal (bank → cash)
+// =============================================
+router.post(
+  '/withdraw',
+  requirePermission('accounting:journal:create'),
+  requireCompany,
+  async (req: Request, res: Response) => {
+    const client = await pool.connect();
+
+    try {
+      const companyId = req.companyId as number;
+      const userId = req.user!.id;
+
+      const {
+        entry_date,
+        cash_box_id,
+        bank_account_id,
+        amount,
+        currency_code,
+        exchange_rate,
+        reference,
+        description,
+      } = req.body || {};
+
+      const amountNum = toNumber(amount);
+      if (!entry_date) {
+        return res.status(400).json({ success: false, error: 'entry_date is required' });
+      }
+      if (!cash_box_id) {
+        return res.status(400).json({ success: false, error: 'cash_box_id is required' });
+      }
+      if (!bank_account_id) {
+        return res.status(400).json({ success: false, error: 'bank_account_id is required' });
+      }
+      if (!Number.isFinite(amountNum) || amountNum <= 0) {
+        return res.status(400).json({ success: false, error: 'amount must be > 0' });
+      }
+
+      await client.query('BEGIN');
+
+      // Verify period is open
+      const periodCheck = await client.query(
+        `SELECT ap.id, ap.status
+         FROM accounting_periods ap
+         JOIN fiscal_years fy ON fy.id = ap.fiscal_year_id
+         WHERE fy.company_id = $1
+           AND $2::date BETWEEN ap.start_date AND ap.end_date
+         LIMIT 1`,
+        [companyId, entry_date]
+      );
+
+      if (periodCheck.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ success: false, error: 'No accounting period found for this date' });
+      }
+
+      if (periodCheck.rows[0].status !== 'open') {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ success: false, error: 'Accounting period is not open' });
+      }
+
+      const cashBox = await client.query(
+        `SELECT id, name, name_ar, gl_account_id
+         FROM cash_boxes
+         WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL AND is_active = TRUE
+         LIMIT 1`,
+        [Number(cash_box_id), companyId]
+      );
+
+      if (cashBox.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ success: false, error: 'Invalid cash_box_id' });
+      }
+
+      const bankAccount = await client.query(
+        `SELECT ba.id, ba.account_name, ba.account_number, ba.currency_id, ba.gl_account_id,
+                b.name as bank_name, b.name_ar as bank_name_ar
+         FROM bank_accounts ba
+         JOIN banks b ON b.id = ba.bank_id AND b.deleted_at IS NULL
+         WHERE ba.id = $1 AND ba.company_id = $2 AND ba.deleted_at IS NULL AND ba.is_active = TRUE
+         LIMIT 1`,
+        [Number(bank_account_id), companyId]
+      );
+
+      if (bankAccount.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ success: false, error: 'Invalid bank_account_id' });
+      }
+
+      const cashGl = cashBox.rows[0].gl_account_id;
+      const bankGl = bankAccount.rows[0].gl_account_id;
+
+      if (!cashGl || !bankGl) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ success: false, error: 'Both cash box and bank account must be linked to a GL account' });
+      }
+
+      const baseCurrencyId = req.companyContext?.currency_id;
+      const desiredCurrencyId = currency_code
+        ? await resolveCurrencyId(companyId, String(currency_code))
+        : (bankAccount.rows[0].currency_id as number);
+
+      if (!desiredCurrencyId) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ success: false, error: 'Invalid currency_code' });
+      }
+
+      const exchangeRateNum = toNumber(exchange_rate) || 1;
+      const isForeign = baseCurrencyId && desiredCurrencyId !== baseCurrencyId;
+
+      const amountBase = isForeign ? amountNum * exchangeRateNum : amountNum;
+      const totalDebitFc = isForeign ? amountNum : 0;
+      const totalCreditFc = isForeign ? amountNum : 0;
+
+      let number: string;
+      try {
+        await client.query('SAVEPOINT gen_wdr_number');
+        const entryNumber = await client.query(
+          `SELECT generate_document_number($1, 'journal_entry', $2, NULL, NULL, $3::date) as number`,
+          [companyId, userId, entry_date]
+        );
+        number = entryNumber.rows[0]?.number || `JE-WDR-${Date.now()}`;
+        await client.query('RELEASE SAVEPOINT gen_wdr_number');
+      } catch (_numErr: any) {
+        await client.query('ROLLBACK TO SAVEPOINT gen_wdr_number');
+        number = `JE-WDR-${Date.now()}`;
+      }
+      const withdrawalNumber = `WDR-${String(Date.now()).slice(-10)}`;
+
+      const fiscalInfo = await client.query(
+        `SELECT fy.id as fiscal_year_id, ap.id as period_id
+         FROM fiscal_years fy
+         JOIN accounting_periods ap ON ap.fiscal_year_id = fy.id
+         WHERE fy.company_id = $1
+           AND $2::date BETWEEN ap.start_date AND ap.end_date
+         LIMIT 1`,
+        [companyId, entry_date]
+      );
+
+      // Withdrawal: Debit Cash, Credit Bank (opposite of deposit)
+      const tenantId = (req as any).tenantId || (req as any).companyContext?.tenant_id || null;
+      const header = await client.query(
+        `INSERT INTO journal_entries (
+          tenant_id, company_id, entry_number, entry_date,
+          fiscal_year_id, period_id,
+          entry_type,
+          source_document_type, source_document_number,
+          currency_id, exchange_rate,
+          total_debit, total_credit, total_debit_fc, total_credit_fc,
+          description, narration, reference,
+          status, created_by, created_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, 'draft', $19, NOW())
+        RETURNING *`,
+        [
+          tenantId,
+          companyId,
+          number,
+          entry_date,
+          fiscalInfo.rows[0]?.fiscal_year_id,
+          fiscalInfo.rows[0]?.period_id,
+          'cash_withdrawal',
+          'cash_withdrawal',
+          withdrawalNumber,
+          desiredCurrencyId,
+          exchangeRateNum,
+          amountBase,
+          amountBase,
+          totalDebitFc,
+          totalCreditFc,
+          description || null,
+          null,
+          reference || null,
+          userId,
+        ]
+      );
+
+      const journalId = header.rows[0].id;
+      const lineDescription = description || `Cash withdrawal ${withdrawalNumber}`;
+
+      // Debit cash (cash increases)
+      await client.query(
+        `INSERT INTO journal_lines (
+          journal_entry_id, line_number,
+          account_id,
+          debit_amount, credit_amount,
+          fc_debit_amount, fc_credit_amount,
+          currency_id, exchange_rate,
+          description
+        ) VALUES ($1, 1, $2, $3, 0, $4, 0, $5, $6, $7)`,
+        [journalId, cashGl, amountBase, totalDebitFc, desiredCurrencyId, exchangeRateNum, lineDescription]
+      );
+
+      // Credit bank (bank decreases)
+      await client.query(
+        `INSERT INTO journal_lines (
+          journal_entry_id, line_number,
+          account_id,
+          debit_amount, credit_amount,
+          fc_debit_amount, fc_credit_amount,
+          currency_id, exchange_rate,
+          description
+        ) VALUES ($1, 2, $2, 0, $3, 0, $4, $5, $6, $7)`,
+        [journalId, bankGl, amountBase, totalCreditFc, desiredCurrencyId, exchangeRateNum, lineDescription]
+      );
+
+      await client.query(
+        `INSERT INTO journal_audit_log (journal_entry_id, action, performed_by, notes)
+         VALUES ($1, 'created', $2, $3)`,
+        [journalId, userId, `Cash withdrawal created: ${withdrawalNumber}`]
+      );
+
+      await client.query('COMMIT');
+
+      return res.status(201).json({
+        success: true,
+        data: {
+          journal_id: journalId,
+          entry_number: header.rows[0].entry_number,
+          withdrawal_number: withdrawalNumber,
+        },
+        message: 'Cash withdrawal created successfully',
+      });
+    } catch (error: any) {
+      await client.query('ROLLBACK');
+      console.error('Error creating cash withdrawal:', error);
+      return res.status(500).json({ success: false, error: 'Failed to create cash withdrawal' });
+    } finally {
+      client.release();
+    }
+  }
+);
+
+// =============================================
+// GET /api/cash-deposits/withdrawals - List cash withdrawals
+// =============================================
+router.get(
+  '/withdrawals',
+  requirePermission('accounting:journal:view'),
+  requireCompany,
+  async (req: Request, res: Response) => {
+    try {
+      const companyId = req.companyId as number;
+      const { page, limit, offset } = getPaginationParams(req.query);
+
+      const params: any[] = [companyId];
+      let paramIndex = 2;
+
+      let where = ` WHERE je.company_id = $1 AND je.entry_type = 'cash_withdrawal'`;
+
+      const { from_date, to_date, status } = req.query as any;
+
+      if (from_date) {
+        where += ` AND je.entry_date >= $${paramIndex}`;
+        params.push(from_date);
+        paramIndex++;
+      }
+
+      if (to_date) {
+        where += ` AND je.entry_date <= $${paramIndex}`;
+        params.push(to_date);
+        paramIndex++;
+      }
+
+      if (status && status !== 'all') {
+        if (status === 'pending') {
+          where += ` AND je.status IN ('draft', 'pending', 'approved')`;
+        } else if (status === 'confirmed') {
+          where += ` AND je.status = 'posted'`;
+        } else if (status === 'rejected') {
+          where += ` AND je.status = 'cancelled'`;
+        }
+      }
+
+      const baseQuery = `
+        FROM journal_entries je
+        JOIN journal_lines jl_debit
+          ON jl_debit.journal_entry_id = je.id
+         AND COALESCE(jl_debit.debit_amount, 0) > 0
+        JOIN journal_lines jl_credit
+          ON jl_credit.journal_entry_id = je.id
+         AND COALESCE(jl_credit.credit_amount, 0) > 0
+        LEFT JOIN cash_boxes cb
+          ON cb.company_id = je.company_id
+         AND cb.gl_account_id = jl_debit.account_id
+         AND cb.deleted_at IS NULL
+        LEFT JOIN bank_accounts ba
+          ON ba.company_id = je.company_id
+         AND ba.gl_account_id = jl_credit.account_id
+         AND ba.deleted_at IS NULL
+        LEFT JOIN banks b
+          ON b.id = ba.bank_id
+         AND b.deleted_at IS NULL
+        LEFT JOIN currencies c
+          ON c.id = je.currency_id
+        LEFT JOIN users u
+          ON u.id = je.created_by
+      `;
+
+      const countResult = await pool.query(`SELECT COUNT(*)::int as total ${baseQuery} ${where}`, params);
+      const total = countResult.rows[0]?.total ?? 0;
+
+      const rows = await pool.query(
+        `SELECT
+           je.id as journal_id,
+           je.entry_number,
+           COALESCE(je.source_document_number, je.entry_number) as withdrawal_number,
+           je.entry_date,
+           je.status as journal_status,
+           je.description,
+           je.reference,
+           c.code as currency_code,
+           je.total_debit as amount_base,
+           cb.id as cash_box_id,
+           cb.name as cash_box_name,
+           cb.name_ar as cash_box_name_ar,
+           ba.id as bank_account_id,
+           ba.account_number as bank_account_number,
+           b.name as bank_name,
+           b.name_ar as bank_name_ar,
+           u.full_name as created_by_name
+         ${baseQuery}
+         ${where}
+         ORDER BY je.entry_date DESC, je.id DESC
+         LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
+        [...params, limit, offset]
+      );
+
+      const data = rows.rows.map((r: any) => ({
+        id: Number(r.journal_id),
+        journal_id: Number(r.journal_id),
+        withdrawalNumber: r.withdrawal_number,
+        date: String(r.entry_date).slice(0, 10),
+        cashAccount: r.cash_box_name || null,
+        cashAccountAr: r.cash_box_name_ar || null,
+        bankAccount: r.bank_account_number || null,
+        bankName: r.bank_name || null,
+        bankNameAr: r.bank_name_ar || null,
+        amount: toNumber(r.amount_base),
+        currency: r.currency_code || 'SAR',
+        description: r.description || '',
+        reference: r.reference || '',
+        status: mapUiStatus(r.journal_status),
+        createdBy: r.created_by_name || '',
+      }));
+
+      return sendPaginated(res, data, page, limit, total);
+    } catch (error: any) {
+      console.error('Error fetching cash withdrawals:', error);
+      return res.status(500).json({ success: false, error: 'Failed to fetch cash withdrawals' });
     }
   }
 );

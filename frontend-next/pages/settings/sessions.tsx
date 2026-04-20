@@ -1,7 +1,7 @@
 import Head from 'next/head';
 import MainLayout from '../../components/layout/MainLayout';
 import PolicyCrudTable from '../../components/settings/PolicyCrudTable';
-import { withPermission } from '../../utils/withPermission';
+import { withPermission, withPlatformGuard } from '../../utils/withPermission';
 import { useTranslation } from '../../hooks/useTranslation';
 
 function SessionsPage() {
@@ -30,4 +30,4 @@ function SessionsPage() {
   );
 }
 
-export default withPermission('system_policies:view' as any, SessionsPage);
+export default withPlatformGuard(withPermission('system_policies:view' as any, SessionsPage));

@@ -14,6 +14,7 @@ import {
 } from './utils/sentry';
 import healthRouter from './routes/health';
 import healthDetailedRouter from './routes/healthDetailed';
+import modulesRouter from './routes/modules';
 import authRouter from './routes/auth';
 import mfaRouter from './routes/mfa';
 import meRouter from './routes/me';
@@ -25,9 +26,13 @@ import shipmentsRouter from './routes/shipments';
 import companiesRouter from './routes/companies';
 import brandingRouter from './routes/branding';
 import branchesRouter from './routes/branches';
+import entityAccessRouter from './routes/entityAccess';
 import settingsRouter from './routes/settings';
 import auditLogsRouter from './routes/auditLogs';
 import backupSettingsRouter from './routes/backupSettings';
+import deletedRecordsRouter from './routes/deletedRecords';
+import recoveryLogsRouter from './routes/recoveryLogs';
+import backupsRouter from './routes/backups';
 import rolesRouter from './routes/roles';
 import usersRouter from './routes/users';
 import userCompaniesRouter from './routes/userCompanies';
@@ -36,6 +41,12 @@ import approvalRequestsRouter from './routes/approvalRequests';
 import approvalDelegationsRouter from './routes/approvalDelegations';
 import fieldPermissionsRouter from './routes/fieldPermissions';
 import dashboardRouter from './routes/dashboard';
+// Auth Enhancement — API Keys & Sessions (Architecture §2)
+import apiKeysRouter from './routes/apiKeys';
+import sessionsRouter from './routes/sessions';
+// Schema-per-Tenant (Architecture §3)
+import tenantSchemasRouter from './routes/tenantSchemas';
+import { schemaRouter } from './middleware/schemaRouter';
 // Master Data & Accounting APIs
 import accountsRouter from './routes/accounts';
 import journalsRouter from './routes/journals';
@@ -89,9 +100,11 @@ import masterAddressTypesRouter from './routes/master/addressTypes';
 import masterContactTypesRouter from './routes/master/contactTypes';
 import masterCustomerTypesRouter from './routes/master/customerTypes';
 import masterCustomerCategoriesRouter from './routes/master/customerCategories';
+import masterCustomerGroupsRouter from './routes/master/customerGroups';
 import masterSupplierStatusesRouter from './routes/master/supplierStatuses';
 import supplierBankAccountsRouter from './routes/master/supplierBankAccounts';
 import portsAirportsRouter from './routes/master/portsAirports';
+import systemSetupRouter from './routes/master/systemSetup';
 import shippingCompaniesRouter from './routes/master/shippingCompanies';
 import freightAgentsRouter from './routes/master/freightAgents';
 import masterCustomerStatusesRouter from './routes/master/customerStatuses';
@@ -104,6 +117,12 @@ import masterHsCodesRouter from './routes/master/hsCodes';
 import masterTariffsRouter from './routes/master/tariffs';
 import masterZatcaCodesRouter from './routes/master/zatcaCodes';
 import masterShippingMethodsRouter from './routes/master/shippingMethods';
+import masterTransportCompaniesRouter from './routes/master/transportCompanies';
+import masterVehicleTypesRouter from './routes/master/vehicleTypes';
+import masterVehiclesRouter from './routes/master/vehicles';
+import masterDriversRouter from './routes/master/drivers';
+import masterTransportRoutesRouter from './routes/master/transportRoutes';
+import masterInsuranceCompaniesRouter from './routes/master/insuranceCompanies';
 import masterStorageLocationTypesRouter from './routes/master/storageLocationTypes';
 import masterGroupTypesRouter from './routes/master/groupTypes';
 import masterGroupLevelsRouter from './routes/master/groupLevels';
@@ -111,7 +130,13 @@ import masterGroupCategoriesRouter from './routes/master/groupCategories';
 import masterItemTypesRouter from './routes/master/itemTypes';
 import masterItemGradesRouter from './routes/master/itemGrades';
 import masterCustomsDutyTypesRouter from './routes/master/customsDutyTypes';
+import masterDeferredPoliciesRouter from './routes/master/deferredPolicies';
+import masterPrepaidPoliciesRouter from './routes/master/prepaidPolicies';
+import masterTransactionDefaultsRouter from './routes/master/transactionDefaults';
 import masterItemGroupsEnterpriseRouter from './routes/master/itemGroupsEnterprise';
+import masterDocumentTypesRouter from './routes/master/documentTypes';
+import bulkImportRouter from './routes/master/bulkImport';
+import itemsImportRouter from './routes/master/itemsImport';
 import masterSupplyTermsRouter from './routes/master/supplyTerms';
 import masterDeliveryTermsRouter from './routes/master/deliveryTerms';
 import customersRouter from './routes/master/customers';
@@ -122,6 +147,15 @@ import unitTypesRouter from './routes/master/unitTypes';
 import itemGroupsRouter from './routes/master/itemGroups';
 import contractTypesRouter from './routes/master/contractTypes';
 import harvestSchedulesRouter from './routes/master/harvestSchedules';
+import masterVendorTypesRouter from './routes/master/vendorTypes';
+import masterVendorClassificationsRouter from './routes/master/vendorClassifications';
+import masterVendorCategoriesRouter from './routes/master/vendorCategories';
+import masterVendorStatusesRouter from './routes/master/vendorStatuses';
+import masterPurchaseOrderTypesRouter from './routes/master/purchaseOrderTypes';
+import masterPurchaseOrderStatusesRouter from './routes/master/purchaseOrderStatuses';
+import masterVendorPaymentTermsRouter from './routes/master/vendorPaymentTerms';
+import masterVendorPriceListsRouter from './routes/master/vendorPriceLists';
+import masterLcTypesRouter from './routes/master/lcTypes';
 import stockMovementsRouter from './routes/inventory/stockMovements';
 // Master Data - Group 1: System & General Settings
 import numberingSeriesRouter from './routes/numberingSeries';
@@ -129,6 +163,7 @@ import systemLanguagesRouter from './routes/systemLanguages';
 import systemPoliciesRouter from './routes/systemPolicies';
 import inventoryRouter from './routes/inventory';
 import printedTemplatesRouter from './routes/printedTemplates';
+import printRenderRouter from './routes/printRender';
 import digitalSignaturesRouter from './routes/digitalSignatures';
 import uiThemesRouter from './routes/uiThemes';
 // Settings - Company scoped
@@ -153,6 +188,8 @@ import shipmentLifecycleStatusesRouter from './routes/shipmentLifecycleStatuses'
 import shipmentStagesRouter from './routes/shipmentStages';
 import shipmentMilestonesRouter from './routes/shipmentMilestones';
 import shipmentAlertRulesRouter from './routes/shipmentAlertRules';
+import shipmentDocumentRequirementsRouter from './routes/shipmentDocumentRequirements';
+import shipmentExpenseTypesRouter from './routes/shipmentExpenseTypes';
 import carrierQuotesRouter from './routes/carrierQuotes';
 import carrierEvaluationsRouter from './routes/carrierEvaluations';
 import logisticsShipmentsRouter from './routes/logisticsShipments';
@@ -167,6 +204,16 @@ import customsExemptionsRouter from './routes/customsExemptions';
 import customsDutiesRouter from './routes/customsDuties';
 import customsDutyCalculationRouter from './routes/customsDutyCalculation';
 import customsDeclarationsRouter from './routes/customsDeclarations';
+// Tax & Customs Complete Module
+import withholdingTaxRouter from './routes/withholdingTax';
+import taxCategoriesRouter from './routes/taxCategories';
+import taxExemptionsRouter from './routes/taxExemptions';
+import customsFeeCategoriesRouter from './routes/customsFeeCategories';
+import clearanceDocumentsRouter from './routes/clearanceDocuments';
+import customsReportsRouter from './routes/reports/customsReports';
+import zatcaConfigRouter from './routes/zatcaConfig';
+import taxZonesRouter from './routes/master/taxZones';
+import entryExitPointsRouter from './routes/master/entryExitPoints';
 import shipmentExpensesRouter from './routes/shipmentExpenses';
 import shipmentExpensesV2Router from './routes/shipmentExpensesV2';
 import shipmentAccountingRouter from './routes/shipmentAccounting';
@@ -225,8 +272,11 @@ import financePaymentTermsRouter from './routes/finance/paymentTerms';
 import currencyRevaluationRouter from './routes/currencyRevaluation';
 // Project Management Module
 import projectsRouter from './routes/projects';
+import projectPhasesRouter from './routes/projectPhases';
+import projectReportsRouter from './routes/reports/projectReports';
 // Approvals
 import approvalsRouter from './routes/approvals';
+import approvalDocumentsRouter from './routes/approvalDocuments';
 // Sales Module
 import salesRouter from './routes/sales';
 // Requests Module (طلباتي)
@@ -246,9 +296,17 @@ import platformUsersRouter from './routes/platformUsers';
 import supportTicketsRouter from './routes/supportTickets';
 import subscriptionPlansRouter from './routes/subscriptionPlans';
 import platformRouter from './routes/platform';
+import platformSettingsRouter from './routes/platformSettings';
+import platformTenantRequestsRouter from './routes/platformTenantRequests';
+import platformMonitoringRouter from './routes/platformMonitoring';
+import platformSuperAdminsRouter from './routes/platformSuperAdmins';
+import platformModulesRouter from './routes/platformModules';
+import platformTenantWizardRouter from './routes/platformTenantWizard';
+import platformImpersonationRouter from './routes/platformImpersonation';
 import companyManagementRouter from './routes/companyManagement';
 import accountRequestsRouter from './routes/accountRequests';
 import userAssignmentsRouter from './routes/userAssignments';
+import loginPageContentRouter from './routes/loginPageContent';
 // Admin - Backup & Restore
 import backupRouter from './routes/admin/backup';
 import profileRouter from './routes/profile';
@@ -267,9 +325,16 @@ import lookupDataRouter from './routes/lookupData';
 import { apiRateLimiter } from './middleware/rateLimiter';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { enforceTenantIsolation } from './middleware/tenantIsolation';
+import { sanitizeTenantFromBody, protectSuperAdmin } from './middleware/goldenRules';
+import { xssSanitizer, pathTraversalGuard } from './middleware/inputSanitizer';
 import { resolveCompanyContext } from './middleware/resolveCompanyContext';
 import { preloadCompanyScope } from './middleware/companyScopeGuard';
 import { checkTenantCompanySetup } from './middleware/onboarding';
+import { dataScopeInjector } from './middleware/dataScopeInjector';
+import { enforceSubscriptionStatus } from './middleware/subscriptionEnforcement';
+import { apiVersionRewrite, apiVersionHeader, CURRENT_API_VERSION } from './middleware/apiVersion';
+import { paginationDefaults } from './middleware/paginationDefaults';
+import { idleSessionGuard, csrfDefenseHeaders } from './middleware/securityHardening';
 import passwordResetWorkflowRouter from './routes/passwordResetWorkflow';
 import tenantNotificationsRouter from './routes/tenantNotifications';
 // Enterprise Hardening - Phase 2
@@ -324,8 +389,43 @@ import workflowEngineRouter from './routes/workflowEngine';
 import referenceIntegrityRouter from './routes/referenceIntegrity';
 import auditTrailRouter from './routes/auditTrail';
 
+// ============================================================================
+// §13 — Global Platform Additions
+// ============================================================================
+// §13.1 Security & Trust
+import ipWhitelistRouter from './routes/ipWhitelist';
+import anomalyDetectionRouter from './routes/anomalyDetection';
+import passwordStrengthRouter from './routes/passwordStrength';
+// §13.2 UX
+import globalSearchRouter from './routes/globalSearch';
+import userPreferencesRouter from './routes/userPreferences';
+import notificationStreamRouter from './routes/notificationStream';
+import exportDataRouter from './routes/exportData';
+// §13.3 Business Logic
+import emailTemplatesRouter from './routes/emailTemplates';
+import documentsRouter from './routes/documents';
+import scheduledReportsRouter from './routes/scheduledReports';
+import tenantDataExportRouter from './routes/tenantDataExport';
+// §13.4 Infrastructure
+import backgroundJobsRouter from './routes/backgroundJobs';
+import prometheusMetricsRouter from './services/prometheusMetrics';
+import { metricsCounterMiddleware } from './services/prometheusMetrics';
+// §14 Development Roadmap
+import roadmapRouter from './routes/roadmap';
+// §15 QA Standards
+import qaStandardsRouter from './routes/qaStandards';
+
 // TEST ROUTE - DELETE AFTER VERIFYING SENTRY
 import testSentryRouter from './routes/testSentry';
+
+// E-Commerce Store Module (public-facing API)
+import storeRouter from './routes/store';
+
+// E-Commerce Admin (ERP-authenticated management of store data)
+import ecommerceAdminRouter from './routes/ecommerce';
+
+// Multi-Vendor Marketplace (admin, vendor dashboard, storefront)
+import marketplaceRouter from './routes/marketplace';
 
 const app = express();
 
@@ -380,6 +480,26 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// ============================================================================
+// §13.4.5: Prometheus-compatible request counter
+// ============================================================================
+app.use(metricsCounterMiddleware);
+
+// ============================================================================
+// §17 SECURITY: Path Traversal Guard — Block directory traversal attempts
+// ============================================================================
+app.use(pathTraversalGuard);
+
+// ============================================================================
+// §17 SECURITY: XSS Input Sanitizer — Escape HTML in request body/query
+// ============================================================================
+app.use(xssSanitizer);
+
+// ============================================================================
+// §12 S07: CSRF Defense Headers (Cross-Origin restrictions)
+// ============================================================================
+app.use(csrfDefenseHeaders);
+
 // SECURITY: Cache-Control for API responses (prevent caching sensitive data)
 app.use((req, res, next) => {
   if (req.path.startsWith('/api/')) {
@@ -389,6 +509,49 @@ app.use((req, res, next) => {
   }
   next();
 });
+
+// ============================================================================
+// API v1 GROUPED ROUTER — §11.1 Endpoint Organization
+// ============================================================================
+// Mounts canonical §11.1 groups: /api/v1/platform/*, /api/v1/tenant/*,
+// /api/v1/auth/*, /api/v1/public/*, /api/v1/webhooks/*.
+// Must be mounted BEFORE the v1 rewrite so grouped paths are handled first.
+import v1Router from './routes/v1Router';
+app.use('/api/v1', v1Router);
+
+// ============================================================================
+// API VERSIONING — §11.1 Backward Compatibility Rewrite
+// ============================================================================
+// Rewrites /api/v1/* → /api/* so existing flat route handlers still work.
+// Also strips §11.1 group prefixes (/tenant/, /public/) for routes not
+// handled by the v1 grouped router above.
+// Both /api/ and /api/v1/ are supported; v1 is the canonical version.
+app.use((req, _res, next) => {
+  if (req.url.startsWith('/api/v1/') || req.url === '/api/v1') {
+    let rewritten = req.url.replace('/api/v1', '/api');
+
+    // §11.1 group prefix stripping for tenant/public groups
+    // (platform/* and auth/* already map directly to existing /api/platform/* and /api/auth/*)
+    if (rewritten.startsWith('/api/tenant/')) {
+      rewritten = '/api/' + rewritten.slice('/api/tenant/'.length);
+    } else if (rewritten.startsWith('/api/public/')) {
+      rewritten = '/api/' + rewritten.slice('/api/public/'.length);
+    }
+
+    req.url = rewritten;
+    (req as any).apiVersion = 'v1';
+  }
+  next();
+});
+
+// Add X-API-Version header to all API responses
+app.use(apiVersionHeader);
+
+// ============================================================================
+// PAGINATION DEFAULTS — §14.1 Default: page=1, limit=20
+// ============================================================================
+// Parses and normalizes pagination query params for all GET requests.
+app.use('/api', paginationDefaults);
 
 // Serve uploaded files (logos, etc.) with CORS headers
 app.use('/uploads', (req, res, next) => {
@@ -415,6 +578,10 @@ app.use('/api/auth', mfaRouter);
 // Authorization & Governance routes (context, menu, modules)
 app.use('/api/auth', authorizationRouter);
 
+// API Keys & Session Management (Architecture §2)
+app.use('/api/api-keys', apiKeysRouter);
+app.use('/api/sessions', sessionsRouter);
+
 // Me endpoint (no rate limiting - frequently called)
 app.use('/api/me', meRouter);
 
@@ -433,8 +600,21 @@ app.use('/api/notifications', notificationsRouter);
 // Help requests routes (authenticated users)
 app.use('/api/help-requests', helpRequestsRouter);
 
+// Deleted records & recovery logs
+app.use('/api/deleted-records', deletedRecordsRouter);
+app.use('/api/recovery-logs', recoveryLogsRouter);
+
+// Backups (user-facing)
+app.use('/api/backups', backupsRouter);
+
+// Login page dynamic content (public + admin management)
+app.use('/api/login-page', loginPageContentRouter);
+
 // Public tenants endpoint (before rate limiter - used by login page)
 app.use('/api/tenants/public', tenantsPublicRouter);
+
+// Public account request submission (§5.1 #6 — no auth required)
+app.use('/api/tenant-requests', platformTenantRequestsRouter);
 
 // Account requests (public submit + admin management)
 app.use('/api/account-requests', accountRequestsRouter);
@@ -444,9 +624,36 @@ app.use('/api/lookup', lookupDataRouter);
 
 // Platform User Management (super admin only - before tenant isolation)
 app.use('/api/platform/users', platformUsersRouter);
+app.use('/api/platform/impersonation-logs', impersonationGovernanceRouter);
+
+// Platform Admin Dashboard & Analytics (before tenant isolation)
+import platformDashboardRouter from './routes/platformDashboard';
+app.use('/api/platform', platformDashboardRouter);
+
+// Platform Layer — Architecture §5 (before tenant isolation)
+app.use('/api/platform/settings', platformSettingsRouter);
+app.use('/api/platform/tenant-requests', platformTenantRequestsRouter);
+app.use('/api/platform/monitoring', platformMonitoringRouter);
+app.use('/api/platform/super-admins', platformSuperAdminsRouter);
+app.use('/api/platform/modules', platformModulesRouter);
+app.use('/api/platform/tenants/wizard', platformTenantWizardRouter);
+app.use('/api/platform/impersonation', platformImpersonationRouter);
+
+// Schema-per-Tenant Management (Architecture §3 — platform admin only)
+app.use('/api/tenant-schemas', tenantSchemasRouter);
+
+// Module Management
+app.use('/api/modules', modulesRouter);
 
 // API routes (general rate limiting)
 app.use('/api', apiRateLimiter);
+
+// ============================================================================
+// §17.1.2 — TENANT BODY SANITIZER — Strip tenant_id from request bodies
+// ============================================================================
+// GOLDEN RULE: Never trust tenant_id from request body — always take from JWT.
+// Strips tenant_id, tenantId, company_id, companyId from all POST/PUT/PATCH bodies.
+app.use(sanitizeTenantFromBody);
 
 // ============================================================================
 // TENANT ISOLATION — Applied globally to all routes below
@@ -455,6 +662,21 @@ app.use('/api', apiRateLimiter);
 // Platform admin users (tenant_id = null) bypass isolation.
 // Must be placed AFTER authenticate and BEFORE any business routes.
 app.use(enforceTenantIsolation);
+
+// ============================================================================
+// §12 S18: Idle Session Timeout — Revoke sessions inactive beyond configured limit
+// ============================================================================
+// Checks last_activity_at on tenant_sessions; revokes if idle > policy value.
+// Must be AFTER authenticate (needs req.user.jti).
+app.use(idleSessionGuard);
+
+// ============================================================================
+// §3 SCHEMA ROUTER — Resolve tenant schema for search_path routing
+// ============================================================================
+// Resolves the active schema name (e.g. "tenant_haj") from tenant_id in JWT.
+// Sets req.tenantSchema for downstream use by dataScopeInjector → TenantPool.
+// Falls back to public schema if no tenant schema is provisioned yet.
+app.use(schemaRouter);
 
 // ============================================================================
 // COMPANY CONTEXT — Lightweight global resolution
@@ -471,6 +693,31 @@ app.use(resolveCompanyContext);
 app.use(preloadCompanyScope);
 
 // ============================================================================
+// §1.3 STEP 6: DATA SCOPE INJECTOR — Tenant context → AsyncLocalStorage
+// ============================================================================
+// Sets tenant context (including tenantSchema) in AsyncLocalStorage.
+// Enables TenantPool to automatically set search_path + RLS session vars
+// for schema-per-tenant isolation on every database query.
+app.use(dataScopeInjector);
+
+// ============================================================================
+// SUBSCRIPTION ENFORCEMENT — Block mutations on expired/cancelled plans
+// ============================================================================
+// Checks subscription status for tenant users on write operations.
+// GET/HEAD/OPTIONS always pass through (read-only access preserved).
+// Platform admins (tenant_id = null) bypass this check.
+app.use(enforceSubscriptionStatus);
+
+// ============================================================================
+// §4.3 MODULE GATING — Block access to disabled modules per tenant
+// ============================================================================
+// Automatically resolves the module from the request path and checks
+// if it's enabled for the tenant. Core modules are always enabled.
+// Platform admins bypass this check.
+import { autoModuleGating } from './middleware/moduleGating';
+app.use(autoModuleGating);
+
+// ============================================================================
 // GLOBAL AUDIT LOG — Automatic mutation logging for all routes
 // ============================================================================
 // Captures ALL POST/PUT/PATCH/DELETE requests from authenticated users.
@@ -485,6 +732,24 @@ app.use(globalAuditLog);
 // Wires domain events to the accounting rules engine for auto journal generation.
 // Must be initialized after all middleware but before route registration.
 AccountingEventBridge.initialize();
+
+// ============================================================================
+// E-COMMERCE ADMIN API — ERP-authenticated store management
+// ============================================================================
+app.use('/api/ecommerce', ecommerceAdminRouter);
+
+// E-COMMERCE STORE API — Public-facing storefront (no ERP auth required)
+// ============================================================================
+// Store routes use their own auth (storeCustomerAuth) and do not need
+// tenant isolation, module gating, or onboarding checks.
+app.use('/api/store', storeRouter);
+
+// ============================================================================
+// MULTI-VENDOR MARKETPLACE API
+// ============================================================================
+// Marketplace storefront is public (like store routes).
+// Admin & vendor dashboard routes use ERP auth internally.
+app.use('/api/marketplace', marketplaceRouter);
 
 // ============================================================================
 // ONBOARDING ENFORCEMENT — Block operations until setup is complete
@@ -514,6 +779,15 @@ app.use('/api/password-reset-requests', passwordResetWorkflowRouter);
 // Tenant-scoped Notifications
 app.use('/api/tenant-notifications', tenantNotificationsRouter);
 
+// §17.1.5 — Super Admin Protection on all user mutation routes
+app.use('/api/users/:id', protectSuperAdmin);
+
+// §1.3 — Subscription Limit Enforcement on resource creation
+import { enforceUserLimit, enforceCompanyLimit } from './middleware/subscriptionEnforcement';
+app.post('/api/users', enforceUserLimit);
+app.post('/api/companies', enforceCompanyLimit);
+app.post('/api/tenant/companies', enforceCompanyLimit);
+
 app.use('/api/users', usersRouter);
 app.use('/api/user-companies', userCompaniesRouter);
 app.use('/api/approval-workflows', approvalWorkflowsRouter);
@@ -530,6 +804,7 @@ app.use('/api/shipments', shipmentsRouter);
 app.use('/api/companies', companiesRouter);
 app.use('/api/companies', brandingRouter);
 app.use('/api/branches', branchesRouter);
+app.use('/api/entity-access', entityAccessRouter);
 app.use('/api/settings', settingsRouter);
 app.use('/api/settings/currencies', settingsCurrenciesRouter);
 app.use('/api/settings/languages', settingsLanguagesRouter);
@@ -589,6 +864,7 @@ app.use('/api/cash-registers', cashRegistersRouter);
 app.use('/api/receipt-vouchers', receiptVouchersRouter);
 app.use('/api/inventory-transfers', inventoryTransfersRouter);
 app.use('/api/vat-returns', vatReturnsRouter);
+app.use('/api/zatca/config', zatcaConfigRouter);
 app.use('/api/zatca', zatcaSubmissionsRouter);
 
 // Inventory Module - New endpoints
@@ -625,6 +901,10 @@ app.use('/api/master/items', itemsRouter);
 app.use('/api/master/item-categories', itemCategoriesRouter);
 app.use('/api/master/unit-types', unitTypesRouter);
 app.use('/api/master/item-groups', masterItemGroupsEnterpriseRouter);
+app.use('/api/master/bulk', bulkImportRouter);
+app.use('/api/master/items-import', itemsImportRouter);
+app.use('/api/master/document-types', masterDocumentTypesRouter);
+app.use('/api/document-types', masterDocumentTypesRouter);
 app.use('/api/master/harvest-schedules', harvestSchedulesRouter);
 app.use('/api/master/timezones', masterTimezonesRouter);
 app.use('/api/master/languages', masterLanguagesRouter);
@@ -638,9 +918,12 @@ app.use('/api/master/address-types', masterAddressTypesRouter);
 app.use('/api/master/contact-types', masterContactTypesRouter);
 app.use('/api/master/customer-types', masterCustomerTypesRouter);
 app.use('/api/master/customer-categories', masterCustomerCategoriesRouter);
+app.use('/api/master/customer-groups', masterCustomerGroupsRouter);
+app.use('/api/master/customer-classifications', customerClassificationsRouter);
 app.use('/api/master/supplier-statuses', masterSupplierStatusesRouter);
 app.use('/api/master/supplier-bank-accounts', supplierBankAccountsRouter);
 app.use('/api/master/ports-airports', portsAirportsRouter);
+app.use('/api/master/system-setup', systemSetupRouter);
 app.use('/api/master/shipping-companies', shippingCompaniesRouter);
 app.use('/api/master/freight-agents', freightAgentsRouter);
 app.use('/api/master/customer-statuses', masterCustomerStatusesRouter);
@@ -653,6 +936,12 @@ app.use('/api/master/hs-codes', masterHsCodesRouter);
 app.use('/api/master/tariffs', masterTariffsRouter);
 app.use('/api/master/zatca-codes', masterZatcaCodesRouter);
 app.use('/api/master/shipping-methods', masterShippingMethodsRouter);
+app.use('/api/master/transport-companies', masterTransportCompaniesRouter);
+app.use('/api/master/vehicle-types', masterVehicleTypesRouter);
+app.use('/api/master/vehicles', masterVehiclesRouter);
+app.use('/api/master/drivers', masterDriversRouter);
+app.use('/api/master/transport-routes', masterTransportRoutesRouter);
+app.use('/api/master/insurance-companies', masterInsuranceCompaniesRouter);
 app.use('/api/master/bin-types', masterStorageLocationTypesRouter);
 app.use('/api/master/group-types', masterGroupTypesRouter);
 app.use('/api/master/group-levels', masterGroupLevelsRouter);
@@ -663,6 +952,21 @@ app.use('/api/master/item-barcodes', itemBarcodesRouter);
 app.use('/api/master/customs-duty-types', masterCustomsDutyTypesRouter);
 app.use('/api/master/supply-terms', masterSupplyTermsRouter);
 app.use('/api/master/delivery-terms', masterDeliveryTermsRouter);
+app.use('/api/master/payment-terms', paymentTermsRouter);
+app.use('/api/master/payment-methods', paymentMethodsRouter);
+app.use('/api/master/cost-element-groups', costElementGroupsRouter);
+app.use('/api/master/deferred-policies', masterDeferredPoliciesRouter);
+app.use('/api/master/prepaid-policies', masterPrepaidPoliciesRouter);
+app.use('/api/master/transaction-defaults', masterTransactionDefaultsRouter);
+app.use('/api/master/vendor-types', masterVendorTypesRouter);
+app.use('/api/master/vendor-classifications', masterVendorClassificationsRouter);
+app.use('/api/master/vendor-categories', masterVendorCategoriesRouter);
+app.use('/api/master/vendor-statuses', masterVendorStatusesRouter);
+app.use('/api/master/purchase-order-types', masterPurchaseOrderTypesRouter);
+app.use('/api/master/purchase-order-statuses', masterPurchaseOrderStatusesRouter);
+app.use('/api/master/vendor-payment-terms', masterVendorPaymentTermsRouter);
+app.use('/api/master/vendor-price-lists', masterVendorPriceListsRouter);
+app.use('/api/master/lc-types', masterLcTypesRouter);
 
 // Inventory - Stock Management
 app.use('/api/inventory/stock-movements', stockMovementsRouter);
@@ -690,6 +994,7 @@ app.use('/api/numbering-series', numberingSeriesRouter);
 app.use('/api/system-languages', systemLanguagesRouter);
 app.use('/api/system-policies', systemPoliciesRouter);
 app.use('/api/printed-templates', printedTemplatesRouter);
+app.use('/api/print', printRenderRouter);
 app.use('/api/digital-signatures', digitalSignaturesRouter);
 app.use('/api/ui-themes', uiThemesRouter);
 
@@ -722,6 +1027,16 @@ app.use('/api/customs-duty-calculation', customsDutyCalculationRouter);
 // Customs Declarations Module
 app.use('/api/customs-declarations', customsDeclarationsRouter);
 
+// Tax & Customs Complete Routes
+app.use('/api/withholding-tax', withholdingTaxRouter);
+app.use('/api/tax-categories', taxCategoriesRouter);
+app.use('/api/tax-exemptions', taxExemptionsRouter);
+app.use('/api/customs-fee-categories', customsFeeCategoriesRouter);
+app.use('/api/clearance-documents', clearanceDocumentsRouter);
+app.use('/api/reports/customs', customsReportsRouter);
+app.use('/api/master/tax-zones', taxZonesRouter);
+app.use('/api/master/entry-exit-points', entryExitPointsRouter);
+
 // Shipment Expenses Management
 app.use('/api', shipmentExpensesRouter);
 
@@ -748,6 +1063,8 @@ app.use('/api/shipment-events', shipmentEventsRouter);
 // Logistics Integration (frontend-aligned)
 app.use('/api/shipment-milestones', shipmentMilestonesRouter);
 app.use('/api/shipment-alert-rules', shipmentAlertRulesRouter);
+app.use('/api/shipment-document-requirements', shipmentDocumentRequirementsRouter);
+app.use('/api/shipment-expense-types', shipmentExpenseTypesRouter);
 app.use('/api/carrier-quotes', carrierQuotesRouter);
 app.use('/api/carrier-evaluations', carrierEvaluationsRouter);
 
@@ -801,12 +1118,15 @@ app.use('/api/procurement/invoices', procurementInvoiceNumbersRouter);
 
 // Approvals
 app.use('/api/approvals', approvalsRouter);
+app.use('/api/approval-documents', approvalDocumentsRouter);
 
 // Sales Module
 app.use('/api/sales', salesRouter);
 
 // Project Management Module
 app.use('/api/projects', projectsRouter);
+app.use('/api/project-phases', projectPhasesRouter);
+app.use('/api/reports/projects', projectReportsRouter);
 
 // Requests Module (طلباتي - My Requests)
 app.use('/api/expense-types', expenseTypesRouter);
@@ -820,6 +1140,16 @@ app.use('/api/letters-of-credit', lettersOfCreditRouter);
 // Enterprise Expenses Module (المصروفات العامة)
 app.use('/api/general-expenses', generalExpensesRouter);
 app.use('/api/entity-links', entityLinksRouter);
+
+// ============================================================================
+// MASTER ALIAS ROUTES - frontend calls /api/master/X but route exists at /api/X
+// ============================================================================
+app.use('/api/master/cycle-count-policies', cycleCountPoliciesRouter);
+app.use('/api/master/reorder-rules', reorderRulesRouter);
+app.use('/api/master/backup-settings', backupSettingsRouter);
+app.use('/api/master/expense-categories', expenseCategoriesRouter);
+app.use('/api/master/ports', portsRouter);
+app.use('/api/master/expense-types', expenseTypesRouter);
 
 // ============================================================================
 // MULTI-TENANT SAAS PLATFORM APIs
@@ -899,6 +1229,37 @@ app.use('/api/governance-scanner', enterpriseGovernanceScannerRouter);
 app.use('/api/workflows', workflowEngineRouter);
 app.use('/api/reference-integrity', referenceIntegrityRouter);
 app.use('/api/audit-trail', auditTrailRouter);
+
+// ============================================================================
+// §13 — Global Platform Additions
+// ============================================================================
+// §13.1 Security & Trust
+app.use('/api/ip-whitelist', ipWhitelistRouter);
+app.use('/api/anomaly-detection', anomalyDetectionRouter);
+app.use('/api/password-strength', passwordStrengthRouter);
+// §13.2 UX
+app.use('/api/search', globalSearchRouter);
+app.use('/api/user-preferences', userPreferencesRouter);
+app.use('/api/notifications', notificationStreamRouter);
+app.use('/api/export', exportDataRouter);
+// §13.3 Business Logic
+app.use('/api/email-templates', emailTemplatesRouter);
+app.use('/api/documents', documentsRouter);
+app.use('/api/scheduled-reports', scheduledReportsRouter);
+app.use('/api/data-export', tenantDataExportRouter);
+// §13.4 Infrastructure
+app.use('/api/background-jobs', backgroundJobsRouter);
+app.use('/api/metrics', prometheusMetricsRouter);
+
+// ============================================================================
+// §14 — Development Roadmap (Sprints + Tech Stack)
+// ============================================================================
+app.use('/api/roadmap', roadmapRouter);
+
+// ============================================================================
+// §15 — QA Standards (Testing, DoD, Branch Policies, Quality Gates)
+// ============================================================================
+app.use('/api/qa', qaStandardsRouter);
 
 // 404 handler for unknown routes
 app.use(notFoundHandler);

@@ -29,20 +29,20 @@ router.get(
 
       const { is_active = 'true', search } = req.query;
 
-      let whereConditions = ['deleted_at IS NULL'];
+      let whereConditions = ['et.deleted_at IS NULL'];
       const queryParams: any[] = [];
       let paramIndex = 1;
 
       // Company filter (global + company-specific)
       if (!isSuperAdmin && companyId) {
-        whereConditions.push(`(company_id IS NULL OR company_id = $${paramIndex})`);
+        whereConditions.push(`(et.company_id IS NULL OR et.company_id = $${paramIndex})`);
         queryParams.push(companyId);
         paramIndex++;
       }
 
       // Active filter
       if (is_active !== undefined) {
-        whereConditions.push(`is_active = $${paramIndex}`);
+        whereConditions.push(`et.is_active = $${paramIndex}`);
         queryParams.push(is_active === 'true');
         paramIndex++;
       }
@@ -50,9 +50,9 @@ router.get(
       // Search filter
       if (search) {
         whereConditions.push(`(
-          code ILIKE $${paramIndex} OR
-          name ILIKE $${paramIndex} OR
-          name_ar ILIKE $${paramIndex}
+          et.code ILIKE $${paramIndex} OR
+          et.name ILIKE $${paramIndex} OR
+          et.name_ar ILIKE $${paramIndex}
         )`);
         queryParams.push(`%${search}%`);
         paramIndex++;

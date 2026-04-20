@@ -1,0 +1,686 @@
+/**
+ * ============================================================================
+ * ENHANCED UI COMPONENTS STYLES - Arabic Specification Implementation
+ * ============================================================================
+ * Comprehensive styles for:
+ * - Page Header with breadcrumbs and actions
+ * - Enhanced Table with sorting, filtering, pagination
+ * - Modal System with animations and accessibility
+ * - Field Components with validation and RTL support
+ * - Tooltip System with smart positioning
+ * - Toast Notifications with queue management
+ * - All responsive and dark mode compatible
+ */
+
+/* ============================================================================
+   PAGE HEADER STYLES
+   ============================================================================ */
+
+.slms-page-header {
+  @apply mb-6;
+}
+
+.slms-page-header .slms-tooltip {
+  @apply absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2;
+  @apply bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900;
+  @apply px-3 py-2 rounded-lg text-sm font-medium shadow-lg;
+  @apply opacity-0 group-hover:opacity-100 transition-opacity duration-200;
+  @apply pointer-events-none z-50 whitespace-nowrap;
+}
+
+.slms-page-header .slms-tooltip::after {
+  @apply content-[''] absolute top-full left-1/2 transform -translate-x-1/2;
+  @apply border-4 border-transparent border-t-neutral-900 dark:border-t-neutral-100;
+}
+
+/* ============================================================================
+   ENHANCED TABLE STYLES
+   ============================================================================ */
+
+.slms-enhanced-table {
+  @apply bg-white dark:bg-neutral-900 rounded-lg shadow-sm border border-neutral-200 dark:border-neutral-700;
+}
+
+.slms-table-header {
+  @apply p-4 border-b border-neutral-200 dark:border-neutral-700;
+}
+
+.slms-table-filters {
+  @apply pb-4;
+}
+
+.slms-table-container {
+  @apply overflow-auto;
+}
+
+.slms-table {
+  @apply w-full border-collapse;
+}
+
+.slms-table-header-cell {
+  @apply px-4 py-3 text-left text-xs font-medium text-neutral-500 dark:text-neutral-400 uppercase tracking-wider;
+  @apply bg-neutral-50 dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-700;
+  @apply transition-colors duration-200;
+}
+
+.slms-table-header-cell:first-child {
+  @apply rounded-tl-lg;
+}
+
+.slms-table-header-cell:last-child {
+  @apply rounded-tr-lg;
+}
+
+.slms-table-row {
+  @apply border-b border-neutral-200 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-800;
+  @apply transition-colors duration-200;
+}
+
+.slms-table-row.selected {
+  @apply bg-primary-50 dark:bg-primary-900/20 border-primary-200 dark:border-primary-800;
+}
+
+.slms-table-cell {
+  @apply px-4 py-4 text-sm text-neutral-900 dark:text-white;
+}
+
+.slms-table-error {
+  @apply bg-white dark:bg-neutral-900 rounded-lg shadow-sm border border-red-200 dark:border-red-800;
+}
+
+.slms-table-pagination {
+  @apply px-4 py-3 border-t border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800;
+  @apply rounded-bl-lg rounded-br-lg;
+}
+
+/* Dropdown styles for table row actions */
+.slms-dropdown {
+  @apply absolute mt-1 min-w-48 bg-white dark:bg-neutral-800 rounded-lg shadow-lg;
+  @apply border border-neutral-200 dark:border-neutral-700 py-1 z-20;
+}
+
+.slms-dropdown-item {
+  @apply flex items-center gap-2 w-full px-3 py-2 text-sm text-neutral-700 dark:text-neutral-300;
+  @apply hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors duration-150;
+}
+
+/* ============================================================================
+   MODAL SYSTEM STYLES
+   ============================================================================ */
+
+.slms-modal-overlay {
+  @apply fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4;
+  @apply opacity-0 transition-opacity duration-200 ease-out;
+  z-index: 1000;
+}
+
+.slms-modal-overlay:not(.animating) {
+  @apply opacity-100;
+}
+
+.slms-modal-container {
+  @apply bg-white dark:bg-neutral-900 rounded-xl shadow-xl border border-neutral-200 dark:border-neutral-700;
+  @apply transform scale-95 transition-transform duration-200 ease-out;
+  @apply flex flex-col w-full;
+}
+
+.slms-modal-overlay:not(.animating) .slms-modal-container {
+  @apply scale-100;
+}
+
+.slms-modal-header {
+  @apply flex items-center justify-between p-6 border-b border-neutral-200 dark:border-neutral-700;
+  @apply rounded-t-xl;
+}
+
+.slms-modal-body {
+  @apply flex-1 overflow-y-auto p-6;
+  @apply max-h-[calc(100vh-200px)];
+}
+
+.slms-modal-footer {
+  @apply flex items-center justify-end gap-3 p-6 border-t border-neutral-200 dark:border-neutral-700;
+  @apply bg-neutral-50 dark:bg-neutral-800/50 rounded-b-xl;
+}
+
+.slms-modal-close-button {
+  @apply p-2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300;
+  @apply hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-lg transition-colors;
+}
+
+.slms-confirm-dialog {
+  @apply max-w-md;
+}
+
+/* ============================================================================
+   FIELD COMPONENT STYLES
+   ============================================================================ */
+
+.slms-field {
+  @apply mb-4;
+}
+
+.slms-input {
+  @apply w-full rounded-lg border border-neutral-300 dark:border-neutral-600;
+  @apply bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white;
+  @apply placeholder-neutral-500 dark:placeholder-neutral-400;
+  @apply focus:ring-2 focus:ring-primary-200 dark:focus:ring-primary-700 focus:border-primary-400 dark:focus:border-primary-500;
+  @apply transition-colors duration-200;
+}
+
+.slms-input:invalid {
+  @apply border-red-300 dark:border-red-600 focus:ring-red-200 dark:focus:ring-red-700 focus:border-red-400 dark:focus:border-red-500;
+}
+
+.slms-select {
+  @apply w-full rounded-lg border border-neutral-300 dark:border-neutral-600;
+  @apply bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white;
+  @apply focus:ring-2 focus:ring-primary-200 dark:focus:ring-primary-700 focus:border-primary-400 dark:focus:border-primary-500;
+  @apply transition-colors duration-200 appearance-none;
+}
+
+.slms-textarea {
+  @apply w-full rounded-lg border border-neutral-300 dark:border-neutral-600;
+  @apply bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white;
+  @apply placeholder-neutral-500 dark:placeholder-neutral-400;
+  @apply focus:ring-2 focus:ring-primary-200 dark:focus:ring-primary-700 focus:border-primary-400 dark:focus:border-primary-500;
+  @apply transition-colors duration-200;
+}
+
+.slms-checkbox {
+  @apply h-4 w-4 text-primary-600 dark:text-primary-400 rounded;
+  @apply border-neutral-300 dark:border-neutral-600;
+  @apply focus:ring-2 focus:ring-primary-200 dark:focus:ring-primary-700;
+  @apply transition-colors duration-200;
+}
+
+.slms-date-field input {
+  @apply font-mono;
+}
+
+/* Icon button for field actions (password toggle, etc.) */
+.slms-icon-button {
+  @apply p-2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300;
+  @apply hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-lg transition-colors;
+  @apply disabled:opacity-50 disabled:cursor-not-allowed;
+}
+
+/* ============================================================================
+   TOOLTIP SYSTEM STYLES
+   ============================================================================ */
+
+.slms-tooltip {
+  @apply px-3 py-2 text-sm font-medium rounded-lg shadow-lg;
+  @apply border max-w-xs break-words z-50;
+  @apply pointer-events-none;
+}
+
+.slms-tooltip.animated {
+  @apply transition-all duration-150 ease-out;
+}
+
+.slms-tooltip-arrow {
+  @apply w-2 h-2 transform rotate-45;
+}
+
+.slms-tooltip-arrow[data-placement="top"] {
+  @apply border-l border-b border-inherit bg-inherit;
+}
+
+.slms-tooltip-arrow[data-placement="bottom"] {
+  @apply border-r border-t border-inherit bg-inherit;
+}
+
+.slms-tooltip-arrow[data-placement="left"] {
+  @apply border-r border-b border-inherit bg-inherit;
+}
+
+.slms-tooltip-arrow[data-placement="right"] {
+  @apply border-l border-t border-inherit bg-inherit;
+}
+
+/* ============================================================================
+   TOAST NOTIFICATION STYLES
+   ============================================================================ */
+
+.slms-toast-container {
+  @apply fixed z-50 flex flex-col gap-3 max-w-md w-full;
+  @apply pointer-events-none;
+}
+
+.slms-toast-item {
+  @apply transform transition-all duration-300 ease-out;
+  @apply translate-y-2 opacity-0 scale-95;
+  @apply pointer-events-auto;
+  @apply border rounded-lg shadow-lg;
+  @apply backdrop-blur-sm;
+}
+
+.slms-toast-item.visible {
+  @apply translate-y-0 opacity-100 scale-100;
+}
+
+.slms-toast-item.dismissing {
+  @apply translate-x-full opacity-0 scale-95;
+}
+
+/* Stack animation for multiple toasts */
+.slms-toast-item {
+  transform: translateY(calc(var(--index) * 8px)) scale(calc(1 - var(--index) * 0.05));
+  z-index: calc(1000 - var(--index));
+}
+
+.slms-toast-item.visible {
+  transform: translateY(0) scale(1);
+}
+
+/* ============================================================================
+   COMMON BUTTON STYLES (Enhanced)
+   ============================================================================ */
+
+.slms-button {
+  @apply inline-flex items-center justify-center font-medium rounded-lg;
+  @apply transition-all duration-200 ease-out;
+  @apply focus:outline-none focus:ring-2 focus:ring-offset-2;
+  @apply disabled:opacity-50 disabled:cursor-not-allowed;
+  @apply select-none;
+}
+
+/* Button variants */
+.slms-button-primary {
+  @apply bg-primary-600 hover:bg-primary-700 text-white;
+  @apply focus:ring-primary-200 dark:focus:ring-primary-700;
+  @apply shadow-sm hover:shadow;
+}
+
+.slms-button-secondary {
+  @apply bg-neutral-100 hover:bg-neutral-200 text-neutral-900;
+  @apply dark:bg-neutral-800 dark:hover:bg-neutral-700 dark:text-white;
+  @apply border border-neutral-300 dark:border-neutral-600;
+  @apply focus:ring-neutral-200 dark:focus:ring-neutral-700;
+}
+
+.slms-button-success {
+  @apply bg-green-600 hover:bg-green-700 text-white;
+  @apply focus:ring-green-200 dark:focus:ring-green-700;
+  @apply shadow-sm hover:shadow;
+}
+
+.slms-button-danger {
+  @apply bg-red-600 hover:bg-red-700 text-white;
+  @apply focus:ring-red-200 dark:focus:ring-red-700;
+  @apply shadow-sm hover:shadow;
+}
+
+/* Button sizes */
+.slms-button-sm {
+  @apply px-3 py-2 text-sm;
+}
+
+.slms-button-md {
+  @apply px-4 py-2.5 text-sm;
+}
+
+.slms-button-lg {
+  @apply px-6 py-3 text-base;
+}
+
+/* Loading state */
+.slms-button-loading {
+  @apply cursor-wait;
+}
+
+.slms-spinner {
+  @apply animate-spin w-4 h-4;
+}
+
+/* ============================================================================
+   CARD COMPONENTS
+   ============================================================================ */
+
+.slms-card {
+  @apply bg-white dark:bg-neutral-900 rounded-lg shadow-sm;
+  @apply border border-neutral-200 dark:border-neutral-700;
+  @apply transition-shadow duration-200;
+}
+
+.slms-card:hover {
+  @apply shadow-md;
+}
+
+.slms-card-header {
+  @apply p-4 border-b border-neutral-200 dark:border-neutral-700;
+}
+
+.slms-card-body {
+  @apply p-4;
+}
+
+.slms-card-footer {
+  @apply p-4 border-t border-neutral-200 dark:border-neutral-700;
+  @apply bg-neutral-50 dark:bg-neutral-800/50;
+}
+
+/* Stat Card (enhanced) */
+.slms-stat-card {
+  @apply bg-white dark:bg-neutral-900 rounded-lg shadow-sm p-4;
+  @apply border border-neutral-200 dark:border-neutral-700;
+  @apply hover:shadow-md transition-all duration-200;
+  @apply cursor-pointer;
+}
+
+.slms-stat-card.loading {
+  @apply animate-pulse cursor-default;
+}
+
+.slms-stat-card-icon {
+  @apply w-12 h-12 rounded-xl flex items-center justify-center;
+  @apply group-hover:scale-110 transition-transform duration-200;
+}
+
+.slms-stat-card-value {
+  @apply text-2xl font-bold text-neutral-900 dark:text-white;
+  @apply group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors;
+}
+
+.slms-stat-card-label {
+  @apply text-sm font-medium text-neutral-600 dark:text-neutral-400;
+}
+
+.slms-stat-card-trend {
+  @apply flex items-center gap-1 text-xs font-medium;
+}
+
+.slms-stat-card-trend.positive {
+  @apply text-green-600 dark:text-green-400;
+}
+
+.slms-stat-card-trend.negative {
+  @apply text-red-600 dark:text-red-400;
+}
+
+/* ============================================================================
+   RESPONSIVE UTILITIES
+   ============================================================================ */
+
+/* Mobile-first responsive design */
+@media (max-width: 768px) {
+  .slms-enhanced-table {
+    @apply rounded-none border-x-0;
+  }
+  
+  .slms-table-container {
+    @apply -mx-4;
+  }
+  
+  .slms-modal-container {
+    @apply mx-4 max-w-none;
+  }
+  
+  .slms-toast-container {
+    @apply mx-4 max-w-none;
+  }
+  
+  .slms-page-header {
+    @apply mb-4;
+  }
+  
+  .slms-page-header .flex {
+    @apply flex-col gap-3 items-start;
+  }
+  
+  .slms-table-filters .grid {
+    @apply grid-cols-1 gap-2;
+  }
+}
+
+/* ============================================================================
+   ANIMATION KEYFRAMES
+   ============================================================================ */
+
+@keyframes slideInUp {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideOutDown {
+  from {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+}
+
+@keyframes fadeInScale {
+  from {
+    transform: scale(0.8);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-4px);
+  }
+  75% {
+    transform: translateX(4px);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+/* Utility animations */
+.animate-slide-in-up {
+  animation: slideInUp 0.3s ease-out;
+}
+
+.animate-slide-out-down {
+  animation: slideOutDown 0.3s ease-out;
+}
+
+.animate-fade-in-scale {
+  animation: fadeInScale 0.2s ease-out;
+}
+
+.animate-shake {
+  animation: shake 0.5s ease-in-out;
+}
+
+.animate-pulse-soft {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+/* ============================================================================
+   RTL (Arabic) SPECIFIC STYLES
+   ============================================================================ */
+
+[dir="rtl"] .slms-modal-close-button {
+  @apply ml-4 mr-0;
+}
+
+[dir="rtl"] .slms-table-header-cell {
+  @apply text-right;
+}
+
+[dir="rtl"] .slms-table-cell {
+  @apply text-right;
+}
+
+[dir="rtl"] .slms-toast-item.dismissing {
+  @apply -translate-x-full;
+}
+
+[dir="rtl"] .slms-dropdown {
+  @apply left-auto right-0;
+}
+
+/* Arabic typography enhancements */
+[dir="rtl"] .slms-page-header h1,
+[dir="rtl"] .slms-modal-header h2,
+[dir="rtl"] .slms-card-header h3 {
+  @apply font-semibold;
+  font-family: 'IBM Plex Sans Arabic', 'Tajawal', sans-serif;
+  line-height: 1.5;
+}
+
+[dir="rtl"] .slms-button,
+[dir="rtl"] .slms-input,
+[dir="rtl"] .slms-select,
+[dir="rtl"] .slms-textarea {
+  font-family: 'IBM Plex Sans Arabic', 'Tajawal', sans-serif;
+}
+
+/* Arabic number formatting */
+[dir="rtl"] .font-mono {
+  font-family: 'IBM Plex Mono', 'Courier New', monospace;
+  direction: ltr;
+  text-align: left;
+}
+
+/* ============================================================================
+   ACCESSIBILITY ENHANCEMENTS
+   ============================================================================ */
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .slms-button {
+    @apply border-2 border-current;
+  }
+  
+  .slms-input,
+  .slms-select,
+  .slms-textarea {
+    @apply border-2 border-neutral-900 dark:border-white;
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .slms-modal-overlay,
+  .slms-modal-container,
+  .slms-toast-item,
+  .slms-button,
+  .slms-stat-card {
+    @apply transition-none;
+  }
+  
+  .animate-spin,
+  .animate-pulse,
+  .animate-bounce {
+    @apply animate-none;
+  }
+}
+
+/* Focus indicators for keyboard navigation */
+.slms-button:focus-visible,
+.slms-input:focus-visible,
+.slms-select:focus-visible,
+.slms-textarea:focus-visible,
+.slms-checkbox:focus-visible {
+  @apply ring-2 ring-offset-2 ring-primary-500;
+}
+
+/* Screen reader only text */
+.sr-only {
+  @apply absolute w-px h-px p-0 m-[-1px] overflow-hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ============================================================================
+   DARK MODE SPECIFIC ADJUSTMENTS
+   ============================================================================ */
+
+@media (prefers-color-scheme: dark) {
+  .slms-modal-overlay {
+    @apply bg-black/70;
+  }
+  
+  .slms-tooltip {
+    @apply shadow-2xl;
+  }
+  
+  .slms-toast-item {
+    @apply shadow-2xl;
+  }
+}
+
+/* ============================================================================
+   PRINT STYLES
+   ============================================================================ */
+
+@media print {
+  .slms-modal-overlay,
+  .slms-toast-container,
+  .slms-tooltip {
+    @apply hidden;
+  }
+  
+  .slms-enhanced-table {
+    @apply shadow-none border;
+  }
+  
+  .slms-button {
+    @apply border border-current;
+  }
+}
+
+/* ============================================================================
+   UTILITIES FOR COMPONENT STATES
+   ============================================================================ */
+
+/* Loading skeleton */
+.skeleton {
+  @apply animate-pulse bg-neutral-200 dark:bg-neutral-700 rounded;
+}
+
+.skeleton-text {
+  @apply h-4 bg-neutral-200 dark:bg-neutral-700 rounded;
+}
+
+/* Error states */
+.error-shake {
+  @apply animate-shake;
+}
+
+.error-border {
+  @apply border-red-300 dark:border-red-600;
+}
+
+/* Success states */
+.success-glow {
+  @apply ring-2 ring-green-200 dark:ring-green-700 border-green-300 dark:border-green-600;
+}
+
+/* Loading states */
+.loading-overlay {
+  @apply absolute inset-0 bg-white/80 dark:bg-neutral-900/80 flex items-center justify-center z-10;
+}
+
+.loading-spinner {
+  @apply animate-spin w-8 h-8 text-primary-600 dark:text-primary-400;
+}

@@ -13,6 +13,49 @@ export interface LoginRequest {
   email: string;
   password: string;
   tenant_id?: number;
+  tenant_code?: string;
+  rememberMe?: boolean;
+}
+
+export interface CompanyVerificationRequest {
+  company_code: string;
+}
+
+export interface CompanyVerificationResponse {
+  success: boolean;
+  data?: {
+    tenant_id: number;
+    company_code: string;
+    company_name: string;
+    company_name_ar?: string;
+    logo_url?: string;
+    primary_color?: string;
+    secondary_color?: string;
+    status: 'active' | 'suspended' | 'inactive';
+  };
+  error?: string;
+}
+
+export interface MfaVerificationRequest {
+  mfa_token: string;
+  mfa_code: string;
+}
+
+export interface MfaVerificationResponse {
+  success: boolean;
+  data: {
+    accessToken: string;
+    refreshToken: string;
+    expiresAt: string;
+    user: EnhancedUserProfile;
+  };
+  error?: string;
+}
+
+export interface PlatformLoginRequest {
+  email: string;
+  password: string;
+  rememberMe?: boolean;
 }
 
 export interface LoginResponse {
@@ -90,6 +133,31 @@ export interface UserProfile {
   profile_image?: string | null;
   cover_image?: string | null;
   tenant_id?: number | null;
+}
+
+// Enhanced User Profile with RBAC integration
+export interface EnhancedUserProfile extends UserProfile {
+  // JWT Standard Claims
+  sub?: string; // user_id
+  iat?: number; // issued at
+  exp?: number; // expires at
+  
+  // SLMS Custom Claims
+  login_context?: 'platform' | 'tenant';
+  tenant_code?: string;
+  company_name?: string;
+  company_name_ar?: string;
+  
+  // Permission System
+  role_hierarchy?: string[]; // ordered by priority
+  effective_permissions?: string[]; // computed permissions
+  
+  // Security
+  session_id?: string;
+  login_ip?: string;
+  login_user_agent?: string;
+  mfa_enabled?: boolean;
+  mfa_verified?: boolean;
   is_platform_admin?: boolean;
   is_platform_user?: boolean;
   is_tenant_admin?: boolean;
@@ -106,17 +174,53 @@ export interface UserProfile {
 
 class AuthService {
   /**
-   * Login user
-   * @param email User email
-   * @param password User password
-   * @param tenantId Optional tenant ID for tenant-scoped login
+   * Platform Admin Login - Direct login for Super Admin/Platform Admin
+   * As per specification: Platform users login with email+password directly
+   * @param data Platform login credentials
+   */
+  async platformLogin(data: PlatformLoginRequest): Promise<LoginResponse> {
+    // Platform login explicitly excludes tenant_id/tenant_code
+    const payload = {
+      email: data.email,
+      password: data.password,
+      // No tenant context for platform login
+    };
+
+    return this._performLogin(payload, 'platform');
+  }
+
+  /**
+   * Tenant Login - Step-by-step login for tenant users  
+   * As per specification: Tenant users must provide Company ID first, then credentials
+   * @param data Tenant login credentials with company identification
+   */
+  async tenantLogin(data: LoginRequest): Promise<LoginResponse> {
+    // Tenant login requires either tenant_id or tenant_code
+    if (!data.tenant_id && !data.tenant_code) {
+      throw new Error('TENANT_IDENTIFICATION_REQUIRED');
+    }
+
+    return this._performLogin(data, 'tenant');
+  }
+
+  /**
+   * Legacy login method - maintains backward compatibility
+   * @deprecated Use platformLogin() or tenantLogin() for better clarity
    */
   async login(email: string, password: string, tenantId?: number): Promise<LoginResponse> {
     const payload: LoginRequest = { email, password };
     if (tenantId) {
       payload.tenant_id = tenantId;
+      return this.tenantLogin(payload);
+    } else {
+      return this.platformLogin({ email, password });
     }
+  }
 
+  /**
+   * Internal method to perform the actual login API call
+   */
+  private async _performLogin(payload: any, context: 'platform' | 'tenant'): Promise<LoginResponse> {
     // Use raw fetch for login to properly handle MFA 403 responses.
     // MFA responses are returned as normal result objects (not thrown errors)
     // to avoid dynamic Error property loss through async catch chains.
@@ -155,9 +259,65 @@ class AuthService {
 
     if (!res.ok) {
       const errObj = data?.error || {};
+      
+      // Enhanced error handling for specification compliance
+      if (context === 'platform') {
+        if (errObj.code === 'TENANT_LOGIN_REQUIRED') {
+          throw new Error('TENANT_USER_ADMIN_ACCESS');
+        }
+        if (errObj.code === 'TENANT_ACCESS_DENIED') {
+          throw new Error('INSUFFICIENT_PLATFORM_PRIVILEGES');
+        }
+      } else if (context === 'tenant') {
+        if (errObj.code === 'USER_EMAIL_NOT_FOUND') {
+          throw new Error('USER_EMAIL_NOT_FOUND');
+        }
+        if (errObj.code === 'INVALID_TENANT') {
+          throw new Error('COMPANY_NOT_FOUND');
+        }
+        if (errObj.code === 'TENANT_LOCKED') {
+          throw new Error('COMPANY_LOCKED');
+        }
+        if (errObj.code === 'TENANT_TERMINATED') {
+          throw new Error('COMPANY_TERMINATED');
+        }
+      }
+      
       throw new Error(
         errObj.message || data?.message || `Login failed (HTTP ${res.status})`
       );
+    }
+
+    // Password-change enforcement responses intentionally omit data.user.
+    // Return early so login callers can route to the change-password flow.
+    if (data?.success && data?.data?.must_change_password) {
+      return data as LoginResponse;
+    }
+
+    // Validate response matches expected context
+    if (data.success && data.data) {
+      const user = data.data.user;
+      
+      if (context === 'platform') {
+        // Platform login validation
+        if (user.tenant_id) {
+          throw new Error('TENANT_USER_ADMIN_ACCESS');
+        }
+        if (!user.roles?.some((r: string) => ['super_admin', 'platform_admin', 'system_admin'].includes(r))) {
+          throw new Error('INSUFFICIENT_PLATFORM_PRIVILEGES');
+        }
+        // Set platform context
+        data.data.login_context = 'platform';
+        user.login_context = 'platform';
+      } else if (context === 'tenant') {
+        // Tenant login validation
+        if (!user.tenant_id) {
+          throw new Error('PLATFORM_USER_TENANT_ACCESS');
+        }
+        // Set tenant context
+        data.data.login_context = 'tenant';
+        user.login_context = 'tenant';
+      }
     }
 
     return data as LoginResponse;
@@ -227,7 +387,11 @@ class AuthService {
   saveTokens(accessToken: string, refreshToken: string): void {
     if (typeof window === 'undefined') return;
     localStorage.setItem('accessToken', accessToken);
-    localStorage.setItem('refreshToken', refreshToken);
+    if (refreshToken) {
+      localStorage.setItem('refreshToken', refreshToken);
+    } else {
+      localStorage.removeItem('refreshToken');
+    }
   }
 
   /**
@@ -416,6 +580,159 @@ class AuthService {
     const url = limit ? `/api/auth/mfa/events?limit=${limit}` : '/api/auth/mfa/events';
     const response = await apiClient.get<{ success: boolean; data: { events: any[] } }>(url);
     return response;
+  }
+
+  // ===========================
+  // Multi-Stage Login System - Arabic Specification
+  // ===========================
+
+  /**
+   * Stage 1: Company Verification
+   * Verifies company code (HAJ-001 format) and returns company info
+   * @param data Company verification request
+   */
+  async verifyCompany(data: CompanyVerificationRequest): Promise<CompanyVerificationResponse> {
+    try {
+      const response = await fetch('/api/auth/verify-company', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+
+      const result = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(result.error || 'Company verification failed');
+      }
+
+      return result;
+    } catch (error) {
+      throw error instanceof Error ? error : new Error('Company verification failed');
+    }
+  }
+
+  /**
+   * Stage 2: Tenant Login with Company Context
+   * Enhanced tenant login with verified company information
+   */
+  async login(data: LoginRequest): Promise<LoginResponse> {
+    // Determine login flow based on tenant context
+    if (data.tenant_id || data.tenant_code) {
+      return this.tenantLogin(data);
+    } else {
+      // Assume platform login if no tenant context
+      return this.platformLogin({
+        email: data.email,
+        password: data.password,
+        rememberMe: data.rememberMe,
+      });
+    }
+  }
+
+  /**
+   * Stage 3: MFA Verification (Enhanced)
+   * Verifies MFA code and returns complete authentication tokens
+   */
+  async verifyMFA(request: MfaVerificationRequest): Promise<MfaVerificationResponse> {
+    try {
+      const response = await fetch('/api/auth/mfa/verify', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(request),
+      });
+
+      const result = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(result.error || 'MFA verification failed');
+      }
+
+      // Store tokens if successful
+      if (result.success && result.data) {
+        this.storeTokens(result.data.accessToken, result.data.refreshToken);
+        this.storeUser(result.data.user);
+      }
+
+      return result;
+    } catch (error) {
+      throw error instanceof Error ? error : new Error('MFA verification failed');
+    }
+  }
+
+  /**
+   * Enhanced User Profile Fetch with RBAC
+   * Fetches user profile with computed permissions and role hierarchy
+   */
+  async getUserProfile(): Promise<ApiSuccess<EnhancedUserProfile>> {
+    const response = await apiClient.get<ApiSuccess<EnhancedUserProfile>>('/api/auth/me');
+    return response;
+  }
+
+  /**
+   * Platform Context Check
+   * Determines if current session is in platform context
+   */
+  isPlatformContext(): boolean {
+    const user = this.getCurrentUser();
+    return user ? !user.tenant_id : false;
+  }
+
+  /**
+   * Tenant Context Check  
+   * Determines if current session is in tenant context
+   */
+  isTenantContext(): boolean {
+    return !this.isPlatformContext();
+  }
+
+  /**
+   * Get Current User Context
+   * Returns enhanced user profile from localStorage or null
+   */
+  getCurrentUser(): EnhancedUserProfile | null {
+    if (typeof window === 'undefined') return null;
+    
+    try {
+      const userStr = localStorage.getItem('user');
+      return userStr ? JSON.parse(userStr) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Enhanced Token Storage with Context
+   */
+  private storeTokens(accessToken: string, refreshToken: string): void {
+    if (typeof window === 'undefined') return;
+    
+    localStorage.setItem('accessToken', accessToken);
+    localStorage.setItem('refreshToken', refreshToken);
+  }
+
+  /**
+   * Enhanced User Storage with RBAC Data
+   */
+  private storeUser(user: EnhancedUserProfile): void {
+    if (typeof window === 'undefined') return;
+    
+    // Enhance user object with computed fields
+    const enhancedUser: EnhancedUserProfile = {
+      ...user,
+      is_platform_user: !user.tenant_id,
+      is_platform_admin: !user.tenant_id && (
+        user.roles?.includes('super_admin') || 
+        user.roles?.includes('platform_admin')
+      ),
+      is_tenant_admin: !!user.tenant_id && user.roles?.includes('tenant_admin'),
+      effective_permissions: user.permissions || [],
+    };
+    
+    localStorage.setItem('user', JSON.stringify(enhancedUser));
   }
 }
 

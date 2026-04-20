@@ -4,7 +4,7 @@ import MainLayout from '../../components/layout/MainLayout';
 import { useAuth } from '../../hooks/useAuth';
 import { useTranslation } from '../../hooks/useTranslation';
 import { useToast } from '../../contexts/ToastContext';
-import { withPermission } from '../../utils/withPermission';
+import { withPermission, withPlatformGuard } from '../../utils/withPermission';
 
 type Severity = 'critical' | 'warning' | 'info' | 'passed';
 
@@ -144,4 +144,4 @@ function GovernanceScannerPage() {
   );
 }
 
-export default withPermission('system_policies:view', GovernanceScannerPage);
+export default withPlatformGuard(withPermission('system_policies:view', GovernanceScannerPage));

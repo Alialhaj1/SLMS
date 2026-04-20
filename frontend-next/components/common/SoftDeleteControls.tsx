@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Soft Delete Recovery Component
  * مكون قابل لإعادة الاستخدام لإدارة البيانات المحذوفة
  * يوفر: View Deleted, Restore, Permanent Delete
@@ -205,7 +205,9 @@ export function SoftDeleteActions({
             onClose={() => setShowPermanentDeleteConfirm(false)}
             onConfirm={handlePermanentDelete}
             title="Permanent Delete"
-            message={`Are you sure you want to permanently delete "${itemName}"? \n\n⚠️ WARNING: This action cannot be undone! The item will be removed from the database permanently and cannot be recovered.`}
+            message={`Are you sure you want to permanently delete "${itemName}"? 
+
+⚠️ WARNING: This action cannot be undone! The item will be removed from the database permanently and cannot be recovered.`}
             confirmText="Yes, Delete Permanently"
             variant="danger"
             loading={permanentDeleting}

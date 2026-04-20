@@ -1,0 +1,2 @@
+Set-Location c:\projects\slms
+docker compose exec -T postgres bash -c "PAGER=cat psql -U slms -d slms_db --no-psqlrc -t -A -c ""SELECT 'CDT=' || EXISTS(SELECT 1 FROM pg_tables WHERE schemaname='public' AND tablename='customs_duty_types')::text"" && PAGER=cat psql -U slms -d slms_db --no-psqlrc -t -A -c ""SELECT 'SBA=' || EXISTS(SELECT 1 FROM pg_tables WHERE schemaname='public' AND tablename='supplier_bank_accounts')::text""" 2>&1

@@ -77,6 +77,22 @@ type BankAccountFormData = {
   notes: string;
 };
 
+interface Bank {
+  id: number;
+  code: string;
+  name: string;
+  name_ar?: string | null;
+  swift_code?: string | null;
+}
+
+interface GlAccount {
+  id: number;
+  code: string;
+  name: string;
+  name_ar?: string | null;
+  already_linked: boolean;
+}
+
 const ACCOUNT_TYPES = [
   { value: 'current', label: 'Current Account', labelAr: 'حساب جاري', icon: '💳' },
   { value: 'savings', label: 'Savings Account', labelAr: 'حساب توفير', icon: '💰' },
@@ -95,6 +111,8 @@ function BankAccountsPage() {
   const hasFetched = useRef(false);
 
   const [items, setItems] = useState<BankAccount[]>([]);
+  const [banks, setBanks] = useState<Bank[]>([]);
+  const [glAccounts, setGlAccounts] = useState<GlAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('');
@@ -134,8 +152,30 @@ function BankAccountsPage() {
     if (!hasFetched.current) {
       hasFetched.current = true;
       fetchData();
+      fetchGlAccounts();
+      fetchBanks();
     }
   }, []);
+
+  const fetchBanks = async () => {
+    try {
+      const result: any = await apiClient.get('/api/banks?is_active=true');
+      const rows = Array.isArray(result?.data) ? result.data : Array.isArray(result) ? result : [];
+      setBanks(rows);
+    } catch {
+      setBanks([]);
+    }
+  };
+
+  const fetchGlAccounts = async () => {
+    try {
+      const result: any = await apiClient.get('/api/bank-accounts/available-accounts');
+      const rows = Array.isArray(result?.data) ? result.data : [];
+      setGlAccounts(rows);
+    } catch {
+      setGlAccounts([]);
+    }
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -161,7 +201,6 @@ function BankAccountsPage() {
     const newErrors: Record<string, string> = {};
     if (!formData.bank_name.trim()) newErrors.bank_name = t('validation.required');
     if (!formData.account_number.trim()) newErrors.account_number = t('validation.required');
-    if (!formData.gl_account_code.trim()) newErrors.gl_account_code = t('validation.required');
     if (formData.iban && formData.iban.length < 15) newErrors.iban = t('bankAccounts.invalidIban', 'Invalid IBAN');
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -181,7 +220,7 @@ function BankAccountsPage() {
         iban: formData.iban || undefined,
         account_type: formData.account_type,
         currency_code: formData.currency_code,
-        gl_account_code: formData.gl_account_code,
+        gl_account_code: formData.gl_account_code || 'auto',
         opening_balance: formData.opening_balance,
         is_default: formData.is_default,
         is_active: formData.is_active,
@@ -195,6 +234,7 @@ function BankAccountsPage() {
 
       showToast(t('common.success'), 'success');
       await fetchData();
+      await fetchGlAccounts();
       setShowModal(false);
       resetForm();
     } finally {
@@ -544,17 +584,37 @@ function BankAccountsPage() {
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <Input
-              label={t('bankAccounts.bankName', 'Bank Name')}
-              value={formData.bank_name}
-              onChange={(e) => setFormData({ ...formData, bank_name: e.target.value })}
-              error={errors.bank_name}
-              required
-            />
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                {t('bankAccounts.bankName', 'Bank')} <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={formData.bank_name}
+                onChange={(e) => {
+                  const selectedBank = banks.find(b => b.name === e.target.value);
+                  setFormData({
+                    ...formData,
+                    bank_name: e.target.value,
+                    bank_name_ar: selectedBank?.name_ar || formData.bank_name_ar,
+                    swift_code: selectedBank?.swift_code || formData.swift_code,
+                  });
+                }}
+                className={`w-full px-4 py-2 border rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white ${errors.bank_name ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'}`}
+              >
+                <option value="">{t('common.select', '-- Select Bank --')}</option>
+                {banks.map(bank => (
+                  <option key={bank.id} value={bank.name}>
+                    {bank.name}{bank.name_ar ? ` - ${bank.name_ar}` : ''}
+                  </option>
+                ))}
+              </select>
+              {errors.bank_name && <p className="mt-1 text-sm text-red-500">{errors.bank_name}</p>}
+            </div>
             <Input
               label={t('bankAccounts.bankNameAr', 'Bank Name (Arabic)')}
               value={formData.bank_name_ar}
               onChange={(e) => setFormData({ ...formData, bank_name_ar: e.target.value })}
+              disabled
             />
           </div>
 
@@ -617,14 +677,32 @@ function BankAccountsPage() {
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <Input
-              label={t('bankAccounts.glAccount', 'GL Account Code')}
-              value={formData.gl_account_code}
-              onChange={(e) => setFormData({ ...formData, gl_account_code: e.target.value })}
-              error={errors.gl_account_code}
-              required
-              placeholder="e.g., 1110-001"
-            />
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                {t('bankAccounts.glAccount', 'GL Account (COA)')}
+              </label>
+              <select
+                value={formData.gl_account_code}
+                onChange={(e) => setFormData({ ...formData, gl_account_code: e.target.value })}
+                className={`w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white ${errors.gl_account_code ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'}`}
+              >
+                <option value="">
+                  {t('bankAccounts.autoCreateAccount', '-- Auto-create account --')}
+                </option>
+                {glAccounts.map((acc) => (
+                  <option key={acc.id} value={acc.code} disabled={acc.already_linked}>
+                    {acc.code} - {acc.name_ar || acc.name}
+                    {acc.already_linked ? ' (linked)' : ''}
+                  </option>
+                ))}
+              </select>
+              {errors.gl_account_code && (
+                <p className="mt-1 text-sm text-red-500">{errors.gl_account_code}</p>
+              )}
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                {t('bankAccounts.glAccountHint', 'Select existing account or leave empty to auto-create')}
+              </p>
+            </div>
             <Input
               label={t('bankAccounts.openingBalance', 'Opening Balance')}
               type="number"

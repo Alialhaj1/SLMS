@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { authenticate } from '../middleware/auth';
 import AuthorizationService from '../services/authorizationService';
 import pool from '../db';
+import { loadBranchAccess } from '../middleware/branchAccess';
 
 const router = Router();
 
@@ -65,6 +66,61 @@ router.get('/', authenticate, async (req, res) => {
       success: false,
       error: 'Failed to fetch user profile',
       message: error.message
+    });
+  }
+});
+
+// ============================================================================
+// GET /api/me/permissions - Get current user's permissions
+// ============================================================================
+router.get('/permissions', authenticate, async (req, res) => {
+  const user = (req as any).user;
+  if (!user) return res.status(401).json({ error: 'not authenticated' });
+
+  try {
+    const userId = user.sub || user.id;
+    const tenantId = user.tenant_id || null;
+
+    // For tenant users: exclude platform-domain permissions as defense-in-depth
+    const domainFilter = tenantId ? `AND p.domain != 'platform'` : '';
+    const roleTypeFilter = tenantId ? `AND r.role_type != 'platform'` : '';
+
+    // Single source: role_permissions table (JSONB cleared by migration 416)
+    const result = await pool.query(
+      `
+      SELECT DISTINCT p.permission_code, p.resource, p.action,
+             COALESCE(p.description, '') as description,
+             COALESCE(p.name_ar, '') as description_ar,
+             p.domain
+      FROM permissions p
+      JOIN role_permissions rp ON rp.permission_id = p.id
+      JOIN user_roles ur ON ur.role_id = rp.role_id
+      WHERE ur.user_id = $1
+      ${domainFilter}
+      ORDER BY p.permission_code
+      `,
+      [userId]
+    );
+
+    const permissions = result.rows.map((r: any) => ({
+      permission_code: r.permission_code,
+      resource: r.resource,
+      action: r.action,
+      description: r.description,
+      description_ar: r.description_ar,
+      domain: r.domain,
+      granted_at: new Date().toISOString(),
+    }));
+
+    res.json({
+      success: true,
+      permissions,
+    });
+  } catch (error: any) {
+    console.error('Error fetching user permissions:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch permissions',
     });
   }
 });
@@ -293,6 +349,88 @@ router.get('/subscription', authenticate, async (req, res) => {
   } catch (error: any) {
     console.error('Error fetching subscription:', error);
     res.status(500).json({ success: false, error: 'Failed to fetch subscription info' });
+  }
+});
+
+// ============================================================================
+// GET /api/me/branches - Get branches accessible to the current user
+// ============================================================================
+router.get('/branches', authenticate, loadBranchAccess, async (req, res) => {
+  const user = (req as any).user;
+  if (!user) return res.status(401).json({ error: 'not authenticated' });
+
+  try {
+    const userId = user.sub || user.id;
+    const tenantId = user.tenant_id;
+    const companyId = req.query.company_id ? parseInt(req.query.company_id as string, 10) : null;
+
+    if (!tenantId) {
+      return res.json({ success: true, data: [], meta: { total: 0 } });
+    }
+
+    const ba = req.branchAccess;
+
+    let query: string;
+    let params: any[];
+
+    if (ba?.isTenantAdmin) {
+      // tenant_admin sees all branches
+      query = `
+        SELECT b.id, b.name, b.name_en, b.name_ar, b.code, b.type as branch_type,
+               b.company_id, c.name as company_name, c.name_ar as company_name_ar,
+               b.city, b.country_id, b.is_headquarters, b.is_active,
+               'full' as access_level, true as is_home_branch
+        FROM branches b
+        JOIN companies c ON b.company_id = c.id
+        WHERE c.tenant_id = $1
+          AND b.deleted_at IS NULL
+          AND b.is_active = true
+          ${companyId ? 'AND b.company_id = $2' : ''}
+        ORDER BY b.is_headquarters DESC, b.name
+      `;
+      params = companyId ? [tenantId, companyId] : [tenantId];
+    } else {
+      // Regular user: only assigned branches with granular permissions
+      query = `
+        SELECT b.id, b.name, b.name_en, b.name_ar, b.code, b.type as branch_type,
+               b.company_id, c.name as company_name, c.name_ar as company_name_ar,
+               b.city, b.country_id, b.is_headquarters, b.is_active,
+               COALESCE(ub.access_level, 'read') as access_level,
+               COALESCE(ub.is_home_branch, false) as is_home_branch,
+               COALESCE(ub.can_read, false) as can_read,
+               COALESCE(ub.can_create, false) as can_create,
+               COALESCE(ub.can_update, false) as can_update,
+               COALESCE(ub.can_delete, false) as can_delete,
+               COALESCE(ub.can_approve, false) as can_approve,
+               COALESCE(ub.can_reject, false) as can_reject,
+               COALESCE(ub.can_endorse, false) as can_endorse
+        FROM user_branches ub
+        JOIN branches b ON ub.branch_id = b.id
+        JOIN companies c ON b.company_id = c.id
+        WHERE ub.user_id = $1
+          AND ub.is_active = true
+          AND b.deleted_at IS NULL
+          AND b.is_active = true
+          AND c.tenant_id = $2
+          ${companyId ? 'AND b.company_id = $3' : ''}
+        ORDER BY ub.is_home_branch DESC, b.is_headquarters DESC, b.name
+      `;
+      params = companyId ? [userId, tenantId, companyId] : [userId, tenantId];
+    }
+
+    const result = await pool.query(query, params);
+
+    res.json({
+      success: true,
+      data: result.rows,
+      meta: {
+        total: result.rows.length,
+        is_tenant_admin: ba?.isTenantAdmin || false,
+      },
+    });
+  } catch (error: any) {
+    console.error('Error fetching user branches:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch accessible branches' });
   }
 });
 

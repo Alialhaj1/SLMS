@@ -109,7 +109,7 @@ export class PolicyService {
 
   /** Refresh token expiry in days (default: 30) */
   static async refreshTokenExpiryDays(): Promise<number> {
-    return PolicyService.getInt('refresh_token_expiry_days', 30);
+    return PolicyService.getInt('refresh_token_expiry_days', 7);
   }
 
   // ------------------------------------------

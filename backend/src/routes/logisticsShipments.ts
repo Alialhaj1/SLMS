@@ -34,10 +34,86 @@ function parsePagination(query: any) {
   return { page, limit, offset };
 }
 
+/* ── Helper: record a shipment event ── */
+async function logShipmentEvent(
+  dbOrClient: any,
+  opts: {
+    companyId: number | null | undefined;
+    shipmentId: number;
+    shipmentNumber: string;
+    eventType: string;
+    stageCode?: string | null;
+    statusCode?: string | null;
+    location?: string | null;
+    descriptionEn?: string | null;
+    descriptionAr?: string | null;
+    metadata?: Record<string, any> | null;
+    userId?: number | null;
+  }
+) {
+  try {
+    await dbOrClient.query(
+      `INSERT INTO shipment_events
+         (company_id, logistics_shipment_id, shipment_reference, event_type, event_source,
+          stage_code, status_code, location, description_en, description_ar, metadata, occurred_at, created_by)
+       VALUES ($1,$2,$3,$4,'system',$5,$6,$7,$8,$9,$10,CURRENT_TIMESTAMP,$11)`,
+      [
+        opts.companyId, opts.shipmentId, opts.shipmentNumber, opts.eventType,
+        opts.stageCode ?? null, opts.statusCode ?? null, opts.location ?? null,
+        opts.descriptionEn ?? null, opts.descriptionAr ?? null,
+        opts.metadata ? JSON.stringify(opts.metadata) : null, opts.userId ?? null,
+      ]
+    );
+  } catch (e) {
+    console.warn('Failed to log shipment event:', e);
+  }
+}
+
+/* ── Helper: auto-create or update shipment milestone ── */
+async function upsertMilestone(
+  dbOrClient: any,
+  opts: {
+    companyId: number | null | undefined;
+    shipmentNumber: string;
+    origin?: string | null;
+    destination?: string | null;
+    status?: string;
+    etdPlanned?: string | null;
+    etaPlanned?: string | null;
+    atdActual?: string | null;
+    ataActual?: string | null;
+  }
+) {
+  try {
+    await dbOrClient.query(
+      `INSERT INTO shipment_milestones (company_id, shipment_reference, origin, destination, status, etd_planned, eta_planned, atd_actual, ata_actual)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+       ON CONFLICT (company_id, shipment_reference)
+       DO UPDATE SET
+         origin = COALESCE(EXCLUDED.origin, shipment_milestones.origin),
+         destination = COALESCE(EXCLUDED.destination, shipment_milestones.destination),
+         status = COALESCE(EXCLUDED.status, shipment_milestones.status),
+         etd_planned = COALESCE(EXCLUDED.etd_planned, shipment_milestones.etd_planned),
+         eta_planned = COALESCE(EXCLUDED.eta_planned, shipment_milestones.eta_planned),
+         atd_actual = COALESCE(EXCLUDED.atd_actual, shipment_milestones.atd_actual),
+         ata_actual = COALESCE(EXCLUDED.ata_actual, shipment_milestones.ata_actual),
+         updated_at = CURRENT_TIMESTAMP`,
+      [
+        opts.companyId, opts.shipmentNumber,
+        opts.origin ?? null, opts.destination ?? null, opts.status ?? 'created',
+        opts.etdPlanned ?? null, opts.etaPlanned ?? null,
+        opts.atdActual ?? null, opts.ataActual ?? null,
+      ]
+    );
+  } catch (e) {
+    console.warn('Failed to upsert milestone:', e);
+  }
+}
+
 const shipmentBaseSchema = z.object({
     shipment_number: z.string().min(1).max(60),
     shipment_type_id: z.number().int().positive(),
-    project_id: z.number().int().positive(), // MANDATORY: shipment-centric architecture
+    project_id: z.number().int().positive(),
     incoterm: z.string().min(1).max(20),
 
     bl_no: z.string().max(60).optional().nullable(),
@@ -45,33 +121,58 @@ const shipmentBaseSchema = z.object({
 
     origin_location_id: z.number().int().positive(),
     destination_location_id: z.number().int().positive(),
-    expected_arrival_date: z.string().optional().nullable(), // ISO date - optional
+    expected_arrival_date: z.string().optional().nullable(),
+    departure_date: z.string().optional().nullable(),
 
-    // Port and payment information (Migration 130)
-    port_of_loading_id: z.number().int().positive().optional().nullable(), // Optional - can use text instead
-    port_of_loading_text: z.string().max(200).optional().nullable(), // Free text for loading port
+    port_of_loading_id: z.number().int().positive().optional().nullable(),
+    port_of_loading_text: z.string().max(200).optional().nullable(),
     port_of_discharge_id: z.number().int().positive(),
     payment_method: z.string().max(100).optional().nullable(),
+    payment_method_id: z.number().int().positive().optional().nullable(),
     lc_number: z.string().max(100).optional().nullable(),
+    letter_of_credit_id: z.number().int().positive().optional().nullable(),
     total_amount: z.number().optional().nullable(),
+
+    currency_id: z.number().int().positive().optional().nullable(),
+    exchange_rate: z.number().optional().nullable(),
+    shipping_agent_id: z.number().int().positive().optional().nullable(),
+    cargo_description: z.string().optional().nullable(),
+    total_weight_kg: z.number().optional().nullable(),
+    total_volume_cbm: z.number().optional().nullable(),
+    packages_count: z.number().int().optional().nullable(),
 
     warehouse_id: z.number().int().positive().optional().nullable(),
     vendor_id: z.number().int().positive().optional().nullable(),
     purchase_order_id: z.number().int().positive().optional().nullable(),
+    quotation_id: z.number().int().positive().optional().nullable(),
+    contract_id: z.number().int().positive().optional().nullable(),
 
     stage_code: z.string().max(50).optional().nullable(),
     status_code: z.string().max(50).optional().nullable(),
     notes: z.string().optional().nullable(),
+
+    // Inline items for creation
+    items: z.array(z.object({
+      item_id: z.number().int().positive(),
+      item_code: z.string().optional().nullable(),
+      item_name: z.string().optional().nullable(),
+      item_name_ar: z.string().optional().nullable(),
+      quantity: z.number().positive(),
+      unit_cost: z.number().nonnegative().default(0),
+      uom_id: z.number().int().positive().optional().nullable(),
+      has_tax: z.boolean().default(false),
+      tax_rate_id: z.number().int().positive().optional().nullable(),
+      tax_rate: z.number().nonnegative().default(0),
+      has_customs: z.boolean().default(false),
+      customs_rate_id: z.number().int().positive().optional().nullable(),
+      customs_rate: z.number().nonnegative().default(0),
+      source_type: z.string().max(30).optional().nullable(),
+      source_id: z.number().int().positive().optional().nullable(),
+    })).optional().nullable(),
 });
 
-const shipmentCreateSchema = shipmentBaseSchema.refine(
-  (v) => {
-    const bl = (v.bl_no ?? '').trim();
-    const awb = (v.awb_no ?? '').trim();
-    return bl.length > 0 || awb.length > 0;
-  },
-  { message: 'Either bl_no or awb_no must be provided' }
-);
+// BL/AWB no longer required at creation - can be added later
+const shipmentCreateSchema = shipmentBaseSchema;
 
 const shipmentUpdateSchema = shipmentBaseSchema.partial();
 
@@ -108,13 +209,13 @@ const costCreateSchema = z.object({
 
 async function ensureShipmentCompany(companyId: number, shipmentId: number) {
   const result = await pool.query(
-    `SELECT id, company_id, locked_at, locked_by, deleted_at
+    `SELECT id, company_id, shipment_number, stage_code, status_code, locked_at, locked_by, deleted_at
      FROM logistics_shipments
      WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL`,
     [shipmentId, companyId]
   );
   return result.rows[0] as
-    | { id: number; company_id: number; locked_at: string | null; locked_by: number | null; deleted_at: string | null }
+    | { id: number; company_id: number; shipment_number: string; stage_code: string | null; status_code: string | null; locked_at: string | null; locked_by: number | null; deleted_at: string | null }
     | undefined;
 }
 
@@ -163,6 +264,60 @@ router.get(
       return res.json({ success: true, number });
     } catch (e: any) {
       return res.status(500).json({ success: false, error: e.message });
+    }
+  }
+);
+
+/**
+ * @route   GET /api/logistics-shipments/available-projects
+ * @desc    Get sub-projects available for new shipment creation.
+ *          Filters: vendor_id (required), excludes projects already used in active shipments.
+ * @access  Private (logistics:shipments:create)
+ */
+router.get(
+  '/available-projects',
+  authenticate,
+  loadCompanyContext,
+  requirePermission('logistics:shipments:create'),
+  async (req: Request, res: Response) => {
+    try {
+      const companyId = req.companyId;
+      const vendorId = req.query.vendor_id ? parseInt(req.query.vendor_id as string, 10) : null;
+
+      let query = `
+        SELECT DISTINCT
+          p.id, p.code, p.name, p.name_ar,
+          p.project_level, p.status, p.parent_project_id,
+          p.vendor_id,
+          v.name AS vendor_name, v.name_ar AS vendor_name_ar
+        FROM projects p
+        LEFT JOIN vendors v ON v.id = p.vendor_id
+        WHERE p.company_id = $1
+          AND p.deleted_at IS NULL
+          AND p.project_level = 'sub'
+          AND p.status = 'active'
+          AND p.is_active = true
+          AND NOT EXISTS (
+            SELECT 1 FROM logistics_shipments ls
+            WHERE ls.project_id = p.id
+              AND ls.company_id = $1
+              AND ls.deleted_at IS NULL
+          )
+      `;
+      const params: any[] = [companyId];
+
+      if (vendorId) {
+        params.push(vendorId);
+        query += ` AND p.vendor_id = $${params.length}`;
+      }
+
+      query += ` ORDER BY p.code`;
+
+      const result = await pool.query(query, params);
+      return res.json({ success: true, data: result.rows });
+    } catch (error: any) {
+      console.error('Error fetching available projects:', error);
+      return res.status(500).json({ success: false, error: { message: error.message } });
     }
   }
 );
@@ -444,15 +599,48 @@ router.get(
            s.bl_no,
            s.awb_no,
            s.expected_arrival_date,
+           s.actual_arrival_date,
+           s.departure_date,
            s.locked_at,
            s.created_at,
            s.status_code,
            s.stage_code,
+           s.total_amount,
+           s.currency_id,
+           s.exchange_rate AS shipment_exchange_rate,
+           s.payment_method_id,
+           s.payment_method,
+           s.lc_number,
+           s.letter_of_credit_id,
+           s.shipping_agent_id,
+           s.insurance_company_id,
+           s.clearance_office_id,
+           s.total_weight_kg,
+           s.total_volume_cbm,
+           s.packages_count,
+           s.cargo_description,
            st.name_en AS shipment_type_name_en,
            st.name_ar AS shipment_type_name_ar,
+           st.code AS shipment_type_code,
            v.id AS vendor_id,
            v.name AS vendor_name,
            v.code AS vendor_code,
+           p.name AS project_name_en,
+           p.name_ar AS project_name_ar,
+           p.code AS project_code,
+           oc.name AS origin_city_name,
+           oc.name_ar AS origin_city_name_ar,
+           dc.name AS destination_city_name,
+           dc.name_ar AS destination_city_name_ar,
+           pol.name AS port_of_loading_name,
+           pod.name AS port_of_discharge_name,
+           sa.name AS shipping_agent_name,
+           wh.name AS warehouse_name,
+           pm.name_en AS payment_method_name_en,
+           pm.name_ar AS payment_method_name_ar,
+           pm.payment_behavior,
+           ship_curr.code AS currency_code,
+           ship_curr.symbol AS currency_symbol,
            po.id AS purchase_order_id,
            po.order_number AS po_number,
            po.total_amount AS po_total_amount,
@@ -478,12 +666,13 @@ router.get(
            ) AS po_remaining_amount,
            po_curr.code AS po_currency_code,
            po_curr.symbol AS po_currency_symbol,
-           po_curr.code AS actual_currency_code,
-           po_curr.symbol AS actual_currency_symbol,
+           COALESCE(ship_curr.code, po_curr.code) AS actual_currency_code,
+           COALESCE(ship_curr.symbol, po_curr.symbol) AS actual_currency_symbol,
            COALESCE(
+             s.exchange_rate,
              (SELECT er.rate FROM exchange_rates er
               JOIN currencies base_curr ON base_curr.id = er.to_currency_id AND base_curr.is_base_currency = true
-              WHERE er.from_currency_id = po.currency_id 
+              WHERE er.from_currency_id = COALESCE(s.currency_id, po.currency_id)
                 AND er.deleted_at IS NULL 
                 AND er.is_active = true
               ORDER BY er.rate_date DESC LIMIT 1),
@@ -507,7 +696,6 @@ router.get(
            (SELECT COUNT(*)::int FROM logistics_shipment_items si WHERE si.shipment_id = s.id AND si.deleted_at IS NULL) AS items_count,
            cd.declaration_number AS customs_declaration_number,
            cds.code AS customs_status_code,
-           s.lc_number,
            COALESCE(
              (SELECT lc.original_amount
               FROM letters_of_credit lc
@@ -528,8 +716,17 @@ router.get(
             FROM shipping_bills sb
             WHERE sb.shipment_id = s.id AND sb.deleted_at IS NULL) AS containers_count
          FROM logistics_shipments s
-         LEFT JOIN logistics_shipment_types st ON st.id = s.shipment_type_id
+         LEFT JOIN shipment_types st ON st.id = s.shipment_type_id
          LEFT JOIN vendors v ON v.id = s.vendor_id AND v.deleted_at IS NULL
+         LEFT JOIN projects p ON p.id = s.project_id AND p.deleted_at IS NULL
+         LEFT JOIN cities oc ON oc.id = s.origin_location_id
+         LEFT JOIN cities dc ON dc.id = s.destination_location_id
+         LEFT JOIN ports pol ON pol.id = s.port_of_loading_id
+         LEFT JOIN ports pod ON pod.id = s.port_of_discharge_id
+         LEFT JOIN shipping_agents sa ON sa.id = s.shipping_agent_id
+         LEFT JOIN warehouses wh ON wh.id = s.warehouse_id
+         LEFT JOIN payment_methods pm ON pm.id = s.payment_method_id
+         LEFT JOIN currencies ship_curr ON ship_curr.id = s.currency_id
          LEFT JOIN purchase_orders po ON po.id = s.purchase_order_id AND po.deleted_at IS NULL
          LEFT JOIN currencies po_curr ON po_curr.id = po.currency_id AND po_curr.deleted_at IS NULL
          LEFT JOIN customs_declarations cd ON cd.shipment_id = s.id AND cd.deleted_at IS NULL
@@ -619,7 +816,7 @@ router.get(
            dest.name_ar AS destination_name_ar,
            wh.name AS warehouse_name
          FROM logistics_shipments s
-         LEFT JOIN logistics_shipment_types st ON st.id = s.shipment_type_id
+         LEFT JOIN shipment_types st ON st.id = s.shipment_type_id
          LEFT JOIN vendors v ON v.id = s.vendor_id AND v.deleted_at IS NULL
          LEFT JOIN projects proj ON proj.id = s.project_id AND proj.deleted_at IS NULL
          LEFT JOIN purchase_orders po ON po.id = s.purchase_order_id AND po.deleted_at IS NULL
@@ -951,6 +1148,7 @@ router.post(
     const client = await pool.connect();
     try {
       const companyId = req.companyId!;
+      const tenantId = (req as any).companyContext?.tenant_id || (req as any).tenantId || null;
       const userId = req.user!.id;
       const dryRun = req.query.dryRun === 'true';
 
@@ -1110,8 +1308,8 @@ router.post(
             results.shipments.push({ shipment_number: shipmentNumber, id: shipmentId, action: 'updated' });
           } else {
             const insertResult = await client.query(
-              `INSERT INTO logistics_shipments (company_id, shipment_number, shipment_type_id, vendor_id, project_id, purchase_order_id, bl_no, awb_no, incoterm, port_of_loading_text, port_of_discharge_id, origin_location_id, destination_location_id, expected_arrival_date, notes, stage_code, status_code, created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18) RETURNING id`,
-              [companyId, shipmentNumber, shipmentTypeId, vendorId, projectId, poId, blNo || null, awbNo || null, incoterm, portOfLoadingText || null, portOfDischargeId, defaultLocationId, defaultLocationId, expectedArrival || null, notes || null, 'created', 'pending', userId]
+              `INSERT INTO logistics_shipments (tenant_id, company_id, shipment_number, shipment_type_id, vendor_id, project_id, purchase_order_id, bl_no, awb_no, incoterm, port_of_loading_text, port_of_discharge_id, origin_location_id, destination_location_id, expected_arrival_date, notes, stage_code, status_code, created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19) RETURNING id`,
+              [tenantId, companyId, shipmentNumber, shipmentTypeId, vendorId, projectId, poId, blNo || null, awbNo || null, incoterm, portOfLoadingText || null, portOfDischargeId, defaultLocationId, defaultLocationId, expectedArrival || null, notes || null, 'created', 'pending', userId]
             );
             shipmentId = insertResult.rows[0].id;
             results.created++;
@@ -1220,15 +1418,21 @@ router.get(
            pol.name_en AS port_of_loading_name,
            po_curr.id AS shipment_currency_id,
            po_curr.code AS shipment_currency_code,
-           po_curr.symbol AS shipment_currency_symbol
+           po_curr.symbol AS shipment_currency_symbol,
+           orig_city.name AS origin_city_name,
+           orig_city.name_ar AS origin_city_name_ar,
+           dest_city.name AS destination_city_name,
+           dest_city.name_ar AS destination_city_name_ar
          FROM logistics_shipments s
-         LEFT JOIN logistics_shipment_types st ON st.id = s.shipment_type_id
+         LEFT JOIN shipment_types st ON st.id = s.shipment_type_id
          LEFT JOIN vendors v ON v.id = s.vendor_id AND v.deleted_at IS NULL
          LEFT JOIN purchase_orders po ON po.id = s.purchase_order_id AND po.deleted_at IS NULL
          LEFT JOIN currencies po_curr ON po_curr.id = po.currency_id AND po_curr.deleted_at IS NULL
          LEFT JOIN projects proj ON proj.id = COALESCE(s.project_id, po.project_id) AND proj.deleted_at IS NULL
          LEFT JOIN ports pod ON pod.id = s.port_of_discharge_id AND pod.deleted_at IS NULL
          LEFT JOIN ports pol ON pol.id = s.port_of_loading_id AND pol.deleted_at IS NULL
+         LEFT JOIN cities orig_city ON orig_city.id = s.origin_location_id
+         LEFT JOIN cities dest_city ON dest_city.id = s.destination_location_id
          WHERE s.id = $1 AND s.company_id = $2 AND s.deleted_at IS NULL`,
         [shipmentId, companyId]
       );
@@ -1358,85 +1562,165 @@ router.post(
   async (req: Request, res: Response) => {
     try {
       const companyId = req.companyId;
+      const tenantId = (req as any).companyContext?.tenant_id || (req as any).tenantId || null;
       const payload = shipmentCreateSchema.parse(req.body);
       const userId = (req as any).user?.id ?? null;
 
-      // Ensure shipment type belongs to company
+      // Ensure shipment type exists (master table, global or company-specific)
       const st = await pool.query(
-        `SELECT id FROM logistics_shipment_types WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL`,
+        `SELECT id FROM shipment_types WHERE id = $1 AND (company_id IS NULL OR company_id = $2) AND deleted_at IS NULL`,
         [payload.shipment_type_id, companyId]
       );
       if (st.rows.length === 0) {
         return res.status(400).json({ success: false, error: { message: 'Invalid shipment_type_id' } });
       }
 
-      const inserted = await pool.query(
-        `INSERT INTO logistics_shipments (
-           company_id,
-           shipment_number,
-           shipment_type_id,
-           project_id,
-           incoterm,
-           bl_no,
-           awb_no,
-           origin_location_id,
-           destination_location_id,
-           expected_arrival_date,
-           port_of_loading_id,
-           port_of_loading_text,
-           port_of_discharge_id,
-           payment_method,
-           lc_number,
-           total_amount,
-           warehouse_id,
-           vendor_id,
-           purchase_order_id,
-           stage_code,
-           status_code,
-           notes,
-           created_by,
-           updated_by
-         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$23)
-         RETURNING id, company_id, shipment_number, shipment_type_id, project_id, incoterm, bl_no, awb_no,
-                   origin_location_id, destination_location_id, expected_arrival_date,
-                   port_of_loading_id, port_of_loading_text, port_of_discharge_id, payment_method, lc_number, total_amount,
-                   warehouse_id, vendor_id, purchase_order_id, stage_code, status_code, notes,
-                   locked_at, locked_by, created_at, updated_at`,
-        [
-          companyId,
-          payload.shipment_number.trim(),
-          payload.shipment_type_id,
-          payload.project_id,
-          payload.incoterm.trim().toUpperCase(),
-          payload.bl_no ? payload.bl_no.trim() : null,
-          payload.awb_no ? payload.awb_no.trim() : null,
-          payload.origin_location_id,
-          payload.destination_location_id,
-          payload.expected_arrival_date,
-          payload.port_of_loading_id ?? null,
-          payload.port_of_loading_text ? payload.port_of_loading_text.trim() : null,
-          payload.port_of_discharge_id,
-          payload.payment_method ? payload.payment_method.trim() : null,
-          payload.lc_number ? payload.lc_number.trim() : null,
-          payload.total_amount ?? null,
-          payload.warehouse_id ?? null,
-          payload.vendor_id ?? null,
-          payload.purchase_order_id ?? null,
-          payload.stage_code ?? null,
-          payload.status_code ?? null,
-          payload.notes ?? null,
-          userId,
-        ]
-      );
+      // Use a client for transaction (items + header)
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
 
-      (req as any).auditContext = {
-        action: 'create',
-        resource: 'logistics_shipments',
-        resourceId: inserted.rows[0].id,
-        after: inserted.rows[0],
-      };
+        const inserted = await client.query(
+          `INSERT INTO logistics_shipments (
+             tenant_id, company_id, shipment_number, shipment_type_id, project_id, incoterm,
+             bl_no, awb_no, origin_location_id, destination_location_id,
+             expected_arrival_date, departure_date, port_of_loading_id, port_of_loading_text,
+             port_of_discharge_id, payment_method, payment_method_id, lc_number,
+             letter_of_credit_id, total_amount, currency_id, exchange_rate,
+             shipping_agent_id, cargo_description, total_weight_kg, total_volume_cbm,
+             packages_count, warehouse_id, vendor_id, purchase_order_id,
+             quotation_id, contract_id,
+             stage_code, status_code, notes, created_by, updated_by
+           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$36)
+           RETURNING *`,
+          [
+            tenantId,
+            companyId,
+            payload.shipment_number.trim(),
+            payload.shipment_type_id,
+            payload.project_id,
+            payload.incoterm.trim().toUpperCase(),
+            payload.bl_no ? payload.bl_no.trim() : null,
+            payload.awb_no ? payload.awb_no.trim() : null,
+            payload.origin_location_id,
+            payload.destination_location_id,
+            payload.expected_arrival_date ?? null,
+            payload.departure_date ?? null,
+            payload.port_of_loading_id ?? null,
+            payload.port_of_loading_text ? payload.port_of_loading_text.trim() : null,
+            payload.port_of_discharge_id,
+            payload.payment_method ? payload.payment_method.trim() : null,
+            payload.payment_method_id ?? null,
+            payload.lc_number ? payload.lc_number.trim() : null,
+            payload.letter_of_credit_id ?? null,
+            payload.total_amount ?? null,
+            payload.currency_id ?? null,
+            payload.exchange_rate ?? null,
+            payload.shipping_agent_id ?? null,
+            payload.cargo_description ?? null,
+            payload.total_weight_kg ?? null,
+            payload.total_volume_cbm ?? null,
+            payload.packages_count ?? null,
+            payload.warehouse_id ?? null,
+            payload.vendor_id ?? null,
+            payload.purchase_order_id ?? null,
+            (payload as any).quotation_id ?? null,
+            (payload as any).contract_id ?? null,
+            payload.stage_code ?? null,
+            payload.status_code ?? null,
+            payload.notes ?? null,
+            userId,
+          ]
+        );
 
-      return res.status(201).json({ success: true, data: inserted.rows[0] });
+        const shipmentId = inserted.rows[0].id;
+        let itemsCount = 0;
+        let subtotal = 0, totalTax = 0, totalCustoms = 0;
+
+        // Insert items if provided
+        const items = (payload as any).items;
+        if (items && Array.isArray(items) && items.length > 0) {
+          for (const line of items) {
+            const lineTotal = Number(line.quantity) * Number(line.unit_cost || 0);
+            const taxAmt = line.has_tax ? lineTotal * Number(line.tax_rate || 0) / 100 : 0;
+            const customsAmt = line.has_customs ? lineTotal * Number(line.customs_rate || 0) / 100 : 0;
+            const totalWithTax = lineTotal + taxAmt + customsAmt;
+
+            await client.query(
+              `INSERT INTO logistics_shipment_items (
+                 company_id, shipment_id, item_id, item_code, item_name, item_name_ar,
+                 quantity, unit_cost, uom_id, line_total,
+                 has_tax, tax_rate_id, tax_rate, tax_amount,
+                 has_customs, customs_rate_id, customs_rate, customs_amount,
+                 total_with_tax, source_type, source_id,
+                 created_by, updated_by
+               ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$22)`,
+              [
+                companyId, shipmentId, line.item_id,
+                line.item_code || null, line.item_name || null, line.item_name_ar || null,
+                line.quantity, line.unit_cost || 0, line.uom_id || null, lineTotal,
+                line.has_tax || false, line.tax_rate_id || null, line.tax_rate || 0, taxAmt,
+                line.has_customs || false, line.customs_rate_id || null, line.customs_rate || 0, customsAmt,
+                totalWithTax, line.source_type || null, line.source_id || null,
+                userId,
+              ]
+            );
+            subtotal += lineTotal;
+            totalTax += taxAmt;
+            totalCustoms += customsAmt;
+            itemsCount++;
+          }
+
+          // Update shipment totals
+          const grandTotal = subtotal + totalTax + totalCustoms;
+          await client.query(
+            `UPDATE logistics_shipments SET
+               subtotal = $1, total_tax_amount = $2, total_customs_amount = $3,
+               grand_total = $4, total_amount = COALESCE(total_amount, $4),
+               updated_at = CURRENT_TIMESTAMP
+             WHERE id = $5`,
+            [subtotal, totalTax, totalCustoms, grandTotal, shipmentId]
+          );
+        }
+
+        await client.query('COMMIT');
+
+        // Log event + create milestone (fire-and-forget after commit)
+        const row = inserted.rows[0];
+        logShipmentEvent(pool, {
+          companyId, shipmentId, shipmentNumber: row.shipment_number,
+          eventType: 'SHIPMENT_CREATED', stageCode: row.stage_code, statusCode: row.status_code,
+          descriptionEn: `Shipment ${row.shipment_number} created with ${itemsCount} items`,
+          descriptionAr: `تم إنشاء الشحنة ${row.shipment_number} مع ${itemsCount} صنف`,
+          metadata: { items_count: itemsCount, source: 'manual' }, userId,
+        });
+        // Resolve city names for milestone
+        const originCity = row.origin_location_id
+          ? (await pool.query(`SELECT name FROM cities WHERE id = $1`, [row.origin_location_id])).rows[0]?.name ?? null
+          : null;
+        const destCity = row.destination_location_id
+          ? (await pool.query(`SELECT name FROM cities WHERE id = $1`, [row.destination_location_id])).rows[0]?.name ?? null
+          : null;
+        upsertMilestone(pool, {
+          companyId, shipmentNumber: row.shipment_number,
+          origin: originCity, destination: destCity, status: 'created',
+          etdPlanned: row.departure_date ?? null, etaPlanned: row.expected_arrival_date ?? null,
+        });
+
+        (req as any).auditContext = {
+          action: 'create',
+          resource: 'logistics_shipments',
+          resourceId: shipmentId,
+          after: inserted.rows[0],
+        };
+
+        return res.status(201).json({ success: true, data: { ...inserted.rows[0], items_count: itemsCount } });
+      } catch (txErr) {
+        await client.query('ROLLBACK');
+        throw txErr;
+      } finally {
+        client.release();
+      }
     } catch (error: any) {
       if (error?.name === 'ZodError') {
         return res.status(400).json({ success: false, error: { message: 'Validation failed', details: error.errors } });
@@ -1466,6 +1750,7 @@ router.post(
     const client = await pool.connect();
     try {
       const companyId = req.companyId;
+      const tenantId = (req as any).companyContext?.tenant_id || (req as any).tenantId || null;
       const poId = parseInt(req.params.poId, 10);
       if (Number.isNaN(poId)) {
         return res.status(400).json({ success: false, error: { message: 'Invalid purchase order ID' } });
@@ -1538,11 +1823,11 @@ router.post(
         });
       }
 
-      // Get shipment type (use override or default first active)
+      // Get shipment type (use override or default first active from master table)
       let shipmentTypeId: number;
       if (shipmentTypeIdOverride) {
         const stCheck = await client.query(
-          `SELECT id FROM logistics_shipment_types WHERE id = $1 AND company_id = $2 AND is_active = true AND deleted_at IS NULL`,
+          `SELECT id FROM shipment_types WHERE id = $1 AND (company_id IS NULL OR company_id = $2) AND is_active = true AND deleted_at IS NULL`,
           [shipmentTypeIdOverride, companyId]
         );
         if (stCheck.rows.length === 0) {
@@ -1552,7 +1837,7 @@ router.post(
         shipmentTypeId = shipmentTypeIdOverride;
       } else {
         const shipmentTypeResult = await client.query(
-          `SELECT id FROM logistics_shipment_types WHERE company_id = $1 AND is_active = true AND deleted_at IS NULL LIMIT 1`,
+          `SELECT id FROM shipment_types WHERE (company_id IS NULL OR company_id = $1) AND is_active = true AND deleted_at IS NULL ORDER BY id LIMIT 1`,
           [companyId]
         );
 
@@ -1589,7 +1874,7 @@ router.post(
       const shipmentInsert = await client.query(
         `
         INSERT INTO logistics_shipments (
-          company_id, shipment_number, shipment_type_id, project_id,
+          tenant_id, company_id, shipment_number, shipment_type_id, project_id,
           incoterm, bl_no, awb_no,
           origin_location_id, destination_location_id, expected_arrival_date,
           port_of_loading_id, port_of_loading_text, port_of_discharge_id,
@@ -1598,10 +1883,11 @@ router.post(
           status_code, stage_code,
           notes, created_by
         ) VALUES (
-          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24
         ) RETURNING *
       `,
         [
+          tenantId,
           companyId,
           shipmentNumber,
           shipmentTypeId,
@@ -1653,6 +1939,25 @@ router.post(
       }
 
       await client.query('COMMIT');
+
+      // Log event + milestone (fire-and-forget)
+      const fromPoRow = shipmentInsert.rows[0];
+      logShipmentEvent(pool, {
+        companyId, shipmentId, shipmentNumber,
+        eventType: 'SHIPMENT_CREATED', stageCode: fromPoRow.stage_code, statusCode: fromPoRow.status_code,
+        descriptionEn: `Shipment ${shipmentNumber} created from PO ${po.order_number} with ${poItems.rows.length} items`,
+        descriptionAr: `تم إنشاء الشحنة ${shipmentNumber} من أمر الشراء ${po.order_number} مع ${poItems.rows.length} صنف`,
+        metadata: { items_count: poItems.rows.length, source: 'purchase_order', purchase_order_id: poId, po_number: po.order_number }, userId,
+      });
+      const originCityPo = originCityId
+        ? (await pool.query(`SELECT name FROM cities WHERE id = $1`, [originCityId])).rows[0]?.name ?? null : null;
+      const destCityPo = destinationCityId
+        ? (await pool.query(`SELECT name FROM cities WHERE id = $1`, [destinationCityId])).rows[0]?.name ?? null : null;
+      upsertMilestone(pool, {
+        companyId, shipmentNumber,
+        origin: originCityPo, destination: destCityPo, status: 'created',
+        etaPlanned: fromPoRow.expected_arrival_date ?? null,
+      });
 
       (req as any).auditContext = {
         action: 'create_from_po',
@@ -1773,6 +2078,25 @@ router.put(
         return res.status(404).json({ success: false, error: { message: 'Shipment not found' } });
       }
 
+      // Log update event (fire-and-forget)
+      const updatedRow = updated.rows[0];
+      const changedFields = Object.keys(payload).filter(k => (payload as any)[k] !== undefined);
+      logShipmentEvent(pool, {
+        companyId, shipmentId, shipmentNumber: updatedRow.shipment_number,
+        eventType: payload.status_code ? 'STATUS_CHANGED' : 'SHIPMENT_UPDATED',
+        stageCode: updatedRow.stage_code, statusCode: updatedRow.status_code,
+        descriptionEn: `Shipment ${updatedRow.shipment_number} updated (${changedFields.join(', ')})`,
+        descriptionAr: `تم تحديث الشحنة ${updatedRow.shipment_number}`,
+        metadata: { updated_fields: changedFields }, userId,
+      });
+      if (payload.status_code || payload.expected_arrival_date || payload.stage_code) {
+        upsertMilestone(pool, {
+          companyId, shipmentNumber: updatedRow.shipment_number,
+          status: payload.status_code ?? undefined,
+          etaPlanned: payload.expected_arrival_date ?? undefined,
+        });
+      }
+
       (req as any).auditContext = {
         ...(req as any).auditContext,
         after: updated.rows[0],
@@ -1812,6 +2136,35 @@ router.delete(
       if (!shipment) return res.status(404).json({ success: false, error: { message: 'Shipment not found' } });
       if (shipment.locked_at) return res.status(409).json({ success: false, error: { message: 'Shipment is locked' } });
 
+      // Delete protection: check for expenses
+      const expenseCheck = await pool.query(
+        `SELECT COUNT(*)::int AS cnt FROM shipment_expenses WHERE shipment_id = $1 AND deleted_at IS NULL`,
+        [shipmentId]
+      );
+      if (expenseCheck.rows[0].cnt > 0) {
+        return res.status(409).json({
+          success: false,
+          error: { message: `Cannot delete: shipment has ${expenseCheck.rows[0].cnt} expense(s). Delete expenses first. / لا يمكن الحذف: الشحنة تحتوي على ${expenseCheck.rows[0].cnt} مصروف(ات). احذف المصاريف أولاً.` },
+        });
+      }
+
+      // Delete protection: check for shipping bills (table may not exist yet)
+      const billTableExists = await pool.query(
+        `SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'logistics_shipping_bills') AS exists`
+      );
+      if (billTableExists.rows[0].exists) {
+        const billCheck = await pool.query(
+          `SELECT COUNT(*)::int AS cnt FROM logistics_shipping_bills WHERE shipment_id = $1 AND deleted_at IS NULL`,
+          [shipmentId]
+        );
+        if (billCheck.rows[0].cnt > 0) {
+          return res.status(409).json({
+            success: false,
+            error: { message: `Cannot delete: shipment has ${billCheck.rows[0].cnt} shipping bill(s). Delete bills first. / لا يمكن الحذف: الشحنة تحتوي على ${billCheck.rows[0].cnt} بوليصة شحن. احذف البوالص أولاً.` },
+          });
+        }
+      }
+
       await captureBeforeState(req as any, 'logistics_shipments', shipmentId);
 
       const deleted = await pool.query(
@@ -1826,6 +2179,18 @@ router.delete(
       if (deleted.rows.length === 0) {
         return res.status(404).json({ success: false, error: { message: 'Shipment not found' } });
       }
+
+      // Log delete event (fire-and-forget)
+      logShipmentEvent(pool, {
+        companyId, shipmentId, shipmentNumber: shipment.shipment_number,
+        eventType: 'SHIPMENT_DELETED',
+        descriptionEn: `Shipment ${shipment.shipment_number} deleted`,
+        descriptionAr: `تم حذف الشحنة ${shipment.shipment_number}`,
+        metadata: {}, userId: (req as any).user?.id ?? null,
+      });
+      upsertMilestone(pool, {
+        companyId, shipmentNumber: shipment.shipment_number, status: 'cancelled',
+      });
 
       return res.json({ success: true, data: { id: shipmentId } });
     } catch (error) {
@@ -2063,11 +2428,11 @@ router.post(
         );
 
         // Update item_warehouse on-hand
-        // item_warehouse is scoped by (item_id, warehouse_id) in this codebase
+        // item_warehouse has a partial unique index on (item_id, warehouse_id) WHERE variant_id IS NULL AND location_id IS NULL
         await client.query(
           `INSERT INTO item_warehouse (item_id, warehouse_id, qty_on_hand)
            VALUES ($1,$2,$3)
-           ON CONFLICT (item_id, warehouse_id)
+           ON CONFLICT (item_id, warehouse_id) WHERE variant_id IS NULL AND location_id IS NULL
            DO UPDATE SET qty_on_hand = item_warehouse.qty_on_hand + EXCLUDED.qty_on_hand,
                          updated_at = CURRENT_TIMESTAMP`,
           [shipmentItem.item_id, payload.warehouse_id, line.qty]
@@ -2093,6 +2458,21 @@ router.post(
       }
 
       await client.query('COMMIT');
+
+      // Log receive event + update milestone (fire-and-forget)
+      const totalQtyReceived = receiptLinesOut.reduce((s: number, l: any) => s + Number(l.qty_received), 0);
+      logShipmentEvent(pool, {
+        companyId, shipmentId, shipmentNumber: shipment.shipment_number,
+        eventType: 'ITEMS_RECEIVED', statusCode: 'received',
+        descriptionEn: `Received ${totalQtyReceived} units into warehouse (receipt ${receiptNo})`,
+        descriptionAr: `تم استلام ${totalQtyReceived} وحدة في المستودع (إيصال ${receiptNo})`,
+        metadata: { receipt_id: receiptId, receipt_no: receiptNo, lines_count: receiptLinesOut.length, total_qty: totalQtyReceived },
+        userId,
+      });
+      upsertMilestone(pool, {
+        companyId, shipmentNumber: shipment.shipment_number,
+        status: 'arrived', ataActual: new Date().toISOString(),
+      });
 
       (req as any).auditContext = {
         action: 'receive',
@@ -2210,6 +2590,16 @@ router.post(
 
       await client.query('COMMIT');
 
+      // Log cost event (fire-and-forget)
+      logShipmentEvent(pool, {
+        companyId, shipmentId, shipmentNumber: shipment.shipment_number,
+        eventType: 'COST_ADDED',
+        descriptionEn: `Cost ${costTypeCode} added: ${payload.amount}`,
+        descriptionAr: `تم إضافة تكلفة ${costTypeCode}: ${payload.amount}`,
+        metadata: { cost_id: costRow.rows[0].id, cost_type_code: costTypeCode, amount: payload.amount, journal_entry_id: costRow.rows[0].journal_entry_id },
+        userId,
+      });
+
       (req as any).auditContext = {
         action: 'create_cost',
         resource: 'logistics_shipment_costs',
@@ -2264,6 +2654,17 @@ router.post(
         return res.status(409).json({ success: false, error: { message: 'Shipment not found or already locked' } });
       }
 
+      // Log lock event (fire-and-forget)
+      const lockedShip = await pool.query(`SELECT shipment_number FROM logistics_shipments WHERE id = $1`, [shipmentId]);
+      const lockedShipNum = lockedShip.rows[0]?.shipment_number ?? `#${shipmentId}`;
+      logShipmentEvent(pool, {
+        companyId, shipmentId, shipmentNumber: lockedShipNum,
+        eventType: 'SHIPMENT_LOCKED',
+        descriptionEn: `Shipment ${lockedShipNum} locked`,
+        descriptionAr: `تم قفل الشحنة ${lockedShipNum}`,
+        metadata: {}, userId,
+      });
+
       (req as any).auditContext = { ...(req as any).auditContext, after: locked.rows[0] };
       return res.json({ success: true, data: locked.rows[0] });
     } catch (error) {
@@ -2305,6 +2706,17 @@ router.post(
       if (unlocked.rows.length === 0) {
         return res.status(409).json({ success: false, error: { message: 'Shipment not found or not locked' } });
       }
+
+      // Log unlock event (fire-and-forget)
+      const unlockedShip = await pool.query(`SELECT shipment_number FROM logistics_shipments WHERE id = $1`, [shipmentId]);
+      const unlockedShipNum = unlockedShip.rows[0]?.shipment_number ?? `#${shipmentId}`;
+      logShipmentEvent(pool, {
+        companyId, shipmentId, shipmentNumber: unlockedShipNum,
+        eventType: 'SHIPMENT_UNLOCKED',
+        descriptionEn: `Shipment ${unlockedShipNum} unlocked`,
+        descriptionAr: `تم فتح قفل الشحنة ${unlockedShipNum}`,
+        metadata: {}, userId: (req as any).user?.id ?? null,
+      });
 
       (req as any).auditContext = { ...(req as any).auditContext, after: unlocked.rows[0] };
       return res.json({ success: true, data: unlocked.rows[0], message: 'Shipment unlocked successfully' });
@@ -2389,10 +2801,12 @@ router.post(
         return sum + (amount * rate);
       }, 0);
 
-      // Fetch the selected items
+      // Fetch the selected items with item code/name for distribution records
       const itemsResult = await client.query(
-        `SELECT si.id, si.item_id, si.quantity, si.unit_cost
+        `SELECT si.id, si.item_id, si.quantity, si.unit_cost,
+                i.code AS item_code, i.name AS item_name
          FROM logistics_shipment_items si
+         LEFT JOIN items i ON i.id = si.item_id
          WHERE si.id = ANY($1) AND si.shipment_id = $2 AND si.company_id = $3 AND si.deleted_at IS NULL`,
         [item_ids, shipmentId, companyId]
       );
@@ -2458,7 +2872,54 @@ router.post(
         [method, expense_ids]
       );
 
+      // Delete old distribution records for these expenses
+      await client.query(
+        `DELETE FROM shipment_expense_distributions WHERE expense_id = ANY($1)`,
+        [expense_ids]
+      );
+
+      // Insert distribution audit records for each expense × item
+      for (const exp of expensesResult.rows) {
+        const expAmountBase = Number(exp.amount_before_vat || 0) * Number(exp.exchange_rate || 1);
+        for (const dist of distributions) {
+          const itemObj = items.find((i: any) => i.id === dist.item_id);
+          if (!itemObj) continue;
+          const itemValue = Number(itemObj.quantity) * Number(itemObj.unit_cost || 0);
+          const sharePercent = totalExpensesBase > 0 ? dist.cost_share / totalExpensesBase : 0;
+          const allocatedForThisExpense = expAmountBase * sharePercent;
+
+          await client.query(
+            `INSERT INTO shipment_expense_distributions
+             (expense_id, shipment_item_id, item_id, item_code, item_name,
+              basis_value, distribution_percentage, allocated_amount, allocated_amount_base)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)`,
+            [
+              exp.id,
+              dist.item_id,
+              itemObj.item_id,
+              itemObj.item_code || '',
+              itemObj.item_name || '',
+              itemValue,
+              sharePercent * 100,
+              allocatedForThisExpense
+            ]
+          );
+        }
+      }
+
       await client.query('COMMIT');
+
+      // Log distribute event (fire-and-forget)
+      const distShip = await pool.query(`SELECT shipment_number FROM logistics_shipments WHERE id = $1`, [shipmentId]);
+      const distShipNum = distShip.rows[0]?.shipment_number ?? `#${shipmentId}`;
+      logShipmentEvent(pool, {
+        companyId, shipmentId, shipmentNumber: distShipNum,
+        eventType: 'COSTS_DISTRIBUTED',
+        descriptionEn: `Distributed ${totalExpensesBase.toFixed(2)} across ${distributions.length} items (${method})`,
+        descriptionAr: `تم توزيع ${totalExpensesBase.toFixed(2)} على ${distributions.length} صنف (${method})`,
+        metadata: { method, expense_count: expense_ids.length, items_count: distributions.length, total: totalExpensesBase },
+        userId: (req as any).user?.id ?? null,
+      });
 
       return res.json({
         success: true,

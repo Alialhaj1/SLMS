@@ -24,6 +24,7 @@ import Input from '../../components/ui/Input';
 import { useToast } from '../../contexts/ToastContext';
 import { useTranslation } from '../../hooks/useTranslation';
 import { usePermissions } from '../../hooks/usePermissions';
+import { withPlatformGuard } from '../../utils/withPermission';
 import clsx from 'clsx';
 
 /* ------------------------------------------------------------------ */
@@ -167,7 +168,7 @@ const API_BASE = (typeof window !== 'undefined' && (window as any).__NEXT_DATA__
 /*  Component                                                         */
 /* ------------------------------------------------------------------ */
 
-export default function SecurityPoliciesPage() {
+function SecurityPoliciesPage() {
   const { t } = useTranslation();
   const { showToast } = useToast();
   const { hasPermission } = usePermissions();
@@ -868,3 +869,5 @@ export default function SecurityPoliciesPage() {
     </MainLayout>
   );
 }
+
+export default withPlatformGuard(SecurityPoliciesPage);

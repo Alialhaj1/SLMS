@@ -61,7 +61,7 @@ const WarehouseInventory: React.FC = () => {
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const apiUrl = (process.env.NEXT_PUBLIC_API_URL || '') + '/api';
+      const apiUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api').replace(/\/api\/?$/, '') + '/api';
       const companyId = companyStore.getActiveCompanyId();
       if (!companyId) {
         setInventory([]);

@@ -6,13 +6,15 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import pool from '../db';
 import { authenticate } from '../middleware/auth';
-import { requirePermission } from '../middleware/rbac';
+import { requirePermission, requireAnyPermission } from '../middleware/rbac';
 import { getIsolatedTenantId } from '../middleware/tenantIsolation';
 import { companyScopeGuard, getRequestCompanyScope } from '../middleware/companyScopeGuard';
 import { getPaginationParams, sendPaginated } from '../utils/response';
 import { UserService } from '../services/userService';
 import { auditLog } from '../middleware/auditLog';
 import { PolicyService } from '../services/policyService';
+
+import { UploadService } from '../services/uploadService';
 
 const router = Router();
 
@@ -73,7 +75,7 @@ async function containsSuperAdminRoleIds(roleIds: any): Promise<boolean> {
 router.patch(
   '/:id/disable',
   authenticate,
-  requirePermission('users:manage_status'),
+  requireAnyPermission(['users:manage_status', 'tenant_users:edit']),
   requireSameTenant,
   auditLog,
   async (req: Request, res: Response) => {
@@ -218,7 +220,7 @@ router.patch(
 router.patch(
   '/:id/enable',
   authenticate,
-  requirePermission('users:manage_status'),
+  requireAnyPermission(['users:manage_status', 'tenant_users:edit']),
   requireSameTenant,
   auditLog,
   async (req: Request, res: Response) => {
@@ -349,7 +351,7 @@ router.patch(
 router.patch(
   '/:id/unlock',
   authenticate,
-  requirePermission('users:manage_status'),
+  requireAnyPermission(['users:manage_status', 'tenant_users:edit']),
   requireSameTenant,
   auditLog,
   async (req: Request, res: Response) => {
@@ -466,7 +468,7 @@ router.patch(
 router.patch(
   '/:id/reset-password',
   authenticate,
-  requirePermission('users:edit'),
+  requireAnyPermission(['users:edit', 'tenant_users:edit']),
   requireSameTenant,
   auditLog,
   async (req: Request, res: Response) => {
@@ -544,7 +546,7 @@ router.patch(
 router.get(
   '/',
   authenticate,
-  requirePermission('users:view'),
+  requireAnyPermission(['users:view', 'tenant_users:view']),
   companyScopeGuard,
   async (req: Request, res: Response) => {
     try {
@@ -713,7 +715,7 @@ router.get(
 router.get(
   '/:id',
   authenticate,
-  requirePermission('users:view'),
+  requireAnyPermission(['users:view', 'tenant_users:view']),
   async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
@@ -774,7 +776,7 @@ router.get(
 router.post(
   '/',
   authenticate,
-  requirePermission('users:create'),
+  requireAnyPermission(['users:create', 'tenant_users:create']),
   auditLog,
   async (req: Request, res: Response) => {
     try {
@@ -875,23 +877,13 @@ router.post(
       }
 
       if (safeCompanyId) {
-        // Get default company_user role if not specified
-        let roleId = company_role_id;
-        if (!roleId) {
-          const defaultRole = await pool.query(
-            "SELECT id FROM roles WHERE name = 'company_user' LIMIT 1"
-          );
-          roleId = defaultRole.rows[0]?.id;
-        }
-
         await pool.query(
           `INSERT INTO user_companies (
-            user_id, company_id, is_default, role_id, access_scope, assigned_by, assigned_at
-          ) VALUES ($1, $2, true, $3, $4, $5, CURRENT_TIMESTAMP)
+            user_id, company_id, is_default, access_level, created_by
+          ) VALUES ($1, $2, true, $3, $4)
           ON CONFLICT (user_id, company_id) DO UPDATE SET
-            role_id = EXCLUDED.role_id,
-            access_scope = EXCLUDED.access_scope`,
-          [newUser.id, safeCompanyId, roleId, access_scope || 'company_only', req.user!.id]
+            access_level = EXCLUDED.access_level`,
+          [newUser.id, safeCompanyId, access_scope || 'standard', req.user!.id]
         );
 
         console.log(`User ${newUser.id} linked to company ${safeCompanyId} (tenant-verified)`);
@@ -928,7 +920,7 @@ router.post(
 router.put(
   '/:id',
   authenticate,
-  requirePermission('users:edit'),
+  requireAnyPermission(['users:edit', 'tenant_users:edit']),
   auditLog,
   async (req: Request, res: Response) => {
     try {
@@ -1073,7 +1065,7 @@ router.put(
 router.delete(
   '/:id',
   authenticate,
-  requirePermission('users:delete'),
+  requireAnyPermission(['users:delete', 'tenant_users:delete']),
   auditLog,
   async (req: Request, res: Response) => {
     try {
@@ -1356,7 +1348,7 @@ router.delete(
 router.get(
   '/all/login-history',
   authenticate,
-  requirePermission('users:view'),
+  requireAnyPermission(['users:view', 'tenant_users:view']),
   async (req: Request, res: Response) => {
     try {
       const { activity_type } = req.query;
@@ -1475,7 +1467,7 @@ router.get(
 router.get(
   '/:id/login-history',
   authenticate,
-  requirePermission('users:view'),
+  requireAnyPermission(['users:view', 'tenant_users:view']),
   async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
@@ -1566,7 +1558,7 @@ router.get(
 router.get(
   '/:id/login-stats',
   authenticate,
-  requirePermission('users:view'),
+  requireAnyPermission(['users:view', 'tenant_users:view']),
   async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
@@ -1624,7 +1616,7 @@ router.get(
 router.get(
   '/deleted',
   authenticate,
-  requirePermission('users:view_deleted'),
+  requireAnyPermission(['users:view_deleted', 'tenant_users:view']),
   async (req: Request, res: Response) => {
     try {
       const tenantId = getRequestTenantId(req);
@@ -1669,6 +1661,257 @@ router.get(
         error: 'Failed to fetch deleted users',
         message: error.message
       });
+    }
+  }
+);
+
+// =============================================
+// Signature Management
+// =============================================
+
+// GET /users/:id/signature — Get user signature info
+router.get(
+  '/:id/signature',
+  authenticate,
+  async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const result = await pool.query(
+        `SELECT u.id, u.full_name, u.signature_image_url, u.signature_title_en, u.signature_title_ar,
+                ds.id as digital_signature_id, ds.signature_name_en, ds.signature_name_ar,
+                ds.signature_image_url as ds_image_url, ds.signature_type, ds.is_default
+         FROM users u
+         LEFT JOIN digital_signatures ds ON ds.user_id = u.id AND ds.is_active = true AND ds.deleted_at IS NULL
+         WHERE u.id = $1 AND u.deleted_at IS NULL`,
+        [id]
+      );
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({ success: false, error: 'User not found' });
+      }
+
+      const user = result.rows[0];
+      res.json({
+        success: true,
+        data: {
+          user_id: user.id,
+          full_name: user.full_name,
+          signature_image_url: user.signature_image_url,
+          signature_title_en: user.signature_title_en,
+          signature_title_ar: user.signature_title_ar,
+          digital_signatures: result.rows
+            .filter((r: any) => r.digital_signature_id)
+            .map((r: any) => ({
+              id: r.digital_signature_id,
+              name_en: r.signature_name_en,
+              name_ar: r.signature_name_ar,
+              image_url: r.ds_image_url,
+              type: r.signature_type,
+              is_default: r.is_default,
+            })),
+        }
+      });
+    } catch (error: any) {
+      console.error('Error fetching user signature:', error);
+      res.status(500).json({ success: false, error: 'Failed to fetch signature' });
+    }
+  }
+);
+
+// PUT /users/:id/signature — Upload/update user signature image
+router.put(
+  '/:id/signature',
+  authenticate,
+  async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const userId = parseInt(id, 10);
+      const currentUserId = req.user!.id;
+
+      // Users can only update their own signature, admins can update any
+      const isAdmin = req.user!.roles?.includes('super_admin') || req.user!.roles?.includes('tenant_admin') || req.user!.roles?.includes('Admin');
+      if (userId !== currentUserId && !isAdmin) {
+        return res.status(403).json({ success: false, error: 'Not allowed' });
+      }
+
+      const { signature_image, signature_title_en, signature_title_ar } = req.body;
+
+      if (!signature_image && !signature_title_en && !signature_title_ar) {
+        return res.status(400).json({ success: false, error: 'No data provided' });
+      }
+
+      let imageUrl: string | undefined;
+
+      if (signature_image) {
+        // Save base64 signature image
+        const tenantId = (req as any).tenantId || null;
+        const result = await UploadService.saveBase64Image(signature_image, 'signatures', undefined, tenantId);
+        if (!result.success) {
+          return res.status(400).json({ success: false, error: result.error || 'Failed to save signature' });
+        }
+        imageUrl = result.url;
+      }
+
+      // Build update query
+      const updates: string[] = [];
+      const values: any[] = [];
+      let pi = 1;
+
+      if (imageUrl) {
+        updates.push(`signature_image_url = $${pi++}`);
+        values.push(imageUrl);
+      }
+      if (signature_title_en !== undefined) {
+        updates.push(`signature_title_en = $${pi++}`);
+        values.push(signature_title_en);
+      }
+      if (signature_title_ar !== undefined) {
+        updates.push(`signature_title_ar = $${pi++}`);
+        values.push(signature_title_ar);
+      }
+
+      if (updates.length > 0) {
+        values.push(userId);
+        await pool.query(
+          `UPDATE users SET ${updates.join(', ')}, updated_at = NOW() WHERE id = $${pi}`,
+          values
+        );
+      }
+
+      // Also update digital_signatures table if user has one
+      if (imageUrl) {
+        const tenantCheck = await pool.query('SELECT tenant_id FROM users WHERE id = $1', [userId]);
+        const tenantId = tenantCheck.rows[0]?.tenant_id;
+        if (tenantId) {
+          const existing = await pool.query(
+            'SELECT id FROM digital_signatures WHERE user_id = $1 AND company_id = $2 AND deleted_at IS NULL LIMIT 1',
+            [userId, tenantId]
+          );
+          if (existing.rows.length > 0) {
+            await pool.query(
+              'UPDATE digital_signatures SET signature_image_url = $1, updated_at = NOW(), updated_by = $2 WHERE id = $3',
+              [imageUrl, currentUserId, existing.rows[0].id]
+            );
+          } else {
+            const userName = (await pool.query('SELECT full_name FROM users WHERE id=$1', [userId])).rows[0]?.full_name || '';
+            await pool.query(
+              `INSERT INTO digital_signatures (company_id, user_id, signature_name_en, signature_name_ar, signature_image_url, signature_type, is_active, is_default, created_by)
+               VALUES ($1, $2, $3, $4, $5, 'manual', true, true, $6)`,
+              [tenantId, userId, `${userName} Signature`, `توقيع ${userName}`, imageUrl, currentUserId]
+            );
+          }
+        }
+      }
+
+      const updated = await pool.query(
+        'SELECT id, full_name, signature_image_url, signature_title_en, signature_title_ar FROM users WHERE id = $1',
+        [userId]
+      );
+
+      res.json({ success: true, data: updated.rows[0], message: 'Signature updated successfully' });
+    } catch (error: any) {
+      console.error('Error updating user signature:', error);
+      res.status(500).json({ success: false, error: 'Failed to update signature' });
+    }
+  }
+);
+
+// DELETE /users/:id/signature — Remove user signature
+router.delete(
+  '/:id/signature',
+  authenticate,
+  async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const userId = parseInt(id, 10);
+      const currentUserId = req.user!.id;
+
+      const isAdmin = req.user!.roles?.includes('super_admin') || req.user!.roles?.includes('tenant_admin') || req.user!.roles?.includes('Admin');
+      if (userId !== currentUserId && !isAdmin) {
+        return res.status(403).json({ success: false, error: 'Not allowed' });
+      }
+
+      await pool.query(
+        'UPDATE users SET signature_image_url = NULL, updated_at = NOW() WHERE id = $1',
+        [userId]
+      );
+
+      res.json({ success: true, message: 'Signature removed' });
+    } catch (error: any) {
+      console.error('Error removing signature:', error);
+      res.status(500).json({ success: false, error: 'Failed to remove signature' });
+    }
+  }
+);
+
+// GET /users/notifications/approval — Get approval notifications for current user
+router.get(
+  '/notifications/approval',
+  authenticate,
+  async (req: Request, res: Response) => {
+    try {
+      const userId = req.user!.id;
+      const { unread_only, limit = '20' } = req.query;
+
+      let where = 'an.user_id = $1';
+      if (unread_only === 'true') where += ' AND an.is_read = false';
+
+      const result = await pool.query(
+        `SELECT an.*, u.full_name as actor_name
+         FROM approval_notifications an
+         LEFT JOIN users u ON u.id = (
+           SELECT performed_by FROM request_approval_history 
+           WHERE request_type = an.request_type AND request_id = an.request_id
+           ORDER BY performed_at DESC LIMIT 1
+         )
+         WHERE ${where}
+         ORDER BY an.created_at DESC
+         LIMIT $2`,
+        [userId, parseInt(limit as string)]
+      );
+
+      const countResult = await pool.query(
+        'SELECT COUNT(*) as unread_count FROM approval_notifications WHERE user_id = $1 AND is_read = false',
+        [userId]
+      );
+
+      res.json({
+        success: true,
+        data: result.rows,
+        unread_count: parseInt(countResult.rows[0].unread_count)
+      });
+    } catch (error: any) {
+      console.error('Error fetching notifications:', error);
+      res.status(500).json({ success: false, error: 'Failed to fetch notifications' });
+    }
+  }
+);
+
+// POST /users/notifications/mark-read — Mark notifications as read
+router.post(
+  '/notifications/mark-read',
+  authenticate,
+  async (req: Request, res: Response) => {
+    try {
+      const userId = req.user!.id;
+      const { notification_ids } = req.body;
+
+      if (notification_ids && Array.isArray(notification_ids) && notification_ids.length > 0) {
+        await pool.query(
+          'UPDATE approval_notifications SET is_read = true, read_at = NOW() WHERE id = ANY($1) AND user_id = $2',
+          [notification_ids, userId]
+        );
+      } else {
+        await pool.query(
+          'UPDATE approval_notifications SET is_read = true, read_at = NOW() WHERE user_id = $1 AND is_read = false',
+          [userId]
+        );
+      }
+
+      res.json({ success: true, message: 'Notifications marked as read' });
+    } catch (error: any) {
+      console.error('Error marking notifications:', error);
+      res.status(500).json({ success: false, error: 'Failed to mark notifications' });
     }
   }
 );

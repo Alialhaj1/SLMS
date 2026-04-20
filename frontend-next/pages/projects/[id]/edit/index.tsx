@@ -98,20 +98,49 @@ interface FormData {
 // API
 // =============================================
 
-const API_BASE = (process.env.NEXT_PUBLIC_API_URL || '') + '/api';
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api').replace(/\/api\/?$/, '') + '/api';
 
 async function fetchWithAuth(url: string, token: string, options: RequestInit = {}) {
-  const res = await fetch(url, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-      ...options.headers,
-    },
-  });
+  const makeRequest = async (authToken: string) => {
+    return fetch(url, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${authToken}`,
+        ...options.headers,
+      },
+    });
+  };
+
+  let res = await makeRequest(token);
+
+  // Auto-refresh token on 401
+  if (res.status === 401) {
+    try {
+      const refreshToken = localStorage.getItem('refreshToken');
+      if (refreshToken) {
+        const refreshRes = await fetch(`${API_BASE.replace('/api', '')}/api/auth/refresh`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refreshToken }),
+        });
+        if (refreshRes.ok) {
+          const refreshData = await refreshRes.json();
+          if (refreshData.success && refreshData.data) {
+            localStorage.setItem('accessToken', refreshData.data.accessToken);
+            localStorage.setItem('refreshToken', refreshData.data.refreshToken);
+            res = await makeRequest(refreshData.data.accessToken);
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Token refresh failed:', e);
+    }
+  }
+
   if (!res.ok) {
     const error = await res.json().catch(() => ({}));
-    throw new Error(error.error?.message || `HTTP ${res.status}`);
+    throw new Error(error.error?.message || error.error || `HTTP ${res.status}`);
   }
   return res.json();
 }
@@ -184,7 +213,7 @@ export default function EditProjectPage() {
         fetchWithAuth(`${API_BASE}/projects?limit=100`, token),
         fetchWithAuth(`${API_BASE}/cost-centers`, token).catch(() => ({ data: [] })),
         fetchWithAuth(`${API_BASE}/users`, token).catch(() => ({ data: [] })),
-        fetchWithAuth(`${API_BASE}/vendors`, token).catch(() => ({ data: [] })),
+        fetchWithAuth(`${API_BASE}/vendors?limit=1000`, token).catch(() => ({ data: [] })),
       ]);
 
       const project = projectRes.data;

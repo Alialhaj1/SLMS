@@ -16,6 +16,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { BadgeType } from '../config/menu.registry';
 import { apiClient } from '../lib/apiClient';
+import { useAuth } from './useAuth';
 
 /**
  * نتائج الـ Badge Counts
@@ -62,6 +63,7 @@ let globalCounts: BadgeCounts = { ...DEFAULT_COUNTS };
 let lastFetchTime: number = 0;
 
 export function useBadgeCounts() {
+  const { user, isAuthenticated } = useAuth();
   const [state, setState] = useState<UseBadgeCountsState>({
     counts: globalCounts,
     isLoading: false,
@@ -73,6 +75,20 @@ export function useBadgeCounts() {
    * جلب الأعداد من الـ API
    */
   const fetchCounts = useCallback(async (force: boolean = false) => {
+    const permissions = Array.isArray(user?.permissions) ? user.permissions : [];
+    const canViewDashboard = permissions.includes('*:*') || permissions.includes('*.*') || permissions.includes('dashboard:view');
+    const canViewApprovals = permissions.includes('*:*') || permissions.includes('*.*') || permissions.includes('approval_documents:view');
+
+    if (!isAuthenticated || (!canViewDashboard && !canViewApprovals)) {
+      setState(prev => ({
+        ...prev,
+        counts: DEFAULT_COUNTS,
+        isLoading: false,
+        error: null,
+      }));
+      return;
+    }
+
     const now = Date.now();
     
     // استخدام Cache إذا لم يمر الوقت الكافي
@@ -83,17 +99,25 @@ export function useBadgeCounts() {
     setState(prev => ({ ...prev, isLoading: true, error: null }));
 
     try {
-      // ✅ استدعاء API حقيقي
-      const response = await apiClient.get('/api/dashboard/badges');
-      const data = response.data;
+      const data = canViewDashboard
+        ? (await apiClient.get('/api/dashboard/badges')).data
+        : {};
       
-      // جلب عدد الاعتمادات المعلقة من Approval API
+      // جلب عدد الاعتمادات المعلقة من Approval Workflow API
       let approvalsCount = 0;
-      try {
-        const approvalsResponse = await apiClient.get('/api/approvals/badge-count');
-        approvalsCount = approvalsResponse.count || 0;
-      } catch (err) {
-        console.warn('Failed to fetch approvals count:', err);
+      if (canViewApprovals) {
+        try {
+          const approvalsResponse = await apiClient.get('/api/approval-documents/inbox-count');
+          approvalsCount = approvalsResponse.count || 0;
+        } catch (err) {
+          // Fallback to legacy endpoint
+          try {
+            const legacyResponse = await apiClient.get('/api/approvals/badge-count');
+            approvalsCount = legacyResponse.count || 0;
+          } catch {
+            console.warn('Failed to fetch approvals count');
+          }
+        }
       }
       
       // تحويل البيانات لصيغة BadgeCounts

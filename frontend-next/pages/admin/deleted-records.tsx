@@ -17,6 +17,16 @@ interface DeletedRecord {
 
 const RESOURCE_TYPES = ['All', 'users', 'companies', 'shipments', 'expenses', 'suppliers', 'warehouses'];
 
+const RESOURCE_TYPE_KEYS: Record<string, string> = {
+  All: 'adminDeletedRecords.allResources',
+  users: 'adminDeletedRecords.users',
+  companies: 'adminDeletedRecords.companies',
+  shipments: 'adminDeletedRecords.shipments',
+  expenses: 'adminDeletedRecords.expenses',
+  suppliers: 'adminDeletedRecords.suppliers',
+  warehouses: 'adminDeletedRecords.warehouses',
+};
+
 export default function DeletedRecords() {
   const { user } = useAuth();
   const { t } = useLocale();
@@ -42,7 +52,7 @@ export default function DeletedRecords() {
       const data = await res.json();
       setRecords(data.data ?? []);
     } catch {
-      showToast('error', 'Failed to load deleted records');
+      showToast('error', t('adminDeletedRecords.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -57,10 +67,10 @@ export default function DeletedRecords() {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error('Failed');
-      showToast('success', `Record "${record.name}" restored successfully`);
+      showToast('success', t('adminDeletedRecords.restoredSuccess', { name: record.name }));
       fetchRecords();
     } catch {
-      showToast('error', 'Failed to restore record');
+      showToast('error', t('adminDeletedRecords.restoreFailed'));
     } finally {
       setRestoring(null);
     }
@@ -69,15 +79,15 @@ export default function DeletedRecords() {
   return (
     <MainLayout>
       <Head>
-        <title>Deleted Records - SLMS</title>
+        <title>{t('adminDeletedRecords.title')} - SLMS</title>
       </Head>
 
       <div className="space-y-6">
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Deleted Records</h1>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('adminDeletedRecords.title')}</h1>
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              Browse and restore soft-deleted records.
+              {t('adminDeletedRecords.subtitle')}
             </p>
           </div>
           <div>
@@ -85,10 +95,10 @@ export default function DeletedRecords() {
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
               className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-              aria-label="Filter by resource type"
+              aria-label={t('adminDeletedRecords.filterLabel')}
             >
               {RESOURCE_TYPES.map((rt) => (
-                <option key={rt} value={rt}>{rt === 'All' ? 'All Resources' : rt}</option>
+                <option key={rt} value={rt}>{t(RESOURCE_TYPE_KEYS[rt])}</option>
               ))}
             </select>
           </div>
@@ -98,8 +108,8 @@ export default function DeletedRecords() {
           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
             <thead className="bg-gray-50 dark:bg-gray-900">
               <tr>
-                {['Resource Type', 'Name', 'Deleted By', 'Deleted At', 'Actions'].map((h) => (
-                  <th key={h} className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{h}</th>
+                {(['resourceType', 'name', 'deletedBy', 'deletedAt', 'actions'] as const).map((h) => (
+                  <th key={h} className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t(`adminDeletedRecords.${h}`)}</th>
                 ))}
               </tr>
             </thead>
@@ -116,7 +126,7 @@ export default function DeletedRecords() {
                 <tr>
                   <td colSpan={5} className="px-6 py-12 text-center">
                     <TrashIcon className="mx-auto h-10 w-10 text-gray-300 dark:text-gray-600" />
-                    <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">No deleted records found.</p>
+                    <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">{t('adminDeletedRecords.noRecords')}</p>
                   </td>
                 </tr>
               ) : (
@@ -124,7 +134,7 @@ export default function DeletedRecords() {
                   <tr key={rec.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                     <td className="px-6 py-4">
                       <span className="inline-flex px-2 py-0.5 text-xs font-medium rounded bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 capitalize">
-                        {rec.resourceType}
+                        {t(`adminDeletedRecords.${rec.resourceType}`) || rec.resourceType}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">{rec.name}</td>
@@ -135,10 +145,10 @@ export default function DeletedRecords() {
                         onClick={() => handleRestore(rec)}
                         disabled={restoring === rec.id}
                         className="inline-flex items-center gap-1 text-xs px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-                        aria-label={`Restore ${rec.name}`}
+                        aria-label={`${t('adminDeletedRecords.restore')} ${rec.name}`}
                       >
                         <ArrowPathIcon className={`h-3 w-3 ${restoring === rec.id ? 'animate-spin' : ''}`} />
-                        {restoring === rec.id ? 'Restoring…' : 'Restore'}
+                        {restoring === rec.id ? t('adminDeletedRecords.restoring') : t('adminDeletedRecords.restore')}
                       </button>
                     </td>
                   </tr>

@@ -5,13 +5,13 @@ import pool from '../../db';
 
 const router = Router();
 
-// GET / - List item_types
+// GET / - List item_types (stored in reference_data table)
 router.get('/', authenticate, async (req, res) => {
   try {
     const { page = 1, limit = 25, search = '' } = req.query;
     const offset = (Number(page) - 1) * Number(limit);
     
-    let query = `SELECT * FROM item_types WHERE deleted_at IS NULL`;
+    let query = `SELECT * FROM reference_data WHERE type = 'item_types' AND deleted_at IS NULL`;
     const params: any[] = [];
     
     if (search) {
@@ -23,7 +23,7 @@ router.get('/', authenticate, async (req, res) => {
     params.push(Number(limit), offset);
     
     const result = await pool.query(query, params);
-    const countResult = await pool.query(`SELECT COUNT(*) FROM item_types WHERE deleted_at IS NULL`);
+    const countResult = await pool.query(`SELECT COUNT(*) FROM reference_data WHERE type = 'item_types' AND deleted_at IS NULL`);
     
     sendSuccess(res, { 
       data: result.rows, 
@@ -40,7 +40,7 @@ router.get('/', authenticate, async (req, res) => {
 router.get('/:id', authenticate, async (req, res) => {
   try {
     const result = await pool.query(
-      'SELECT * FROM item_types WHERE id = $1 AND deleted_at IS NULL',
+      `SELECT * FROM reference_data WHERE id = $1 AND type = 'item_types' AND deleted_at IS NULL`,
       [req.params.id]
     );
     if (result.rows.length === 0) {

@@ -24,6 +24,14 @@ export interface GLRow {
   debit_amount: number;
   credit_amount: number;
   balance: number; // running balance (signed)
+  project_code?: string;
+  project_name?: string;
+  currency_code?: string;
+  currency_symbol?: string;
+  fc_debit_amount?: number;
+  fc_credit_amount?: number;
+  exchange_rate?: number;
+  is_base_currency?: boolean;
 }
 
 export interface GLSummary {
@@ -40,6 +48,11 @@ export interface GLRequest {
   from_date?: string; // YYYY-MM-DD
   to_date?: string;
   include_opening_balance?: boolean; // Default: true
+  search?: string; // Filter on description/reference
+  project_id?: number; // Filter by project
+  min_amount?: number; // Amount range filter
+  max_amount?: number; // Amount range filter
+  project_only?: boolean; // When true, no account required — show all accounts for project
 }
 
 export interface GLResponse {
@@ -73,7 +86,8 @@ export interface AccountOption {
  */
 export async function getAccounts(
   companyId: number,
-  exclude_zero_balance: boolean = false
+  exclude_zero_balance: boolean = false,
+  account_type?: string
 ): Promise<AccountOption[]> {
   try {
     const asOfDate = new Date().toISOString().split('T')[0];
@@ -125,6 +139,7 @@ export async function getAccounts(
         a.company_id = $1
         AND a.deleted_at IS NULL
         AND a.is_group = false
+        ${account_type ? `AND at.classification = '${account_type.toLowerCase().replace(/[^a-z]/g, '')}'` : ''}
     `;
 
     if (exclude_zero_balance) {
@@ -134,7 +149,7 @@ export async function getAccounts(
       `;
     }
 
-    sql += ` ORDER BY coa.code ASC`;
+    sql += ` ORDER BY a.code ASC`;
 
     const result = await pool.query(sql, [companyId, asOfDate]);
     return (result.rows as AccountOption[]).map((row) => ({
@@ -201,6 +216,11 @@ export async function getGeneralLedger(
   params: GLRequest
 ): Promise<GLResponse> {
   try {
+    // Project-only mode: no account required
+    if (params.project_only && params.project_id && !params.account_id && !params.account_code) {
+      return getProjectLedger(companyId, params);
+    }
+
     // Validate inputs
     if (!params.account_id && !params.account_code) {
       throw new Error('Either account_id or account_code is required');
@@ -248,6 +268,12 @@ export async function getGeneralLedger(
 
     const openingBalance = await getOpeningBalance(companyId, accountId, fromDate);
 
+    // Build dynamic params and project filter clause
+    const queryParams: any[] = [companyId, accountId, fromDate, toDate];
+    const projectFilter = params.project_id
+      ? (() => { queryParams.push(params.project_id); return `AND jl.project_id = $${queryParams.length}`; })()
+      : '';
+
     // Get all transactions in period
     const sql = `
       WITH txns AS (
@@ -258,16 +284,27 @@ export async function getGeneralLedger(
           a.code as account_code,
           a.name as account_name,
           CASE WHEN jl.debit_amount > 0 THEN jl.debit_amount ELSE 0 END as debit_amount,
-          CASE WHEN jl.credit_amount > 0 THEN jl.credit_amount ELSE 0 END as credit_amount
+          CASE WHEN jl.credit_amount > 0 THEN jl.credit_amount ELSE 0 END as credit_amount,
+          COALESCE(p.code, '') as project_code,
+          COALESCE(p.name, '') as project_name,
+          COALESCE(cur.code, '') as currency_code,
+          COALESCE(cur.symbol, '') as currency_symbol,
+          COALESCE(jl.fc_debit_amount, 0) as fc_debit_amount,
+          COALESCE(jl.fc_credit_amount, 0) as fc_credit_amount,
+          COALESCE(jl.exchange_rate, 1) as exchange_rate,
+          COALESCE(cur.is_base_currency, true) as is_base_currency
         FROM journal_lines jl
         JOIN journal_entries je ON jl.journal_entry_id = je.id
         JOIN accounts a ON jl.account_id = a.id
+        LEFT JOIN projects p ON p.id = jl.project_id
+        LEFT JOIN currencies cur ON cur.id = jl.currency_id
         WHERE
           je.company_id = $1
           AND jl.account_id = $2
           AND je.status = 'posted'
           AND je.posting_date >= $3
           AND je.posting_date <= $4
+          ${projectFilter}
 
         UNION ALL
 
@@ -278,7 +315,15 @@ export async function getGeneralLedger(
           a.code as account_code,
           a.name as account_name,
           obl.debit as debit_amount,
-          obl.credit as credit_amount
+          obl.credit as credit_amount,
+          '' as project_code,
+          '' as project_name,
+          '' as currency_code,
+          '' as currency_symbol,
+          0 as fc_debit_amount,
+          0 as fc_credit_amount,
+          1 as exchange_rate,
+          true as is_base_currency
         FROM opening_balance_lines obl
         JOIN opening_balance_batches obb ON obb.id = obl.batch_id
         JOIN accounting_periods ap ON ap.id = obb.period_id
@@ -295,12 +340,7 @@ export async function getGeneralLedger(
       ORDER BY date ASC, reference ASC
     `;
 
-    const transactionsResult = await pool.query(sql, [
-      companyId,
-      accountId,
-      fromDate,
-      toDate,
-    ]);
+    const transactionsResult = await pool.query(sql, queryParams);
     const transactions = transactionsResult.rows;
 
     // Calculate running balance
@@ -317,6 +357,14 @@ export async function getGeneralLedger(
         account_name: txn.account_name,
         debit_amount: toNumber(txn.debit_amount),
         credit_amount: toNumber(txn.credit_amount),
+        project_code: txn.project_code || undefined,
+        project_name: txn.project_name || undefined,
+        currency_code: txn.currency_code || undefined,
+        currency_symbol: txn.currency_symbol || undefined,
+        fc_debit_amount: toNumber(txn.fc_debit_amount),
+        fc_credit_amount: toNumber(txn.fc_credit_amount),
+        exchange_rate: toNumber(txn.exchange_rate) || 1,
+        is_base_currency: txn.is_base_currency !== false,
         balance: runningBalance,
       });
     }
@@ -326,6 +374,30 @@ export async function getGeneralLedger(
     const totalCredit = rows.reduce((sum, row) => sum + row.credit_amount, 0);
     const closingBalance =
       openingBalance + totalDebit - totalCredit;
+
+    // Apply search filter (post-calculation so running balance stays correct)
+    const searchLower = params.search?.toLowerCase().trim();
+    const filteredRows = searchLower
+      ? rows.filter(row =>
+          row.description?.toLowerCase().includes(searchLower) ||
+          row.reference?.toLowerCase().includes(searchLower) ||
+          String(row.debit_amount).includes(searchLower) ||
+          String(row.credit_amount).includes(searchLower) ||
+          String(row.balance).includes(searchLower)
+        )
+      : rows;
+
+    // Amount range filter
+    const minAmt = params.min_amount;
+    const maxAmt = params.max_amount;
+    const amountFilteredRows = (minAmt != null || maxAmt != null)
+      ? filteredRows.filter(row => {
+          const amt = Math.max(row.debit_amount, row.credit_amount);
+          if (minAmt != null && amt < minAmt) return false;
+          if (maxAmt != null && amt > maxAmt) return false;
+          return true;
+        })
+      : filteredRows;
 
     return {
       account: accountInfo,
@@ -341,9 +413,9 @@ export async function getGeneralLedger(
               credit_amount: openingBalance < 0 ? Math.abs(openingBalance) : 0,
               balance: openingBalance,
             },
-            ...rows,
+            ...amountFilteredRows,
           ]
-        : rows,
+        : amountFilteredRows,
       summary: {
         opening_balance: openingBalance,
         total_debit: totalDebit,
@@ -360,6 +432,105 @@ export async function getGeneralLedger(
     console.error('General ledger calculation error:', error);
     throw error;
   }
+}
+
+/**
+ * Project-only ledger — all accounts for a given project, no running balance
+ */
+async function getProjectLedger(
+  companyId: number,
+  params: GLRequest
+): Promise<GLResponse> {
+  const fromDate = params.from_date || '2000-01-01';
+  const toDate = params.to_date || new Date().toISOString().split('T')[0];
+  const queryParams: any[] = [companyId, params.project_id, fromDate, toDate];
+
+  const sql = `
+    SELECT
+      COALESCE(je.posting_date, je.entry_date) as date,
+      COALESCE(je.reference, je.entry_number, je.id::text) as reference,
+      COALESCE(je.description, je.narration, '') as description,
+      a.code as account_code,
+      a.name as account_name,
+      CASE WHEN jl.debit_amount > 0 THEN jl.debit_amount ELSE 0 END as debit_amount,
+      CASE WHEN jl.credit_amount > 0 THEN jl.credit_amount ELSE 0 END as credit_amount,
+      COALESCE(p.code, '') as project_code,
+      COALESCE(p.name, '') as project_name,
+      COALESCE(cur.code, '') as currency_code,
+      COALESCE(cur.symbol, '') as currency_symbol,
+      COALESCE(jl.fc_debit_amount, 0) as fc_debit_amount,
+      COALESCE(jl.fc_credit_amount, 0) as fc_credit_amount,
+      COALESCE(jl.exchange_rate, 1) as exchange_rate,
+      COALESCE(cur.is_base_currency, true) as is_base_currency
+    FROM journal_lines jl
+    JOIN journal_entries je ON jl.journal_entry_id = je.id
+    JOIN accounts a ON jl.account_id = a.id
+    LEFT JOIN projects p ON p.id = jl.project_id
+    LEFT JOIN currencies cur ON cur.id = jl.currency_id
+    WHERE
+      je.company_id = $1
+      AND jl.project_id = $2
+      AND je.status = 'posted'
+      AND je.posting_date >= $3
+      AND je.posting_date <= $4
+    ORDER BY je.posting_date ASC, je.id ASC
+  `;
+
+  const result = await pool.query(sql, queryParams);
+  let rows: GLRow[] = result.rows.map((txn: any) => ({
+    date: txn.date,
+    reference: txn.reference ? String(txn.reference) : '',
+    description: txn.description || '',
+    account_code: txn.account_code,
+    account_name: txn.account_name,
+    debit_amount: toNumber(txn.debit_amount),
+    credit_amount: toNumber(txn.credit_amount),
+    project_code: txn.project_code || undefined,
+    project_name: txn.project_name || undefined,
+    currency_code: txn.currency_code || undefined,
+    currency_symbol: txn.currency_symbol || undefined,
+    fc_debit_amount: toNumber(txn.fc_debit_amount),
+    fc_credit_amount: toNumber(txn.fc_credit_amount),
+    exchange_rate: toNumber(txn.exchange_rate) || 1,
+    is_base_currency: txn.is_base_currency !== false,
+    balance: 0, // no running balance in project mode
+  }));
+
+  // Search filter
+  const searchLower = params.search?.toLowerCase().trim();
+  if (searchLower) {
+    rows = rows.filter(row =>
+      row.description?.toLowerCase().includes(searchLower) ||
+      row.reference?.toLowerCase().includes(searchLower) ||
+      row.account_code?.toLowerCase().includes(searchLower) ||
+      row.account_name?.toLowerCase().includes(searchLower)
+    );
+  }
+
+  // Amount range filter
+  if (params.min_amount != null || params.max_amount != null) {
+    rows = rows.filter(row => {
+      const amt = Math.max(row.debit_amount, row.credit_amount);
+      if (params.min_amount != null && amt < params.min_amount) return false;
+      if (params.max_amount != null && amt > params.max_amount) return false;
+      return true;
+    });
+  }
+
+  const totalDebit = rows.reduce((s, r) => s + r.debit_amount, 0);
+  const totalCredit = rows.reduce((s, r) => s + r.credit_amount, 0);
+
+  return {
+    data: rows,
+    summary: {
+      opening_balance: 0,
+      total_debit: totalDebit,
+      total_credit: totalCredit,
+      closing_balance: totalDebit - totalCredit,
+      is_balanced: Math.abs(totalDebit - totalCredit) < 0.01,
+    },
+    period: { from: fromDate, to: toDate },
+  };
 }
 
 /**

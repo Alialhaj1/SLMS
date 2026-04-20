@@ -1,7 +1,7 @@
 import Head from 'next/head';
 import MainLayout from '../../components/layout/MainLayout';
 import PolicyCrudTable from '../../components/settings/PolicyCrudTable';
-import { withAllPermissions } from '../../utils/withPermission';
+import { withAllPermissions, withPlatformGuard } from '../../utils/withPermission';
 import { useTranslation } from '../../hooks/useTranslation';
 
 function PasswordPoliciesPage() {
@@ -38,7 +38,7 @@ function PasswordPoliciesPage() {
   );
 }
 
-export default withAllPermissions(
+export default withPlatformGuard(withAllPermissions(
   ['system_policies:view' as any, 'system_policies:edit' as any],
   PasswordPoliciesPage
-);
+));

@@ -100,15 +100,18 @@ export const loadCompanyContext = async (
     }
 
     // Last-resort fallback: super_admin sessions may not have user_companies rows.
-    // Still enforce scoping by selecting a default company when none is provided.
+    // TENANT ISOLATION: Platform admins (no tenant_id) may only auto-resolve to
+    // platform-level companies (tenant_id IS NULL). This prevents accidentally
+    // loading a tenant's company and exposing their operational data.
     if (!companyId && req.user) {
       const SUPER_ADMIN_ROLES = ['super_admin', 'Super Admin', 'system_admin', 'System Admin'];
       const isSuperAdmin = req.user.roles?.some((role) => SUPER_ADMIN_ROLES.includes(role));
       if (isSuperAdmin) {
+        const isPlatformUser = !(req as any).user?.tenant_id;
         const anyCompany = await pool.query(
           `SELECT id
            FROM companies
-           WHERE deleted_at IS NULL
+           WHERE deleted_at IS NULL${isPlatformUser ? ' AND tenant_id IS NULL' : ''}
            ORDER BY id
            LIMIT 1`
         );
@@ -168,6 +171,30 @@ export const loadCompanyContext = async (
               error: 'Company does not belong to your organization',
               code: 'CROSS_TENANT_ACCESS_DENIED'
             });
+          }
+        } else {
+          // Platform admin (no tenant_id): only allow access to platform-level companies
+          // This prevents platform admin from viewing tenant operational data
+          const platformCheck = await pool.query(
+            `SELECT 1 FROM companies WHERE id = $1 AND tenant_id IS NULL AND deleted_at IS NULL`,
+            [companyId]
+          );
+          if (platformCheck.rows.length === 0) {
+            // Auto-correct: stale tenant company ID from frontend localStorage.
+            // Instead of hard-blocking, redirect to the platform's own company.
+            const fallback = await pool.query(
+              `SELECT id FROM companies WHERE tenant_id IS NULL AND deleted_at IS NULL ORDER BY id LIMIT 1`
+            );
+            if (fallback.rows.length > 0) {
+              console.warn(`[TENANT-ISOLATION] Platform admin sent stale tenant company_id=${companyId}, auto-correcting to platform company_id=${fallback.rows[0].id}`);
+              companyId = String(fallback.rows[0].id);
+            } else {
+              return res.status(403).json({
+                success: false,
+                error: 'Platform admin cannot access tenant company data directly',
+                code: 'PLATFORM_TENANT_BOUNDARY'
+              });
+            }
           }
         }
       }

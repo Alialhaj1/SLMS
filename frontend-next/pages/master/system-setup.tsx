@@ -37,14 +37,16 @@ export default function SystemSetupPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const response = await fetch('/api/master/system-setup', {
+      const apiUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').replace(/\/$/, '');
+      const response = await fetch(`${apiUrl}/api/master/system-setup`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (response.ok) {
-        const data = await response.json();
-        setSettings(data.data || []);
+        const json = await response.json();
+        const items = Array.isArray(json.data?.data) ? json.data.data : Array.isArray(json.data) ? json.data : [];
+        setSettings(items);
         const initialData: Record<string, string> = {};
-        data.data?.forEach((s: SystemSetup) => {
+        items.forEach((s: SystemSetup) => {
           initialData[s.id.toString()] = s.value;
         });
         setFormData(initialData);
@@ -59,7 +61,8 @@ export default function SystemSetupPage() {
   const handleSave = async (settingId: number) => {
     try {
       const token = localStorage.getItem('accessToken');
-      const response = await fetch(`/api/master/system-setup/${settingId}`, {
+      const apiUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').replace(/\/$/, '');
+      const response = await fetch(`${apiUrl}/api/master/system-setup/${settingId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

@@ -274,7 +274,7 @@ export default function GRNItemEditor({
                   {locale === 'ar' ? 'الكمية المطلوبة في أمر الشراء:' : 'Ordered Quantity (PO):'}
                 </span>
                 <span className="font-bold text-gray-900 dark:text-white">
-                  {itemData.ordered_quantity} {itemData.uom_code}
+                  {itemData.ordered_quantity} {itemData.uom_name || itemData.uom_code}
                 </span>
               </div>
             </div>

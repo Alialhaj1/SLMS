@@ -30,7 +30,7 @@ router.get(
   requireCompany,
   async (req: Request, res: Response) => {
     try {
-      const { search, account_type_id, parent_id, is_active, with_balance, account_behavior, level } = req.query;
+      const { search, account_type_id, parent_id, is_active, with_balance, account_behavior, level, type, is_group } = req.query;
       const { page, limit, offset } = getPaginationParams(req.query);
 
       let query = `
@@ -97,6 +97,25 @@ router.get(
         paramIndex++;
       }
 
+      // Filter by account_type classification (e.g. type=ASSET,LIABILITY,EXPENSE,REVENUE,EQUITY)
+      if (type) {
+        const classification = (type as string).toLowerCase();
+        query += ` AND at.classification = $${paramIndex}`;
+        params.push(classification);
+        paramIndex++;
+      }
+
+      // Filter by is_group (detail accounts: is_group=false)
+      if (is_group !== undefined) {
+        const isGroupVal = is_group === 'true' || is_group === 'header';
+        const isDetailVal = is_group === 'false' || is_group === 'detail';
+        if (isGroupVal) {
+          query += ` AND a.is_group = true`;
+        } else if (isDetailVal) {
+          query += ` AND a.is_group = false`;
+        }
+      }
+
       // Build WHERE clause for count query
       let whereClause = `WHERE a.company_id = $1 AND a.deleted_at IS NULL`;
       const countParams: any[] = [req.companyId];
@@ -130,10 +149,25 @@ router.get(
       if (level) {
         whereClause += ` AND a.level = $${countParamIndex}`;
         countParams.push(parseInt(level as string));
+        countParamIndex++;
+      }
+      if (type) {
+        whereClause += ` AND at.classification = $${countParamIndex}`;
+        countParams.push((type as string).toLowerCase());
+        countParamIndex++;
+      }
+      if (is_group !== undefined) {
+        const isGroupVal = is_group === 'true' || is_group === 'header';
+        const isDetailVal = is_group === 'false' || is_group === 'detail';
+        if (isGroupVal) {
+          whereClause += ` AND a.is_group = true`;
+        } else if (isDetailVal) {
+          whereClause += ` AND a.is_group = false`;
+        }
       }
 
       // Get total count
-      const countQuery = `SELECT COUNT(*) as total FROM accounts a ${whereClause}`;
+      const countQuery = `SELECT COUNT(*) as total FROM accounts a LEFT JOIN account_types at ON at.id = a.account_type_id ${whereClause}`;
       const countResult = await pool.query(countQuery, countParams);
       const total = parseInt(countResult.rows[0].total);
 

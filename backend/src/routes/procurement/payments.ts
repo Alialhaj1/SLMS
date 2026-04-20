@@ -82,18 +82,105 @@ router.get('/', authenticate, loadCompanyContext, requirePermission('procurement
       query += ` AND vp.unallocated_amount > 0`;
     }
 
+    // Get total count before pagination
+    const countQuery = `SELECT COUNT(*) FROM (${query}) as filtered`;
+    const countResult = await pool.query(countQuery, params);
+    const totalCount = parseInt(countResult.rows[0].count);
+
     query += ` ORDER BY vp.payment_date DESC, vp.id DESC`;
+
+    // Apply pagination
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 50;
+    const offset = (page - 1) * limit;
+    
+    query += ` LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+    params.push(limit, offset);
 
     const result = await pool.query(query, params);
 
     res.json({
       data: result.rows,
-      total: result.rows.length
+      total: totalCount,
+      page,
+      limit,
+      totalPages: Math.ceil(totalCount / limit)
     });
 
   } catch (error) {
     console.error('Error fetching payments:', error);
     res.status(500).json({ error: 'Failed to fetch payments' });
+  }
+});
+
+/**
+ * GET /api/procurement/payments/stats
+ * Get payment statistics for dashboard cards
+ */
+router.get('/stats', authenticate, loadCompanyContext, requirePermission('procurement:payments:view'), async (req: Request, res: Response) => {
+  try {
+    const companyId = req.companyId;
+    if (!companyId) {
+      return res.status(400).json({ error: 'Company context required' });
+    }
+
+    const statsResult = await pool.query(
+      `SELECT 
+        COUNT(*) FILTER (WHERE deleted_at IS NULL) as total_payments,
+        COUNT(*) FILTER (WHERE status = 'draft' AND deleted_at IS NULL) as draft_count,
+        COUNT(*) FILTER (WHERE is_posted = true AND deleted_at IS NULL) as posted_count,
+        COALESCE(SUM(payment_amount) FILTER (WHERE deleted_at IS NULL AND status != 'cancelled'), 0) as total_amount,
+        COALESCE(SUM(unallocated_amount) FILTER (WHERE deleted_at IS NULL AND status != 'cancelled'), 0) as total_unallocated,
+        COALESCE(SUM(allocated_amount) FILTER (WHERE deleted_at IS NULL AND status != 'cancelled'), 0) as total_allocated,
+        COUNT(*) FILTER (WHERE payment_date >= DATE_TRUNC('month', CURRENT_DATE) AND deleted_at IS NULL AND status != 'cancelled') as this_month_count,
+        COALESCE(SUM(payment_amount) FILTER (WHERE payment_date >= DATE_TRUNC('month', CURRENT_DATE) AND deleted_at IS NULL AND status != 'cancelled'), 0) as this_month_amount,
+        COUNT(*) FILTER (WHERE unallocated_amount > 0 AND deleted_at IS NULL AND status != 'cancelled') as pending_allocation_count
+      FROM vendor_payments
+      WHERE company_id = $1`,
+      [companyId]
+    );
+
+    // Get top vendors by payment amount (last 30 days)
+    const topVendorsResult = await pool.query(
+      `SELECT v.name as vendor_name, v.code as vendor_code,
+              COUNT(vp.id) as payment_count,
+              SUM(vp.payment_amount) as total_paid
+       FROM vendor_payments vp
+       INNER JOIN vendors v ON vp.vendor_id = v.id
+       WHERE vp.company_id = $1 
+         AND vp.deleted_at IS NULL 
+         AND vp.status != 'cancelled'
+         AND vp.payment_date >= CURRENT_DATE - INTERVAL '30 days'
+       GROUP BY v.id, v.name, v.code
+       ORDER BY total_paid DESC
+       LIMIT 5`,
+      [companyId]
+    );
+
+    // Payment method breakdown
+    const methodsResult = await pool.query(
+      `SELECT 
+        payment_method,
+        COUNT(*) as count,
+        SUM(payment_amount) as total_amount
+       FROM vendor_payments
+       WHERE company_id = $1 AND deleted_at IS NULL AND status != 'cancelled'
+       GROUP BY payment_method
+       ORDER BY total_amount DESC`,
+      [companyId]
+    );
+
+    res.json({
+      data: {
+        ...statsResult.rows[0],
+        top_vendors: topVendorsResult.rows,
+        payment_methods_breakdown: methodsResult.rows
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching payment stats:', error);
+    res.status(500).json({ error: 'Failed to fetch payment statistics' });
   }
 });
 
@@ -440,6 +527,27 @@ router.post('/', authenticate, loadCompanyContext, requirePermission('procuremen
 
     const createdPayment = result.rows[0];
 
+    // Audit log: payment creation
+    try {
+      await client.query('SAVEPOINT audit_log');
+      await client.query(
+        `INSERT INTO audit_logs (company_id, user_id, action, resource, resource_id, after_data, created_at)
+         VALUES ($1, $2, 'create', 'vendor_payment', $3, $4, CURRENT_TIMESTAMP)`,
+        [companyId, userId, createdPayment.id, JSON.stringify({
+          payment_number: paymentNumber,
+          vendor_id,
+          payment_amount,
+          currency_id,
+          source_type: finalSourceType,
+          project_id: resolvedProjectId
+        })]
+      );
+      await client.query('RELEASE SAVEPOINT audit_log');
+    } catch (auditErr) {
+      await client.query('ROLLBACK TO SAVEPOINT audit_log').catch(() => {});
+      console.error('Audit log insert failed (non-critical):', auditErr);
+    }
+
     // Automatically create a transfer request for this payment
     // Only create if payment has a project/shipment linked (required for transfer requests)
     let transferRequest = null;
@@ -449,9 +557,13 @@ router.post('/', authenticate, loadCompanyContext, requirePermission('procuremen
     if (effectiveProjectId && effectiveShipmentId) {
       try {
         // Get DRAFT status ID for transfer requests
-        const statusQuery = `SELECT id FROM request_statuses WHERE code = 'DRAFT' LIMIT 1`;
+        const statusQuery = `SELECT id FROM request_statuses WHERE UPPER(code) = 'DRAFT' LIMIT 1`;
         const statusResult = await client.query(statusQuery);
-        const draftStatusId = statusResult.rows[0]?.id || 1;
+        if (!statusResult.rows[0]) {
+          console.warn('DRAFT status not found in request_statuses - skipping transfer request creation');
+          throw new Error('DRAFT status not found');
+        }
+        const draftStatusId = statusResult.rows[0].id;
 
         // Get vendor bank info for transfer request
         const vendorBankQuery = `
@@ -463,6 +575,13 @@ router.post('/', authenticate, loadCompanyContext, requirePermission('procuremen
         `;
         const vendorBankResult = await client.query(vendorBankQuery, [vendor_id]);
         const vendorBank = vendorBankResult.rows[0];
+
+        // Map payment method to valid transfer_method values
+        const methodMap: Record<string, string> = {
+          bank_transfer: 'bank_transfer', bank: 'bank_transfer', wire_transfer: 'bank_transfer',
+          cash: 'cash', cheque: 'cheque', check: 'cheque', online: 'online', digital: 'online'
+        };
+        const transferMethod = methodMap[(payment_method || '').toLowerCase()] || 'bank_transfer';
 
         // Insert transfer request linked to the vendor payment
         const transferResult = await client.query(`
@@ -487,7 +606,7 @@ router.post('/', authenticate, loadCompanyContext, requirePermission('procuremen
           currency_id,
           payment_amount,
           baseAmount,
-          payment_method || 'bank_transfer',
+          transferMethod,
           draftStatusId,
           vendorBank?.account_name || null,
           vendorBank?.account_number || null,
@@ -650,6 +769,113 @@ router.post('/:id/post', authenticate, loadCompanyContext, requirePermission('pr
       [id]
     );
 
+    // Create journal entry for the payment (Debit: AP, Credit: Cash/Bank)
+    const postedPayment = result.rows[0];
+    try {
+      // Get the company's default AP account and cash/bank account
+      const apAccountResult = await client.query(
+        `SELECT id FROM chart_of_accounts 
+         WHERE company_id = $1 AND account_type = 'accounts_payable' AND is_active = true AND deleted_at IS NULL
+         ORDER BY is_default DESC LIMIT 1`,
+        [companyId]
+      );
+      
+      let cashBankAccountId = null;
+      if (postedPayment.bank_account_id) {
+        const bankAccResult = await client.query(
+          `SELECT gl_account_id FROM bank_accounts WHERE id = $1`, [postedPayment.bank_account_id]
+        );
+        cashBankAccountId = bankAccResult.rows[0]?.gl_account_id;
+      }
+      if (!cashBankAccountId && postedPayment.cash_box_id) {
+        const cashResult = await client.query(
+          `SELECT gl_account_id FROM cash_boxes WHERE id = $1`, [postedPayment.cash_box_id]
+        );
+        cashBankAccountId = cashResult.rows[0]?.gl_account_id;
+      }
+      if (!cashBankAccountId) {
+        // fallback: get default cash account
+        const defaultCash = await client.query(
+          `SELECT id FROM chart_of_accounts 
+           WHERE company_id = $1 AND (account_type = 'cash' OR account_type = 'bank') AND is_active = true AND deleted_at IS NULL
+           ORDER BY is_default DESC LIMIT 1`,
+          [companyId]
+        );
+        cashBankAccountId = defaultCash.rows[0]?.id;
+      }
+      
+      const apAccountId = apAccountResult.rows[0]?.id;
+      
+      if (apAccountId && cashBankAccountId) {
+        // Generate journal entry number
+        const jeCountResult = await client.query(
+          `SELECT COUNT(*) FROM journal_entries WHERE company_id = $1`, [companyId]
+        );
+        const jeNumber = `JE-${String(parseInt(jeCountResult.rows[0].count) + 1).padStart(6, '0')}`;
+        const paymentAmount = parseFloat(postedPayment.payment_amount);
+        const baseAmount = parseFloat(postedPayment.base_amount) || paymentAmount;
+        
+        const jeResult = await client.query(
+          `INSERT INTO journal_entries 
+           (company_id, entry_number, entry_date, reference_type, reference_id, reference_number,
+            description, total_debit, total_credit, status, is_posted, posted_by, posted_at,
+            currency_id, exchange_rate, created_by, created_at, updated_at)
+           VALUES ($1, $2, $3, 'vendor_payment', $4, $5, $6, $7, $8, 'posted', true, $9, CURRENT_TIMESTAMP,
+                   $10, $11, $9, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+           RETURNING id`,
+          [companyId, jeNumber, postedPayment.payment_date, postedPayment.id, postedPayment.payment_number,
+           `Vendor payment ${postedPayment.payment_number}`,
+           baseAmount, baseAmount, userId,
+           postedPayment.currency_id, postedPayment.exchange_rate || 1]
+        );
+
+        const jeId = jeResult.rows[0].id;
+        
+        // Debit: Accounts Payable (reduce liability)
+        await client.query(
+          `INSERT INTO journal_entry_lines 
+           (journal_entry_id, account_id, debit_amount, credit_amount, description, currency_id, exchange_rate, created_at)
+           VALUES ($1, $2, $3, 0, $4, $5, $6, CURRENT_TIMESTAMP)`,
+          [jeId, apAccountId, baseAmount, `Payment to vendor - ${postedPayment.payment_number}`,
+           postedPayment.currency_id, postedPayment.exchange_rate || 1]
+        );
+
+        // Credit: Cash/Bank (reduce asset)
+        await client.query(
+          `INSERT INTO journal_entry_lines 
+           (journal_entry_id, account_id, debit_amount, credit_amount, description, currency_id, exchange_rate, created_at)
+           VALUES ($1, $2, 0, $3, $4, $5, $6, CURRENT_TIMESTAMP)`,
+          [jeId, cashBankAccountId, baseAmount, `Payment to vendor - ${postedPayment.payment_number}`,
+           postedPayment.currency_id, postedPayment.exchange_rate || 1]
+        );
+
+        console.log(`Journal entry ${jeNumber} created for payment ${postedPayment.payment_number}`);
+      } else {
+        console.warn(`Skipping journal entry creation: AP account=${apAccountId}, Cash/Bank account=${cashBankAccountId}`);
+      }
+    } catch (jeError) {
+      // Log but don't fail the posting - journal entry can be created manually
+      console.error('Failed to create journal entry (non-critical):', jeError);
+    }
+
+    // Audit log: payment posting
+    try {
+      await client.query('SAVEPOINT audit_log_post');
+      await client.query(
+        `INSERT INTO audit_logs (company_id, user_id, action, resource, resource_id, after_data, created_at)
+         VALUES ($1, $2, 'post', 'vendor_payment', $3, $4, CURRENT_TIMESTAMP)`,
+        [companyId, userId, id, JSON.stringify({
+          payment_number: postedPayment.payment_number,
+          payment_amount: postedPayment.payment_amount,
+          vendor_id: postedPayment.vendor_id
+        })]
+      );
+      await client.query('RELEASE SAVEPOINT audit_log_post');
+    } catch (auditErr) {
+      await client.query('ROLLBACK TO SAVEPOINT audit_log_post').catch(() => {});
+      console.error('Audit log insert failed (non-critical):', auditErr);
+    }
+
     await client.query('COMMIT');
 
     res.json({
@@ -753,6 +979,40 @@ router.post('/:id/unpost', authenticate, loadCompanyContext, requirePermission('
 
     await client.query('COMMIT');
 
+    // Reverse journal entries associated with this payment
+    try {
+      const jeResult = await pool.query(
+        `SELECT id, entry_number FROM journal_entries 
+         WHERE reference_type = 'vendor_payment' AND reference_id = $1 AND company_id = $2 AND deleted_at IS NULL`,
+        [id, companyId]
+      );
+      if (jeResult.rows.length > 0) {
+        for (const je of jeResult.rows) {
+          await pool.query(
+            `UPDATE journal_entries SET status = 'reversed', is_posted = false, updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
+            [je.id]
+          );
+        }
+        console.log(`Reversed ${jeResult.rows.length} journal entries for payment ${id}`);
+      }
+    } catch (jeErr) {
+      console.error('Failed to reverse journal entries (non-critical):', jeErr);
+    }
+
+    // Audit log: payment unpost
+    try {
+      await pool.query(
+        `INSERT INTO audit_logs (company_id, user_id, action, resource, resource_id, after_data, created_at)
+         VALUES ($1, $2, 'unpost', 'vendor_payment', $3, $4, CURRENT_TIMESTAMP)`,
+        [companyId, userId, id, JSON.stringify({
+          payment_number: payment.payment_number,
+          payment_amount: payment.payment_amount
+        })]
+      );
+    } catch (auditErr) {
+      console.error('Audit log insert failed (non-critical):', auditErr);
+    }
+
     console.log(`Payment ${id} unposted by user ${userId}`);
 
     res.json({
@@ -792,10 +1052,12 @@ router.post('/:id/allocate', authenticate, loadCompanyContext, requirePermission
 
     await client.query('BEGIN');
 
-    // Get payment
+    // Get payment with row lock to prevent concurrent allocation race condition
     const paymentResult = await client.query(
-      `SELECT * FROM vendor_payments 
-       WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL`,
+      `SELECT vp.*, c.code as currency_code FROM vendor_payments vp
+       INNER JOIN currencies c ON vp.currency_id = c.id
+       WHERE vp.id = $1 AND vp.company_id = $2 AND vp.deleted_at IS NULL
+       FOR UPDATE`,
       [id, companyId]
     );
 
@@ -806,33 +1068,107 @@ router.post('/:id/allocate', authenticate, loadCompanyContext, requirePermission
 
     const payment = paymentResult.rows[0];
 
+    // Validate each allocation's invoice belongs to same vendor and company
+    for (const allocation of allocations) {
+      const { invoice_id, allocated_amount } = allocation;
+
+      if (!invoice_id || !allocated_amount || parseFloat(allocated_amount) <= 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: `Invalid allocation: invoice_id and positive allocated_amount are required` });
+      }
+
+      const invoiceCheck = await client.query(
+        `SELECT pi.id, pi.invoice_number, pi.vendor_id, pi.company_id, pi.balance, pi.status,
+                pi.currency_id, c.code as invoice_currency_code
+         FROM purchase_invoices pi
+         INNER JOIN currencies c ON pi.currency_id = c.id
+         WHERE pi.id = $1 AND pi.deleted_at IS NULL`,
+        [invoice_id]
+      );
+
+      if (invoiceCheck.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: `Invoice ${invoice_id} not found` });
+      }
+
+      const invoice = invoiceCheck.rows[0];
+
+      if (invoice.company_id !== companyId) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: `Invoice ${invoice.invoice_number} does not belong to this company` });
+      }
+
+      if (invoice.vendor_id !== payment.vendor_id) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: `Invoice ${invoice.invoice_number} does not belong to vendor` });
+      }
+
+      if (invoice.status === 'cancelled' || invoice.status === 'void') {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: `Invoice ${invoice.invoice_number} is ${invoice.status} and cannot be allocated` });
+      }
+
+      if (parseFloat(allocated_amount) > parseFloat(invoice.balance)) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: `Allocation amount ${allocated_amount} exceeds invoice ${invoice.invoice_number} balance ${invoice.balance}` });
+      }
+    }
+
     // Calculate total allocation
     const totalAllocation = allocations.reduce((sum: number, a: any) => sum + parseFloat(a.allocated_amount), 0);
 
-    if (totalAllocation > payment.unallocated_amount) {
+    if (totalAllocation > parseFloat(payment.unallocated_amount)) {
       await client.query('ROLLBACK');
-      return res.status(400).json({ error: 'Total allocation exceeds unallocated amount' });
+      return res.status(400).json({ error: `Total allocation (${totalAllocation.toFixed(2)}) exceeds unallocated amount (${parseFloat(payment.unallocated_amount).toFixed(2)})` });
     }
 
-    // Insert allocations
+    // Insert allocations with proper multi-currency support
+    const paymentExchangeRate = parseFloat(payment.exchange_rate) || 1;
     for (const allocation of allocations) {
-      const { invoice_id, allocated_amount, discount_amount, notes, settlement_type } = allocation;
+      const { invoice_id, allocated_amount, discount_amount, notes: allocNotes, settlement_type } = allocation;
+      
+      // Calculate invoice currency amount using exchange rate
+      const invoiceCurrencyAmount = parseFloat(allocated_amount) * paymentExchangeRate;
+      
+      // Auto-determine settlement type
+      const invoiceCheck = await client.query(
+        `SELECT balance FROM purchase_invoices WHERE id = $1`,
+        [invoice_id]
+      );
+      const invoiceBalance = parseFloat(invoiceCheck.rows[0]?.balance || 0);
+      const autoSettlementType = settlement_type || 
+        (parseFloat(allocated_amount) >= invoiceBalance ? 'full' : 'partial');
 
       await client.query(
         `INSERT INTO vendor_payment_allocations
          (company_id, payment_id, invoice_id, allocated_amount, invoice_currency_amount,
-          discount_amount, settlement_type, notes, created_by, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-        [companyId, id, invoice_id, allocated_amount, allocated_amount, // Simplified: assuming same currency
-         discount_amount || 0, settlement_type || 'partial', notes, userId]
+          exchange_rate, discount_amount, settlement_type, notes, created_by, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+        [companyId, id, invoice_id, allocated_amount, invoiceCurrencyAmount,
+         paymentExchangeRate, discount_amount || 0, autoSettlementType, allocNotes, userId]
       );
+    }
+
+    // Log audit trail for allocation
+    try {
+      await client.query('SAVEPOINT audit_log_alloc');
+      await client.query(
+        `INSERT INTO audit_logs (company_id, user_id, action, resource, resource_id, after_data, created_at)
+         VALUES ($1, $2, 'allocate', 'vendor_payment', $3, $4, CURRENT_TIMESTAMP)`,
+        [companyId, userId, id, JSON.stringify({ allocations_count: allocations.length, total_amount: totalAllocation })]
+      );
+      await client.query('RELEASE SAVEPOINT audit_log_alloc');
+    } catch (auditErr) {
+      await client.query('ROLLBACK TO SAVEPOINT audit_log_alloc').catch(() => {});
+      console.error('Audit log insert failed (non-critical):', auditErr);
     }
 
     await client.query('COMMIT');
 
     res.json({
       message: 'Payment allocated successfully',
-      allocated_count: allocations.length
+      allocated_count: allocations.length,
+      total_allocated: totalAllocation
     });
 
   } catch (error) {
@@ -936,7 +1272,7 @@ router.get('/vendor/:vendorId/documents', authenticate, loadCompanyContext, requ
         LEFT JOIN projects p ON po.project_id = p.id
         WHERE po.company_id = $1 
           AND po.vendor_id = $2
-          AND po.status IN ('approved', 'partial_received', 'received')
+          AND po.status NOT IN ('cancelled', 'closed', 'returned')
           AND po.deleted_at IS NULL
         ORDER BY po.order_date DESC`,
         [companyId, vendorId]
@@ -959,9 +1295,9 @@ router.get('/vendor/:vendorId/documents', authenticate, loadCompanyContext, requ
              WHERE vp.shipment_id = ls.id AND vp.deleted_at IS NULL AND vp.status != 'cancelled'),
             0
           ) as balance,
-          COALESCE(po.currency_id, (SELECT id FROM currencies WHERE code = 'SAR' LIMIT 1)) as currency_id,
-          COALESCE(c.code, 'SAR') as currency_code,
-          COALESCE(c.symbol, 'ر.س') as currency_symbol,
+          COALESCE(ls.currency_id, po.currency_id, (SELECT cc.id FROM companies co JOIN currencies cc ON cc.code = co.default_currency WHERE co.id = ls.company_id)) as currency_id,
+          COALESCE(c2.code, c.code, (SELECT cc.code FROM companies co JOIN currencies cc ON cc.code = co.default_currency WHERE co.id = ls.company_id)) as currency_code,
+          COALESCE(c2.symbol, c.symbol, (SELECT cc.symbol FROM companies co JOIN currencies cc ON cc.code = co.default_currency WHERE co.id = ls.company_id)) as currency_symbol,
           ls.bl_no,
           ls.status_code as status,
           ls.project_id,
@@ -970,6 +1306,7 @@ router.get('/vendor/:vendorId/documents', authenticate, loadCompanyContext, requ
         FROM logistics_shipments ls
         LEFT JOIN purchase_orders po ON ls.purchase_order_id = po.id
         LEFT JOIN currencies c ON po.currency_id = c.id
+        LEFT JOIN currencies c2 ON ls.currency_id = c2.id
         LEFT JOIN projects p ON ls.project_id = p.id
         WHERE ls.company_id = $1 
           AND ls.vendor_id = $2
@@ -1072,14 +1409,81 @@ router.get('/vendor/:vendorId/document/:sourceType/:documentId', authenticate, l
     let document;
     let items = [];
     
+    // Helper: get individual payments for THIS specific document
+    const getSameDocPayments = async (currentDocType: string, currentDocId: string) => {
+      let whereClause = '';
+      if (currentDocType === 'po') whereClause = `vp.purchase_order_id = ${parseInt(currentDocId)}`;
+      else if (currentDocType === 'shipment') whereClause = `vp.shipment_id = ${parseInt(currentDocId)}`;
+      else if (currentDocType === 'quotation') whereClause = `vp.quotation_id = ${parseInt(currentDocId)}`;
+      else if (currentDocType === 'invoice') whereClause = `vp.invoice_id = ${parseInt(currentDocId)}`;
+      else return { total: 0, count: 0, payments: [] };
+
+      const result = await pool.query(
+        `SELECT vp.id, vp.payment_number, vp.payment_amount, vp.payment_date, vp.status,
+                vp.reference_number, vp.notes, vp.payment_method,
+                cur.code as currency_code,
+                ba.account_name as bank_account_name, ba.account_number as bank_account_number,
+                b.name as bank_name,
+                cb.name as cash_box_name
+         FROM vendor_payments vp
+         LEFT JOIN currencies cur ON vp.currency_id = cur.id
+         LEFT JOIN bank_accounts ba ON vp.bank_account_id = ba.id
+         LEFT JOIN banks b ON ba.bank_id = b.id
+         LEFT JOIN cash_boxes cb ON vp.cash_box_id = cb.id
+         WHERE ${whereClause} AND vp.company_id = $1
+           AND vp.deleted_at IS NULL AND vp.status != 'cancelled'
+         ORDER BY vp.payment_date DESC, vp.created_at DESC`,
+        [companyId]
+      );
+      const total = result.rows.reduce((sum: number, r: any) => sum + parseFloat(r.payment_amount), 0);
+      return { total, count: result.rows.length, payments: result.rows };
+    };
+
+    // Helper: get cross-document payments for same vendor+project
+    const getCrossDocPayments = async (vendorId: string, projectId: number | null, currentDocType: string, currentDocId: string) => {
+      if (!projectId) return { total: 0, payments: [] };
+      
+      // Exclude current document from results
+      let excludeClause = '';
+      if (currentDocType === 'po') excludeClause = `AND NOT (vp.source_type = 'po' AND vp.purchase_order_id = ${parseInt(currentDocId)})`;
+      else if (currentDocType === 'shipment') excludeClause = `AND NOT (vp.source_type = 'shipment' AND vp.shipment_id = ${parseInt(currentDocId)})`;
+      else if (currentDocType === 'quotation') excludeClause = `AND NOT (vp.source_type = 'quotation' AND vp.quotation_id = ${parseInt(currentDocId)})`;
+      else if (currentDocType === 'invoice') excludeClause = `AND NOT (vp.source_type = 'invoice' AND vp.invoice_id = ${parseInt(currentDocId)})`;
+      
+      const result = await pool.query(
+        `SELECT vp.id, vp.payment_number, vp.payment_amount, vp.payment_date, vp.source_type,
+                vp.currency_id, cur.code as currency_code,
+                CASE
+                  WHEN vp.purchase_order_id IS NOT NULL THEN (SELECT order_number FROM purchase_orders WHERE id = vp.purchase_order_id)
+                  WHEN vp.shipment_id IS NOT NULL THEN (SELECT shipment_number FROM logistics_shipments WHERE id = vp.shipment_id)
+                  WHEN vp.quotation_id IS NOT NULL THEN (SELECT quotation_number FROM vendor_quotations WHERE id = vp.quotation_id)
+                  WHEN vp.invoice_id IS NOT NULL THEN (SELECT invoice_number FROM purchase_invoices WHERE id = vp.invoice_id)
+                  ELSE NULL
+                END as source_document_number
+         FROM vendor_payments vp
+         LEFT JOIN currencies cur ON vp.currency_id = cur.id
+         WHERE vp.vendor_id = $1 AND vp.project_id = $2 AND vp.company_id = $3
+           AND vp.deleted_at IS NULL AND vp.status != 'cancelled'
+           ${excludeClause}
+         ORDER BY vp.payment_date DESC`,
+        [vendorId, projectId, companyId]
+      );
+      const total = result.rows.reduce((sum: number, r: any) => sum + parseFloat(r.payment_amount), 0);
+      return { total, payments: result.rows };
+    };
+
     if (sourceType === 'po') {
-      // Get PO details
+      // Get PO details with payment terms and payment method
       const docResult = await pool.query(
         `SELECT 
           po.id, po.order_number as document_number, po.order_date as document_date,
           po.total_amount, po.currency_id, c.code as currency_code, c.symbol as currency_symbol,
+          po.exchange_rate as document_exchange_rate,
           po.status, po.project_id, p.code as project_code, p.name as project_name,
           po.notes,
+          vpt.payment_type as payment_terms_type, vpt.code as payment_terms_code,
+          vpt.name as payment_terms_name, vpt.name_ar as payment_terms_name_ar,
+          pm.code as po_payment_method_code, pm.payment_type as po_payment_method_type, pm.name as po_payment_method_name,
           COALESCE(
             (SELECT SUM(vp.payment_amount) FROM vendor_payments vp 
              WHERE vp.purchase_order_id = po.id AND vp.deleted_at IS NULL AND vp.status != 'cancelled'),
@@ -1088,6 +1492,8 @@ router.get('/vendor/:vendorId/document/:sourceType/:documentId', authenticate, l
         FROM purchase_orders po
         LEFT JOIN currencies c ON po.currency_id = c.id
         LEFT JOIN projects p ON po.project_id = p.id
+        LEFT JOIN vendor_payment_terms vpt ON po.payment_terms_id = vpt.id
+        LEFT JOIN payment_methods pm ON po.payment_method_id = pm.id
         WHERE po.id = $1 AND po.company_id = $2 AND po.vendor_id = $3 AND po.deleted_at IS NULL`,
         [documentId, companyId, vendorId]
       );
@@ -1095,6 +1501,31 @@ router.get('/vendor/:vendorId/document/:sourceType/:documentId', authenticate, l
       if (docResult.rows.length > 0) {
         document = docResult.rows[0];
         document.balance = parseFloat(document.total_amount) - parseFloat(document.paid_amount);
+        // Resolve payment method: prefer payment_method_id, then payment_terms_type
+        if (document.po_payment_method_code) {
+          document.document_payment_method = document.po_payment_method_type || 'bank';
+          document.document_payment_method_code = document.po_payment_method_code;
+        } else if (document.payment_terms_type) {
+          document.document_payment_method = document.payment_terms_type === 'cash' ? 'cash' : 'bank';
+          document.document_payment_method_code = document.payment_terms_type === 'cash' ? 'CASH' : 'BANK-TRF';
+        } else {
+          document.document_payment_method = null;
+          document.document_payment_method_code = null;
+        }
+        
+        // Get cross-document payments for same vendor+project
+        if (document.project_id) {
+          const crossDoc = await getCrossDocPayments(vendorId, document.project_id, 'po', documentId);
+          document.cross_document_payments = crossDoc.payments;
+          document.cross_document_total = crossDoc.total;
+        }
+        
+        // Get individual payment history for THIS document
+        const sameDoc = await getSameDocPayments('po', documentId);
+        document.same_document_payments = sameDoc.payments;
+        document.same_document_payment_count = sameDoc.count;
+        document.payment_percentage_paid = document.total_amount > 0 
+          ? Math.round((parseFloat(document.paid_amount) / parseFloat(document.total_amount)) * 100) : 0;
         
         // Get PO items
         const itemsResult = await pool.query(
@@ -1111,26 +1542,39 @@ router.get('/vendor/:vendorId/document/:sourceType/:documentId', authenticate, l
         items = itemsResult.rows;
       }
     } else if (sourceType === 'shipment') {
-      // Get Shipment details - get currency from linked PO
+      // Get Shipment details - get currency from linked PO, include payment_method + lc_number + payment_method_id
       const docResult = await pool.query(
         `SELECT 
           ls.id, ls.shipment_number as document_number, ls.created_at as document_date,
           ls.purchase_order_id,
+          ls.payment_method as shipment_payment_method, ls.lc_number as shipment_lc_number,
+          pm.code as shipment_pm_code, pm.payment_type as shipment_pm_type, pm.name as shipment_pm_name,
           COALESCE(ls.total_amount, 0) as total_amount, 
-          COALESCE(po.currency_id, (SELECT id FROM currencies WHERE code = 'SAR' LIMIT 1)) as currency_id, 
-          COALESCE(c.code, 'SAR') as currency_code, 
-          COALESCE(c.symbol, 'ر.س') as currency_symbol,
+          COALESCE(ls.currency_id, po.currency_id, (SELECT cc.id FROM companies co JOIN currencies cc ON cc.code = co.default_currency WHERE co.id = ls.company_id)) as currency_id, 
+          COALESCE(c2.code, c.code, (SELECT cc.code FROM companies co JOIN currencies cc ON cc.code = co.default_currency WHERE co.id = ls.company_id)) as currency_code, 
+          COALESCE(c2.symbol, c.symbol, (SELECT cc.symbol FROM companies co JOIN currencies cc ON cc.code = co.default_currency WHERE co.id = ls.company_id)) as currency_symbol,
+          COALESCE(po.exchange_rate, 1) as document_exchange_rate,
           ls.bl_no, ls.status_code as status, ls.project_id, p.code as project_code, p.name as project_name,
           ls.notes,
           COALESCE(
             (SELECT SUM(vp.payment_amount) FROM vendor_payments vp 
              WHERE vp.shipment_id = ls.id AND vp.deleted_at IS NULL AND vp.status != 'cancelled'),
             0
-          ) as paid_amount
+          ) as paid_amount,
+          -- Also get PO paid amount for cross-document tracking
+          COALESCE(
+            (SELECT SUM(vp.payment_amount) FROM vendor_payments vp 
+             WHERE vp.purchase_order_id = ls.purchase_order_id AND vp.deleted_at IS NULL AND vp.status != 'cancelled'),
+            0
+          ) as po_paid_amount,
+          po.total_amount as po_total_amount,
+          po.order_number as po_number
         FROM logistics_shipments ls
         LEFT JOIN purchase_orders po ON ls.purchase_order_id = po.id
         LEFT JOIN currencies c ON po.currency_id = c.id
+        LEFT JOIN currencies c2 ON ls.currency_id = c2.id
         LEFT JOIN projects p ON ls.project_id = p.id
+        LEFT JOIN payment_methods pm ON ls.payment_method_id = pm.id
         WHERE ls.id = $1 AND ls.company_id = $2 AND ls.vendor_id = $3 AND ls.deleted_at IS NULL`,
         [documentId, companyId, vendorId]
       );
@@ -1138,6 +1582,79 @@ router.get('/vendor/:vendorId/document/:sourceType/:documentId', authenticate, l
       if (docResult.rows.length > 0) {
         document = docResult.rows[0];
         document.balance = parseFloat(document.total_amount) - parseFloat(document.paid_amount);
+        
+        // Resolve payment method: prefer payment_method_id, then shipment_payment_method text field
+        if (document.shipment_pm_code) {
+          document.document_payment_method = document.shipment_pm_type || 'bank';
+          document.document_payment_method_code = document.shipment_pm_code;
+        } else {
+          const spmRaw = (document.shipment_payment_method || '').trim();
+          const spm = spmRaw.toLowerCase();
+          // First try: exact code match against payment_methods table
+          const pmCodeMatch = await pool.query(
+            `SELECT id, code, payment_type FROM payment_methods WHERE UPPER(code) = UPPER($1) AND company_id = $2 AND deleted_at IS NULL LIMIT 1`,
+            [spmRaw, companyId]
+          );
+          if (pmCodeMatch.rows.length > 0) {
+            document.document_payment_method = pmCodeMatch.rows[0].payment_type;
+            document.document_payment_method_code = pmCodeMatch.rows[0].code;
+          } else if (spm.includes('lc') || spm.includes('اعتماد')) {
+            document.document_payment_method = 'bank';
+            document.document_payment_method_code = 'LC';
+          } else if (spm.includes('tt') || spm.includes('transfer') || spm.includes('trf') || spm.includes('تحويل') || spm.includes('bank')) {
+            document.document_payment_method = 'bank';
+            document.document_payment_method_code = 'BANK-TRF';
+          } else if (spm.includes('cash') || spm.includes('نقد')) {
+            document.document_payment_method = 'cash';
+            document.document_payment_method_code = 'CASH';
+          } else if (spm.includes('cheque') || spm.includes('check') || spm.includes('شيك')) {
+            document.document_payment_method = 'check';
+            document.document_payment_method_code = 'CHECK';
+          } else if (spm.includes('wire')) {
+            document.document_payment_method = 'wire';
+            document.document_payment_method_code = 'WIRE';
+          } else {
+            document.document_payment_method = spm || null;
+            document.document_payment_method_code = null;
+          }
+        }
+        
+        // Check if shipment is LC-linked (either via lc_number text field or letters_of_credit FK)
+        if (document.shipment_lc_number || document.document_payment_method === 'lc') {
+          const lcCheck = await pool.query(
+            `SELECT lc.id, lc.lc_number, lc.current_amount, lc.utilized_amount, lc.available_amount,
+                    lc.currency_id, cur.code as lc_currency_code, lc.issuing_bank_name,
+                    lc.status_id, ls2.name as lc_status
+             FROM letters_of_credit lc
+             LEFT JOIN currencies cur ON lc.currency_id = cur.id
+             LEFT JOIN lc_statuses ls2 ON lc.status_id = ls2.id
+             WHERE (lc.shipment_id = $1 OR lc.purchase_order_id = $3) AND lc.company_id = $2 AND lc.deleted_at IS NULL
+             ORDER BY lc.created_at DESC LIMIT 1`,
+            [documentId, companyId, document.purchase_order_id]
+          );
+          if (lcCheck.rows.length > 0) {
+            document.linked_lc = lcCheck.rows[0];
+            document.is_lc_payment = true;
+            // Payment blocked - must go through LC screen
+            document.lc_payment_blocked = true;
+            document.lc_payment_message_ar = 'هذه الشحنة مرتبطة باعتماد مستندي - يجب الدفع عن طريق شاشة الاعتمادات المستندية';
+            document.lc_payment_message_en = 'This shipment is linked to a Letter of Credit - payment must be made through the LC module';
+          }
+        }
+        
+        // Get cross-document payments for same vendor+project (INCLUDING PO payments)
+        if (document.project_id) {
+          const crossDoc = await getCrossDocPayments(vendorId, document.project_id, 'shipment', documentId);
+          document.cross_document_payments = crossDoc.payments;
+          document.cross_document_total = crossDoc.total;
+        }
+        
+        // Get individual payment history for THIS shipment
+        const sameDoc = await getSameDocPayments('shipment', documentId);
+        document.same_document_payments = sameDoc.payments;
+        document.same_document_payment_count = sameDoc.count;
+        document.payment_percentage_paid = document.total_amount > 0 
+          ? Math.round((parseFloat(document.paid_amount) / parseFloat(document.total_amount)) * 100) : 0;
         
         // Shipment items - try to get from linked PO if exists
         if (document.purchase_order_id) {
@@ -1156,13 +1673,16 @@ router.get('/vendor/:vendorId/document/:sourceType/:documentId', authenticate, l
         }
       }
     } else if (sourceType === 'quotation') {
-      // Get Quotation details
+      // Get Quotation details with payment terms
       const docResult = await pool.query(
         `SELECT 
           vq.id, vq.quotation_number as document_number, vq.quotation_date as document_date,
           vq.total_amount, vq.currency_id, c.code as currency_code, c.symbol as currency_symbol,
+          vq.exchange_rate as document_exchange_rate,
           vq.status, vq.notes, vq.valid_to as valid_until,
-          NULL as project_id, NULL as project_code, NULL as project_name,
+          NULL::int as project_id, NULL as project_code, NULL as project_name,
+          vpt.payment_type as payment_terms_type, vpt.code as payment_terms_code,
+          vpt.name as payment_terms_name, vpt.name_ar as payment_terms_name_ar,
           COALESCE(
             (SELECT SUM(vp.payment_amount) FROM vendor_payments vp 
              WHERE vp.quotation_id = vq.id AND vp.deleted_at IS NULL AND vp.status != 'cancelled'),
@@ -1170,6 +1690,7 @@ router.get('/vendor/:vendorId/document/:sourceType/:documentId', authenticate, l
           ) as paid_amount
         FROM vendor_quotations vq
         LEFT JOIN currencies c ON vq.currency_id = c.id
+        LEFT JOIN vendor_payment_terms vpt ON vq.payment_terms_id = vpt.id
         WHERE vq.id = $1 AND vq.company_id = $2 AND vq.vendor_id = $3 AND vq.deleted_at IS NULL`,
         [documentId, companyId, vendorId]
       );
@@ -1177,6 +1698,20 @@ router.get('/vendor/:vendorId/document/:sourceType/:documentId', authenticate, l
       if (docResult.rows.length > 0) {
         document = docResult.rows[0];
         document.balance = parseFloat(document.total_amount) - parseFloat(document.paid_amount);
+        if (document.payment_terms_type) {
+          document.document_payment_method = document.payment_terms_type === 'cash' ? 'cash' : 'bank';
+          document.document_payment_method_code = document.payment_terms_type === 'cash' ? 'CASH' : 'BANK-TRF';
+        } else {
+          document.document_payment_method = null;
+          document.document_payment_method_code = null;
+        }
+        
+        // Get individual payment history for THIS quotation
+        const sameDoc = await getSameDocPayments('quotation', documentId);
+        document.same_document_payments = sameDoc.payments;
+        document.same_document_payment_count = sameDoc.count;
+        document.payment_percentage_paid = document.total_amount > 0 
+          ? Math.round((parseFloat(document.paid_amount) / parseFloat(document.total_amount)) * 100) : 0;
         
         // Get Quotation items
         const itemsResult = await pool.query(
@@ -1193,24 +1728,49 @@ router.get('/vendor/:vendorId/document/:sourceType/:documentId', authenticate, l
         items = itemsResult.rows;
       }
     } else if (sourceType === 'invoice') {
-      // Get Invoice details
+      // Get Invoice details with payment terms from linked PO
       const docResult = await pool.query(
         `SELECT 
           pi.id, pi.invoice_number as document_number, pi.invoice_date as document_date,
           pi.total_amount, COALESCE(pi.paid_amount, 0) as paid_amount, COALESCE(pi.balance, pi.total_amount) as balance,
           pi.currency_id, c.code as currency_code, c.symbol as currency_symbol,
+          pi.exchange_rate as document_exchange_rate,
           pi.due_date, pi.status, pi.notes,
-          po.project_id, p.code as project_code, p.name as project_name
+          po.project_id, p.code as project_code, p.name as project_name,
+          vpt.payment_type as payment_terms_type, vpt.code as payment_terms_code,
+          vpt.name as payment_terms_name, vpt.name_ar as payment_terms_name_ar
         FROM purchase_invoices pi
         LEFT JOIN currencies c ON pi.currency_id = c.id
         LEFT JOIN purchase_orders po ON pi.purchase_order_id = po.id
         LEFT JOIN projects p ON po.project_id = p.id
+        LEFT JOIN vendor_payment_terms vpt ON pi.payment_terms_id = vpt.id
         WHERE pi.id = $1 AND pi.company_id = $2 AND pi.vendor_id = $3 AND pi.deleted_at IS NULL`,
         [documentId, companyId, vendorId]
       );
       
       if (docResult.rows.length > 0) {
         document = docResult.rows[0];
+        if (document.payment_terms_type) {
+          document.document_payment_method = document.payment_terms_type === 'cash' ? 'cash' : 'bank';
+          document.document_payment_method_code = document.payment_terms_type === 'cash' ? 'CASH' : 'BANK-TRF';
+        } else {
+          document.document_payment_method = null;
+          document.document_payment_method_code = null;
+        }
+        
+        // Cross-document payments for same project
+        if (document.project_id) {
+          const crossDoc = await getCrossDocPayments(vendorId, document.project_id, 'invoice', documentId);
+          document.cross_document_payments = crossDoc.payments;
+          document.cross_document_total = crossDoc.total;
+        }
+        
+        // Get individual payment history for THIS invoice
+        const sameDoc = await getSameDocPayments('invoice', documentId);
+        document.same_document_payments = sameDoc.payments;
+        document.same_document_payment_count = sameDoc.count;
+        document.payment_percentage_paid = document.total_amount > 0 
+          ? Math.round((parseFloat(document.paid_amount) / parseFloat(document.total_amount)) * 100) : 0;
         
         // Get Invoice items
         const itemsResult = await pool.query(
@@ -1242,6 +1802,69 @@ router.get('/vendor/:vendorId/document/:sourceType/:documentId', authenticate, l
   } catch (error) {
     console.error('Error fetching document details:', error);
     res.status(500).json({ error: 'Failed to fetch document details' });
+  }
+});
+
+/**
+ * GET /api/procurement/payments/document/:sourceType/:docId/linked-lc
+ * Check if a document (PO/Shipment) is linked to a Letter of Credit
+ * Used to auto-detect LC association when creating document-linked payments
+ */
+router.get('/document/:sourceType/:docId/linked-lc', authenticate, loadCompanyContext, requirePermission('procurement:payments:view'), async (req: Request, res: Response) => {
+  try {
+    const companyId = req.companyId;
+    const { sourceType, docId } = req.params;
+
+    if (!companyId) {
+      return res.status(400).json({ error: 'Company context required' });
+    }
+
+    let lcResult;
+
+    if (sourceType === 'po') {
+      // Check if PO is linked to an LC via letters_of_credit.purchase_order_id
+      lcResult = await pool.query(
+        `SELECT lc.id, lc.lc_number, lc.original_amount, lc.current_amount, lc.utilized_amount,
+                lc.available_amount, lc.currency_id, c.code as currency_code,
+                lc.beneficiary_vendor_id as vendor_id,
+                lc.issuing_bank_name as bank_name, lc.expiry_date,
+                lc.project_id, p.code as project_code, p.name as project_name
+         FROM letters_of_credit lc
+         LEFT JOIN currencies c ON lc.currency_id = c.id
+         LEFT JOIN projects p ON lc.project_id = p.id
+         WHERE lc.purchase_order_id = $1 AND lc.company_id = $2 AND lc.deleted_at IS NULL
+         ORDER BY lc.created_at DESC LIMIT 1`,
+        [docId, companyId]
+      );
+    } else if (sourceType === 'shipment') {
+      // Check if shipment is linked to an LC via letters_of_credit.shipment_id
+      lcResult = await pool.query(
+        `SELECT lc.id, lc.lc_number, lc.original_amount, lc.current_amount, lc.utilized_amount,
+                lc.available_amount, lc.currency_id, c.code as currency_code,
+                lc.beneficiary_vendor_id as vendor_id,
+                lc.issuing_bank_name as bank_name, lc.expiry_date,
+                lc.project_id, p.code as project_code, p.name as project_name
+         FROM letters_of_credit lc
+         LEFT JOIN currencies c ON lc.currency_id = c.id
+         LEFT JOIN projects p ON lc.project_id = p.id
+         WHERE lc.shipment_id = $1 AND lc.company_id = $2 AND lc.deleted_at IS NULL
+         ORDER BY lc.created_at DESC LIMIT 1`,
+        [docId, companyId]
+      );
+    } else {
+      // Quotations and invoices don't directly link to LCs
+      return res.json({ data: null, linked: false });
+    }
+
+    if (lcResult && lcResult.rows.length > 0) {
+      return res.json({ data: lcResult.rows[0], linked: true });
+    }
+
+    return res.json({ data: null, linked: false });
+
+  } catch (error) {
+    console.error('Error checking LC linkage:', error);
+    res.status(500).json({ error: 'Failed to check LC linkage' });
   }
 });
 

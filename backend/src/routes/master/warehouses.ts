@@ -66,11 +66,10 @@ const WAREHOUSE_SELECT = `
     br.name_ar    AS branch_name_ar,
     br.code       AS branch_code,
     -- Warehouse type join
-    wt.name_en    AS warehouse_type_name,
+    wt.name       AS warehouse_type_name,
     wt.name_ar    AS warehouse_type_name_ar,
     wt.code       AS warehouse_type_code,
     wt.warehouse_category AS warehouse_type_category,
-    wt.requires_temperature_control AS type_requires_temp,
     -- Country join
     co.name       AS country_name,
     co.code       AS country_code,
@@ -82,9 +81,8 @@ const WAREHOUSE_SELECT = `
     cc.code       AS cost_center_code,
     cc.name       AS cost_center_name,
     cc.name_ar    AS cost_center_name_ar,
-    -- Created/updated by user
-    uc.email      AS created_by_name,
-    uu.email      AS updated_by_name
+    -- Created by user
+    uc.email      AS created_by_name
   FROM warehouses w
   LEFT JOIN branches br       ON br.id = w.branch_id      AND br.deleted_at IS NULL
   LEFT JOIN warehouse_types wt ON wt.id = w.warehouse_type_id AND wt.deleted_at IS NULL
@@ -92,7 +90,6 @@ const WAREHOUSE_SELECT = `
   LEFT JOIN cities ci         ON ci.id = w.city_id        AND ci.deleted_at IS NULL
   LEFT JOIN cost_centers cc   ON cc.id = w.cost_center_id AND cc.deleted_at IS NULL
   LEFT JOIN users uc          ON uc.id = w.created_by
-  LEFT JOIN users uu          ON uu.id = w.updated_by
 `;
 
 // ─── GET /stats ─────────────────────────────────────────────────────
@@ -106,7 +103,7 @@ router.get(
         (req as any).companyId ?? (req as any).companyContext?.companyId ?? (req as any).companyContext?.id;
 
       const hasCapacity = await columnExists('warehouses', 'capacity_m3');
-      const hasNegStock = await columnExists('warehouses', 'allows_negative_stock');
+      const hasNegStock = await columnExists('warehouses', 'allow_negative_stock');
       const hasBranch = await columnExists('warehouses', 'branch_id');
 
       const stats = await pool.query(`
@@ -117,7 +114,7 @@ router.get(
           COUNT(DISTINCT w.warehouse_type_id) FILTER (WHERE w.warehouse_type_id IS NOT NULL)::int AS type_count,
           ${hasBranch ? "COUNT(DISTINCT w.branch_id) FILTER (WHERE w.branch_id IS NOT NULL)::int" : "0::int"} AS branch_count,
           ${hasCapacity ? "COALESCE(SUM(w.capacity_m3), 0)" : "0"} AS total_capacity_m3,
-          ${hasNegStock ? "COUNT(*) FILTER (WHERE w.allows_negative_stock = true)::int" : "0::int"} AS allows_negative_count,
+          ${hasNegStock ? "COUNT(*) FILTER (WHERE w.allow_negative_stock = true)::int" : "0::int"} AS allows_negative_count,
           COUNT(*) FILTER (WHERE w.is_default = true)::int      AS default_count
         FROM warehouses w
         WHERE ${companyId ? 'w.company_id = $1 AND' : ''} w.deleted_at IS NULL
@@ -128,11 +125,11 @@ router.get(
       let byType: any[] = [];
       if (hasWhTypes) {
         const bt = await pool.query(`
-          SELECT wt.name_en AS type_name, wt.name_ar AS type_name_ar, COUNT(w.id)::int AS count
+          SELECT wt.name AS type_name, wt.name_ar AS type_name_ar, COUNT(w.id)::int AS count
           FROM warehouses w
           JOIN warehouse_types wt ON wt.id = w.warehouse_type_id AND wt.deleted_at IS NULL
           WHERE ${companyId ? 'w.company_id = $1 AND' : ''} w.deleted_at IS NULL
-          GROUP BY wt.name_en, wt.name_ar
+          GROUP BY wt.name, wt.name_ar
           ORDER BY count DESC
         `, companyId ? [companyId] : []);
         byType = bt.rows;
@@ -158,9 +155,9 @@ router.get(
 
       const [whTypes, branches, countries, cities] = await Promise.all([
         pool.query(`
-          SELECT id, name_en AS name, name_ar FROM warehouse_types
+          SELECT id, name AS name, name_ar FROM warehouse_types
           WHERE ${companyId ? 'company_id = $1 AND' : ''} deleted_at IS NULL
-          ORDER BY name_en
+          ORDER BY name
         `, companyId ? [companyId] : []),
         pool.query(`
           SELECT id, name_en AS name, name_ar, code FROM branches
@@ -210,12 +207,11 @@ router.get(
       } = req.query as Record<string, string>;
 
       const allowedSort: Record<string, string> = {
-        code: 'w.code', name: 'w.name', name_en: 'w.name_en',
-        warehouse_type_name: 'wt.name_en',
+        code: 'w.code', name: 'w.name', name_en: 'w.name',
+        warehouse_type_name: 'wt.name',
         branch_name: 'br.name_en',
         is_active: 'w.is_active',
         created_at: 'w.created_at',
-        capacity_m3: 'w.capacity_m3',
       };
       const sortCol = allowedSort[sort] || 'w.code';
       const sortDir = order?.toLowerCase() === 'desc' ? 'DESC' : 'ASC';
@@ -230,7 +226,7 @@ router.get(
       }
 
       if (search) {
-        where += ` AND (w.name ILIKE $${++p} OR w.name_en ILIKE $${p} OR w.name_ar ILIKE $${p} OR w.code ILIKE $${p} OR w.address ILIKE $${p} OR w.manager_name ILIKE $${p})`;
+        where += ` AND (w.name ILIKE $${++p} OR w.name_ar ILIKE $${p} OR w.code ILIKE $${p} OR w.address ILIKE $${p} OR w.manager_name ILIKE $${p})`;
         params.push(`%${search}%`);
       }
 
@@ -413,9 +409,7 @@ router.post(
 
       addCol(cols, vals, 'code', code.toUpperCase());
       addCol(cols, vals, 'name', name);
-      addCol(cols, vals, 'name_en', name_en || name);
       addCol(cols, vals, 'name_ar', name_ar);
-      addCol(cols, vals, 'short_name', short_name);
       addCol(cols, vals, 'branch_id', branch_id || null);
       addCol(cols, vals, 'warehouse_type_id', warehouse_type_id || null);
       addCol(cols, vals, 'cost_center_id', cost_center_id || null);
@@ -425,17 +419,10 @@ router.post(
       addCol(cols, vals, 'manager_name', manager_name);
       addCol(cols, vals, 'phone', phone);
       addCol(cols, vals, 'email', email);
-      addCol(cols, vals, 'capacity_m3', capacity_m3 !== undefined ? capacity_m3 : null);
-      addCol(cols, vals, 'capacity_tons', capacity_tons !== undefined ? capacity_tons : null);
-      addCol(cols, vals, 'min_temp_celsius', min_temp_celsius !== undefined ? min_temp_celsius : null);
-      addCol(cols, vals, 'max_temp_celsius', max_temp_celsius !== undefined ? max_temp_celsius : null);
       addCol(cols, vals, 'inventory_account_id', inventory_account_id || null);
-      addCol(cols, vals, 'allows_negative_stock', allows_negative_stock ?? false);
       addCol(cols, vals, 'allow_negative_stock', allows_negative_stock ?? false);
       addCol(cols, vals, 'is_default', is_default ?? false);
       addCol(cols, vals, 'is_active', is_active ?? true);
-      addCol(cols, vals, 'latitude', latitude !== undefined ? latitude : null);
-      addCol(cols, vals, 'longitude', longitude !== undefined ? longitude : null);
       addCol(cols, vals, 'warehouse_type', warehouse_type || null);
       addCol(cols, vals, 'created_by', userId);
 
@@ -529,9 +516,7 @@ router.put(
 
       setCol(sets, vals, 'code', code?.toUpperCase(), idx);
       setCol(sets, vals, 'name', name, idx);
-      setCol(sets, vals, 'name_en', name_en || name, idx);
       setCol(sets, vals, 'name_ar', name_ar, idx);
-      setCol(sets, vals, 'short_name', short_name, idx);
       setCol(sets, vals, 'branch_id', branch_id !== undefined ? (branch_id || null) : undefined, idx);
       setCol(sets, vals, 'warehouse_type_id', warehouse_type_id !== undefined ? (warehouse_type_id || null) : undefined, idx);
       setCol(sets, vals, 'cost_center_id', cost_center_id !== undefined ? (cost_center_id || null) : undefined, idx);
@@ -541,21 +526,13 @@ router.put(
       setCol(sets, vals, 'manager_name', manager_name, idx);
       setCol(sets, vals, 'phone', phone, idx);
       setCol(sets, vals, 'email', email, idx);
-      setCol(sets, vals, 'capacity_m3', capacity_m3, idx);
-      setCol(sets, vals, 'capacity_tons', capacity_tons, idx);
-      setCol(sets, vals, 'min_temp_celsius', min_temp_celsius, idx);
-      setCol(sets, vals, 'max_temp_celsius', max_temp_celsius, idx);
       setCol(sets, vals, 'inventory_account_id', inventory_account_id !== undefined ? (inventory_account_id || null) : undefined, idx);
       if (allows_negative_stock !== undefined) {
-        setCol(sets, vals, 'allows_negative_stock', allows_negative_stock, idx);
         setCol(sets, vals, 'allow_negative_stock', allows_negative_stock, idx);
       }
       setCol(sets, vals, 'is_default', is_default, idx);
       setCol(sets, vals, 'is_active', is_active, idx);
-      setCol(sets, vals, 'latitude', latitude, idx);
-      setCol(sets, vals, 'longitude', longitude, idx);
       setCol(sets, vals, 'warehouse_type', warehouse_type, idx);
-      setCol(sets, vals, 'updated_by', userId, idx);
       sets.push(`updated_at = CURRENT_TIMESTAMP`);
 
       const updateQ = `UPDATE warehouses SET ${sets.join(', ')} WHERE id = $${idx()} AND company_id = $${idx()} AND deleted_at IS NULL RETURNING *`;

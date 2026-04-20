@@ -16,9 +16,24 @@ export async function preloadCompanyScope(req: Request, res: Response, next: Nex
     const user = (req as any).user;
     if (!user) return next();
 
-    // Platform admins or super_admins have access to all companies
+    // Platform admins or super_admins: restrict to platform-level companies only
+    // (tenant_id IS NULL) to prevent viewing tenant operational data
     if (user.is_platform_admin || (user.roles && user.roles.includes('super_admin'))) {
-      (req as any).userCompanyIds = null; // null = unrestricted
+      const isPlatformUser = !user.tenant_id;
+      if (isPlatformUser) {
+        // Platform admin: only platform-level companies
+        try {
+          const result = await pool.query(
+            'SELECT id FROM companies WHERE tenant_id IS NULL AND deleted_at IS NULL'
+          );
+          (req as any).userCompanyIds = result.rows.map((r: any) => r.id);
+        } catch {
+          (req as any).userCompanyIds = [];
+        }
+        return next();
+      }
+      // Tenant super_admin: unrestricted within their tenant (filtered by tenantIsolation)
+      (req as any).userCompanyIds = null;
       return next();
     }
 
@@ -31,7 +46,7 @@ export async function preloadCompanyScope(req: Request, res: Response, next: Nex
 
     try {
       const result = await pool.query(
-        'SELECT company_id FROM user_companies WHERE user_id = $1 AND deleted_at IS NULL',
+        'SELECT company_id FROM user_companies WHERE user_id = $1 AND is_active = true',
         [user.id]
       );
       const ids = result.rows.map((r: any) => r.company_id);
@@ -49,17 +64,17 @@ export async function preloadCompanyScope(req: Request, res: Response, next: Nex
 
 /**
  * Build a WHERE clause fragment for company scope filtering.
- * Usage: const filter = buildCompanyScopeFilter(req, 'c.id');
+ * Usage: const filter = buildCompanyScopeFilter(req, 'c.id', paramIndex);
  */
-export function buildCompanyScopeFilter(req: Request, columnName: string = 'company_id'): { clause: string; params: any[] } {
+export function buildCompanyScopeFilter(req: Request, columnName: string = 'company_id', paramIndex: number = 1): { clause: string; params: any[]; nextIndex: number } {
   const ids = (req as any).userCompanyIds;
   if (ids === null || ids === undefined) {
-    return { clause: '1=1', params: [] }; // unrestricted
+    return { clause: '1=1', params: [], nextIndex: paramIndex }; // unrestricted
   }
   if (ids.length === 0) {
-    return { clause: '1=0', params: [] }; // no access
+    return { clause: '1=0', params: [], nextIndex: paramIndex }; // no access
   }
-  return { clause: `${columnName} = ANY($1)`, params: [ids] };
+  return { clause: `${columnName} = ANY($${paramIndex})`, params: [ids], nextIndex: paramIndex + 1 };
 }
 
 /**

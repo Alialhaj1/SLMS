@@ -34,7 +34,8 @@ export default function TransactionDefaultsPage() {
       });
       if (!res.ok) throw new Error('Failed to fetch');
       const json = await res.json();
-      setItems(json.data || []);
+      const raw = json.data;
+      setItems(Array.isArray(raw) ? raw : raw?.data || []);
     } catch {
       showToast('error', locale === 'ar' ? 'فشل تحميل البيانات' : 'Failed to load data');
     } finally {

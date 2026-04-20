@@ -66,33 +66,34 @@ router.get('/', authenticate, requirePermission('help_requests:view'), async (re
     const { status, page = 1, limit = 20 } = req.query;
     const offset = (Number(page) - 1) * Number(limit);
 
-    let query = `
-      SELECT 
-        hr.*,
-        u.email as user_email,
-        u.full_name as user_name,
-        c.name as company_name
+    const baseFrom = `
       FROM help_requests hr
       LEFT JOIN users u ON hr.user_id = u.id
       LEFT JOIN companies c ON hr.company_id = c.id
-      WHERE 1=1
     `;
+    let whereClause = ' WHERE 1=1';
     const params: any[] = [];
 
     if (status) {
       params.push(status);
-      query += ` AND hr.status = $${params.length}`;
+      whereClause += ` AND hr.status = $${params.length}`;
     }
 
     // Count total
-    const countResult = await pool.query(query.replace('SELECT hr.*, u.email as user_email, u.full_name as user_name, c.name as company_name', 'SELECT COUNT(*)'));
-    const total = parseInt(countResult.rows[0].count);
+    const countResult = await pool.query(
+      `SELECT COUNT(*) ${baseFrom} ${whereClause}`,
+      params.slice()
+    );
+    const total = parseInt(countResult.rows[0].count, 10) || 0;
 
     // Get paginated data
-    query += ` ORDER BY hr.created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    const dataQuery = `
+      SELECT hr.*, u.email as user_email, u.full_name as user_name, c.name as company_name
+      ${baseFrom} ${whereClause}
+      ORDER BY hr.created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}
+    `;
     params.push(limit, offset);
-
-    const result = await pool.query(query, params);
+    const result = await pool.query(dataQuery, params);
 
     res.json({
       success: true,

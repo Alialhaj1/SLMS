@@ -16,7 +16,14 @@ router.get('/', authenticate, async (req, res) => {
     
     if (search) {
       params.push(`%${search}%`);
-      query += ` AND (name_en ILIKE $${params.length} OR name_ar ILIKE $${params.length})`;
+      query += ` AND (supplier_name ILIKE $${params.length} OR bank_name ILIKE $${params.length} OR account_number ILIKE $${params.length})`;
+    }
+
+    // Company filter
+    const tenantId = (req as any).user?.tenant_id;
+    if (tenantId) {
+      params.push(tenantId);
+      query += ` AND company_id = $${params.length}`;
     }
     
     query += ` ORDER BY id DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;

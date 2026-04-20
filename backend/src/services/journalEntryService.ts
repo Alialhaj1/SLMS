@@ -65,19 +65,52 @@ export interface JournalEntryHeader {
   lines: JournalEntryLine[];
 }
 
-// Account Codes (configurable per company)
-const DEFAULT_ACCOUNTS = {
-  INVENTORY: '1400',           // Inventory Asset
-  INVENTORY_INTERIM: '1410',   // Goods Received Not Invoiced
-  ACCOUNTS_PAYABLE: '2100',    // Accounts Payable - Trade
-  PURCHASE_EXPENSE: '5100',    // Purchase Expense (for non-inventory items)
-  PURCHASE_RETURNS: '5150',    // Purchase Returns & Allowances
-  FREIGHT_IN: '5200',          // Freight-In Expense
-  CUSTOMS_EXPENSE: '5210',     // Customs & Duties Expense
-  INSURANCE_EXPENSE: '5220',   // Insurance Expense
-  VAT_INPUT: '1600',           // VAT Input (Recoverable)
-  PURCHASE_DISCOUNT: '5160',   // Purchase Discounts
+// Fallback account codes (used ONLY if default_accounts table has no entry for the company)
+const FALLBACK_ACCOUNTS: Record<string, string> = {
+  INVENTORY: '1400',
+  ACCOUNTS_PAYABLE: '2100',
+  PURCHASE_EXPENSE: '5100',
+  PURCHASE_RETURNS: '5150',
+  FREIGHT_IN: '5200',
+  CUSTOMS_EXPENSE: '5210',
+  INSURANCE_EXPENSE: '5220',
+  VAT_INPUT: '1600',
+  PURCHASE_DISCOUNT: '5160',
 };
+
+// Key mapping from internal names to default_accounts.account_key
+const ACCOUNT_KEY_MAP: Record<string, string> = {
+  INVENTORY: 'INVENTORY',
+  ACCOUNTS_PAYABLE: 'AP_TRADE',
+  PURCHASE_EXPENSE: 'COGS',
+  VAT_INPUT: 'VAT_INPUT',
+  FREIGHT_IN: 'FREIGHT_IN',
+  CUSTOMS_EXPENSE: 'CUSTOMS',
+};
+
+/**
+ * Resolve account code from default_accounts table for a given company.
+ * Falls back to hardcoded codes only if no DB config exists.
+ */
+async function resolveDefaultAccountCode(companyId: number, internalKey: string): Promise<string> {
+  const dbKey = ACCOUNT_KEY_MAP[internalKey];
+  if (dbKey) {
+    try {
+      const result = await pool.query(
+        `SELECT a.code FROM default_accounts da 
+         JOIN accounts a ON da.account_id = a.id 
+         WHERE da.company_id = $1 AND da.account_key = $2 AND da.is_active = true`,
+        [companyId, dbKey]
+      );
+      if (result.rows[0]?.code) {
+        return result.rows[0].code;
+      }
+    } catch (e) {
+      logger.warn(`Failed to resolve default account ${dbKey} for company ${companyId}`);
+    }
+  }
+  return FALLBACK_ACCOUNTS[internalKey] || internalKey;
+}
 
 /**
  * Journal Entry Service
@@ -207,10 +240,16 @@ export class JournalEntryService {
     
     const lines: JournalEntryLine[] = [];
     
+    // Resolve account codes from default_accounts table
+    const inventoryCode = await resolveDefaultAccountCode(companyId, 'INVENTORY');
+    const purchaseExpenseCode = await resolveDefaultAccountCode(companyId, 'PURCHASE_EXPENSE');
+    const vatInputCode = await resolveDefaultAccountCode(companyId, 'VAT_INPUT');
+    const apCode = await resolveDefaultAccountCode(companyId, 'ACCOUNTS_PAYABLE');
+    
     // Debit lines for each item
     for (const item of items) {
       lines.push({
-        account_code: item.is_inventory ? DEFAULT_ACCOUNTS.INVENTORY : DEFAULT_ACCOUNTS.PURCHASE_EXPENSE,
+        account_code: item.is_inventory ? inventoryCode : purchaseExpenseCode,
         description: `Purchase: ${item.item_name}`,
         description_ar: `شراء: ${item.item_name}`,
         debit_amount: item.amount,
@@ -223,7 +262,7 @@ export class JournalEntryService {
     // Debit VAT if applicable
     if (taxAmount > 0) {
       lines.push({
-        account_code: DEFAULT_ACCOUNTS.VAT_INPUT,
+        account_code: vatInputCode,
         description: 'VAT Input - Purchase Invoice',
         description_ar: 'ضريبة القيمة المضافة - فاتورة مشتريات',
         debit_amount: taxAmount,
@@ -234,7 +273,7 @@ export class JournalEntryService {
     
     // Credit Accounts Payable
     lines.push({
-      account_code: DEFAULT_ACCOUNTS.ACCOUNTS_PAYABLE,
+      account_code: apCode,
       description: `AP - ${vendorName}`,
       description_ar: `ذمم دائنة - ${vendorName}`,
       debit_amount: 0,
@@ -278,10 +317,16 @@ export class JournalEntryService {
     
     const lines: JournalEntryLine[] = [];
     
+    // Resolve account codes from default_accounts table
+    const inventoryCode = await resolveDefaultAccountCode(companyId, 'INVENTORY');
+    const purchaseExpenseCode = await resolveDefaultAccountCode(companyId, 'PURCHASE_EXPENSE');
+    const vatInputCode = await resolveDefaultAccountCode(companyId, 'VAT_INPUT');
+    const apCode = await resolveDefaultAccountCode(companyId, 'ACCOUNTS_PAYABLE');
+    
     // Credit (reverse) lines for each item
     for (const item of items) {
       lines.push({
-        account_code: item.is_inventory ? DEFAULT_ACCOUNTS.INVENTORY : DEFAULT_ACCOUNTS.PURCHASE_EXPENSE,
+        account_code: item.is_inventory ? inventoryCode : purchaseExpenseCode,
         description: `Reversal: ${item.item_name}`,
         description_ar: `عكس: ${item.item_name}`,
         debit_amount: 0,
@@ -294,7 +339,7 @@ export class JournalEntryService {
     // Credit (reverse) VAT if applicable
     if (taxAmount > 0) {
       lines.push({
-        account_code: DEFAULT_ACCOUNTS.VAT_INPUT,
+        account_code: vatInputCode,
         description: 'Reversal: VAT Input',
         description_ar: 'عكس: ضريبة القيمة المضافة',
         debit_amount: 0,
@@ -305,7 +350,7 @@ export class JournalEntryService {
     
     // Debit (reverse) Accounts Payable
     lines.push({
-      account_code: DEFAULT_ACCOUNTS.ACCOUNTS_PAYABLE,
+      account_code: apCode,
       description: `Reversal AP - ${vendorName}`,
       description_ar: `عكس ذمم دائنة - ${vendorName}`,
       debit_amount: totalAmount,
@@ -351,9 +396,15 @@ export class JournalEntryService {
     
     const lines: JournalEntryLine[] = [];
     
+    // Resolve account codes from default_accounts table
+    const inventoryCode = await resolveDefaultAccountCode(companyId, 'INVENTORY');
+    const vatInputCode = await resolveDefaultAccountCode(companyId, 'VAT_INPUT');
+    const apCode = await resolveDefaultAccountCode(companyId, 'ACCOUNTS_PAYABLE');
+    const purchaseReturnsCode = FALLBACK_ACCOUNTS.PURCHASE_RETURNS;
+    
     // Debit Accounts Payable (reduce what we owe)
     lines.push({
-      account_code: DEFAULT_ACCOUNTS.ACCOUNTS_PAYABLE,
+      account_code: apCode,
       description: `Return to ${vendorName}`,
       description_ar: `مرتجع إلى ${vendorName}`,
       debit_amount: totalAmount,
@@ -364,7 +415,7 @@ export class JournalEntryService {
     // Credit lines for each item
     for (const item of items) {
       lines.push({
-        account_code: item.is_inventory ? DEFAULT_ACCOUNTS.INVENTORY : DEFAULT_ACCOUNTS.PURCHASE_RETURNS,
+        account_code: item.is_inventory ? inventoryCode : purchaseReturnsCode,
         description: `Return: ${item.item_name}`,
         description_ar: `مرتجع: ${item.item_name}`,
         debit_amount: 0,
@@ -377,7 +428,7 @@ export class JournalEntryService {
     // Credit VAT if applicable
     if (taxAmount > 0) {
       lines.push({
-        account_code: DEFAULT_ACCOUNTS.VAT_INPUT,
+        account_code: vatInputCode,
         description: 'VAT Reversal - Purchase Return',
         description_ar: 'عكس ضريبة - مرتجع مشتريات',
         debit_amount: 0,
@@ -425,10 +476,16 @@ export class JournalEntryService {
     const lines: JournalEntryLine[] = [];
     let totalCost = 0;
     
+    // Resolve account codes from default_accounts table
+    const freightCode = await resolveDefaultAccountCode(companyId, 'FREIGHT_IN');
+    const customsCode = await resolveDefaultAccountCode(companyId, 'CUSTOMS_EXPENSE');
+    const insuranceCode = FALLBACK_ACCOUNTS.INSURANCE_EXPENSE;
+    const apCode = await resolveDefaultAccountCode(companyId, 'ACCOUNTS_PAYABLE');
+    
     // Freight expense
     if (costs.freight && costs.freight > 0) {
       lines.push({
-        account_code: DEFAULT_ACCOUNTS.FREIGHT_IN,
+        account_code: freightCode,
         description: `Freight - ${referenceNumber}`,
         description_ar: `شحن - ${referenceNumber}`,
         debit_amount: costs.freight,
@@ -441,7 +498,7 @@ export class JournalEntryService {
     // Customs expense
     if (costs.customs && costs.customs > 0) {
       lines.push({
-        account_code: DEFAULT_ACCOUNTS.CUSTOMS_EXPENSE,
+        account_code: customsCode,
         description: `Customs - ${referenceNumber}`,
         description_ar: `جمارك - ${referenceNumber}`,
         debit_amount: costs.customs,
@@ -453,7 +510,7 @@ export class JournalEntryService {
     // Insurance expense
     if (costs.insurance && costs.insurance > 0) {
       lines.push({
-        account_code: DEFAULT_ACCOUNTS.INSURANCE_EXPENSE,
+        account_code: insuranceCode,
         description: `Insurance - ${referenceNumber}`,
         description_ar: `تأمين - ${referenceNumber}`,
         debit_amount: costs.insurance,
@@ -469,7 +526,7 @@ export class JournalEntryService {
     // Credit line - either AP or Cash
     if (paymentMethod === 'payable') {
       lines.push({
-        account_code: DEFAULT_ACCOUNTS.ACCOUNTS_PAYABLE,
+        account_code: apCode,
         description: `AP - ${vendorName}`,
         description_ar: `ذمم دائنة - ${vendorName}`,
         debit_amount: 0,
@@ -477,8 +534,18 @@ export class JournalEntryService {
         vendor_id: vendorId || undefined
       });
     } else {
+      // Resolve cash account from default_accounts
+      const cashCode = await resolveDefaultAccountCode(companyId, 'INVENTORY');
+      // Use the actual cash account from defaults
+      const cashResult = await pool.query(
+        `SELECT a.code FROM default_accounts da 
+         JOIN accounts a ON da.account_id = a.id 
+         WHERE da.company_id = $1 AND da.account_key = 'CASH' AND da.is_active = true`,
+        [companyId]
+      );
+      const resolvedCashCode = cashResult.rows[0]?.code || '1000';
       lines.push({
-        account_code: '1000', // Cash account
+        account_code: resolvedCashCode,
         description: 'Cash payment',
         description_ar: 'دفع نقدي',
         debit_amount: 0,

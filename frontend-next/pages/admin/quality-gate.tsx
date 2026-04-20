@@ -7,10 +7,9 @@ import { useToast } from '@/contexts/ToastContext';
 import { ShieldCheckIcon, CheckCircleIcon, XCircleIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
 
 interface GateCheck {
-  name: string;
+  key: string;
   category: string;
   status: 'pass' | 'fail' | 'running' | 'pending';
-  detail: string;
   value?: string;
 }
 
@@ -23,18 +22,18 @@ export default function QualityGatePage() {
   const [running, setRunning] = useState(false);
 
   const defaultChecks: GateCheck[] = [
-    { name: 'Unit Tests', category: 'Tests', status: 'pass', detail: 'All 142 tests passing', value: '142/142' },
-    { name: 'Integration Tests', category: 'Tests', status: 'pass', detail: 'API integration suite passing', value: '38/38' },
-    { name: 'Security Scan', category: 'Security', status: 'pass', detail: 'No critical vulnerabilities found', value: '0 critical' },
-    { name: 'Dependency Audit', category: 'Security', status: 'fail', detail: '3 high-severity advisories', value: '3 high' },
-    { name: 'Code Coverage', category: 'Quality', status: 'pass', detail: 'Coverage above 80% threshold', value: '84.2%' },
-    { name: 'TypeScript Strict', category: 'Quality', status: 'pass', detail: 'No type errors detected', value: '0 errors' },
-    { name: 'ESLint', category: 'Quality', status: 'fail', detail: '12 warnings remaining', value: '12 warnings' },
-    { name: 'API Response Time', category: 'Performance', status: 'pass', detail: 'P95 under 200ms threshold', value: 'P95: 145ms' },
-    { name: 'Bundle Size', category: 'Performance', status: 'pass', detail: 'Under 500KB gzip limit', value: '387KB' },
-    { name: 'Database Migrations', category: 'Infrastructure', status: 'pass', detail: 'All migrations applied', value: 'Up to date' },
-    { name: 'Docker Build', category: 'Infrastructure', status: 'pass', detail: 'Build completes successfully', value: 'Success' },
-    { name: 'Health Endpoint', category: 'Infrastructure', status: 'pass', detail: '/api/health returns 200', value: 'OK' },
+    { key: 'unitTests', category: 'Tests', status: 'pass', value: '142/142' },
+    { key: 'integrationTests', category: 'Tests', status: 'pass', value: '38/38' },
+    { key: 'securityScan', category: 'Security', status: 'pass', value: '0 critical' },
+    { key: 'dependencyAudit', category: 'Security', status: 'fail', value: '3 high' },
+    { key: 'codeCoverage', category: 'Quality', status: 'pass', value: '84.2%' },
+    { key: 'typescriptStrict', category: 'Quality', status: 'pass', value: '0 errors' },
+    { key: 'eslint', category: 'Quality', status: 'fail', value: '12 warnings' },
+    { key: 'apiResponseTime', category: 'Performance', status: 'pass', value: 'P95: 145ms' },
+    { key: 'bundleSize', category: 'Performance', status: 'pass', value: '387KB' },
+    { key: 'dbMigrations', category: 'Infrastructure', status: 'pass', value: 'Up to date' },
+    { key: 'dockerBuild', category: 'Infrastructure', status: 'pass', value: 'Success' },
+    { key: 'healthEndpoint', category: 'Infrastructure', status: 'pass', value: 'OK' },
   ];
 
   useEffect(() => {
@@ -51,7 +50,7 @@ export default function QualityGatePage() {
     setTimeout(() => {
       setChecks(defaultChecks);
       setRunning(false);
-      showToast('success', 'Quality gate checks completed');
+      showToast('success', t('adminQualityGate.checksCompleted'));
     }, 2000);
   };
 
@@ -78,25 +77,25 @@ export default function QualityGatePage() {
 
   return (
     <MainLayout>
-      <Head><title>{t('qualityGate.title') || 'Quality Gate'} - SLMS</title></Head>
+      <Head><title>{t('adminQualityGate.title')} - SLMS</title></Head>
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
               <ShieldCheckIcon className="w-7 h-7 text-blue-500" />
-              {t('qualityGate.title') || 'Quality Gate'}
+              {t('adminQualityGate.title')}
             </h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('qualityGate.subtitle') || 'Pre-deployment readiness checks'}</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('adminQualityGate.subtitle')}</p>
           </div>
           <div className="flex items-center gap-3">
             {!loading && (
               <div className={`px-3 py-1.5 rounded-lg text-sm font-semibold ${allPass ? 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-400' : 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-400'}`}>
-                {allPass ? '✓ Gate Passed' : `✗ ${failCount} Failed`}
+                {allPass ? t('adminQualityGate.gatePassed') : `✗ ${failCount} ${t('adminQualityGate.failing')}`}
               </div>
             )}
             <button onClick={handleRunAll} disabled={running} className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium transition-colors disabled:opacity-50">
               <ArrowPathIcon className={`w-4 h-4 ${running ? 'animate-spin' : ''}`} />
-              {running ? 'Running...' : 'Run All Checks'}
+              {running ? t('adminQualityGate.running') : t('adminQualityGate.runAllChecks')}
             </button>
           </div>
         </div>
@@ -105,19 +104,19 @@ export default function QualityGatePage() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4 text-center">
               <p className="text-2xl font-bold text-gray-900 dark:text-white">{checks.length}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Total Checks</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">{t('adminQualityGate.totalChecks')}</p>
             </div>
             <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4 text-center">
               <p className="text-2xl font-bold text-green-600">{passCount}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Passing</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">{t('adminQualityGate.passing')}</p>
             </div>
             <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4 text-center">
               <p className="text-2xl font-bold text-red-600">{failCount}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Failing</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">{t('adminQualityGate.failing')}</p>
             </div>
             <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4 text-center">
               <p className="text-2xl font-bold text-gray-900 dark:text-white">{checks.length ? Math.round((passCount / checks.length) * 100) : 0}%</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Pass Rate</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">{t('adminQualityGate.passRate')}</p>
             </div>
           </div>
         )}
@@ -125,15 +124,15 @@ export default function QualityGatePage() {
         {categories.map((cat) => (
           <div key={cat} className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 overflow-hidden">
             <div className="px-5 py-3 bg-gray-50 dark:bg-slate-900/50 border-b border-gray-200 dark:border-slate-700">
-              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">{cat}</h3>
+              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">{t(`adminQualityGate.categories.${cat}`)}</h3>
             </div>
             <div className="divide-y divide-gray-100 dark:divide-slate-700">
               {loading ? Array.from({ length: 2 }).map((_, i) => <SkeletonRow key={i} />) : checks.filter((c) => c.category === cat).map((check) => (
                 <div key={check.name} className="flex items-center gap-4 px-5 py-3 hover:bg-gray-50 dark:hover:bg-slate-700/30 transition-colors">
                   {statusIcon(check.status)}
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">{check.name}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{check.detail}</p>
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">{t(`adminQualityGate.checks.${check.key}.name`)}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{t(`adminQualityGate.checks.${check.key}.detail`)}</p>
                   </div>
                   {check.value && <span className="text-xs font-mono text-gray-500 dark:text-gray-400 whitespace-nowrap">{check.value}</span>}
                 </div>

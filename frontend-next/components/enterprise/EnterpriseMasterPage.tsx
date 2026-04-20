@@ -43,9 +43,10 @@ import { LoadingSpinner } from '../ui/LoadingSpinner';
 import ActionToolbar from './ActionToolbar';
 import FilterPanel from './FilterPanel';
 import DetailSidePanel from './DetailSidePanel';
+import ImportModal from './ImportModal';
 import { usePermissions } from '../../hooks/usePermissions';
 import { useTranslation } from '../../hooks/useTranslation';
-import { useToast } from '../../contexts/ToastContext';
+import { useToast } from '../../hooks/useToast';
 import { useMasterData } from '../../hooks/useMasterData';
 // Enterprise Core Engine hooks
 import { useAuditTrail } from '../../hooks/useAuditTrail';
@@ -66,6 +67,10 @@ import type {
   StatusType,
   ExportFormat,
 } from '../../lib/governance/types';
+
+// Stable default to avoid infinite re-render loops from unstable [] references
+const EMPTY_FILTER_FIELDS: FieldMeta[] = [];
+const EMPTY_REFERENCE_DATA: Record<string, Array<{ value: any; label: string }>> = {};
 import {
   ChevronUpIcon,
   ChevronDownIcon,
@@ -77,6 +82,7 @@ import {
   TrashIcon,
   EyeIcon,
   ArrowDownTrayIcon,
+  ArrowUpTrayIcon,
   DocumentDuplicateIcon,
   CheckIcon,
   XMarkIcon,
@@ -127,23 +133,26 @@ interface EnterpriseMasterPageProps<T extends Record<string, any> = any> {
   onAfterSave?: (savedData: any, isEditing: boolean) => void | Promise<void>;
   /** Called when the form modal opens for create (record=null) or edit (record=T). */
   onFormOpen?: (record: T | null) => void;
+  /** Callback when a relation is clicked — return true to prevent default navigation */
+  onRelationClick?: (rel: { type: string; label: string; count: number; href?: string }, record: T) => boolean;
 }
 
 export default function EnterpriseMasterPage<T extends Record<string, any> = any>({
   config,
   onCustomAction,
-  referenceData = {},
+  referenceData = EMPTY_REFERENCE_DATA,
   buildDetailSections,
   buildRelations,
   transformBeforeSubmit,
   transformAfterFetch,
   renderCustomColumn,
-  extraFilterFields = [],
+  extraFilterFields = EMPTY_FILTER_FIELDS,
   formFooter,
   onFieldChange: onFieldChangeProp,
   renderFormSectionOverride,
   onAfterSave,
   onFormOpen,
+  onRelationClick,
 }: EnterpriseMasterPageProps<T>) {
   const { hasPermission } = usePermissions();
   const { t, locale } = useTranslation();
@@ -182,6 +191,9 @@ export default function EnterpriseMasterPage<T extends Record<string, any> = any
   const [recordToDelete, setRecordToDelete] = useState<T | null>(null);
   const [deleting, setDeleting] = useState(false);
 
+  // Import state
+  const [importModalOpen, setImportModalOpen] = useState(false);
+
   // Detail panel state
   const [selectedRecord, setSelectedRecord] = useState<T | null>(null);
   const [detailPanelOpen, setDetailPanelOpen] = useState(false);
@@ -201,6 +213,9 @@ export default function EnterpriseMasterPage<T extends Record<string, any> = any
 
   // Selected records for bulk operations
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [selectAllAcrossPages, setSelectAllAcrossPages] = useState(false);
+  const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   // ─── CRUD HOOK ────────────────────────────────────────────────────────────
   const {
@@ -211,33 +226,31 @@ export default function EnterpriseMasterPage<T extends Record<string, any> = any
     create,
     update,
     remove,
+    bulkRemove,
   } = useMasterData<T>({ endpoint: config.apiEndpoint, autoFetch: false, pageSize });
 
   // ─── ENGINE HOOKS ─────────────────────────────────────────────────────────
   // Audit Trail - fetches when a record is selected for detail view
-  const { timeline: auditTimeline, changes: auditChanges, loading: auditLoading, refresh: refreshAudit } = useAuditTrail(
-    detailPanelOpen ? config.resourceName || config.apiEndpoint.replace('/api/', '').replace(/\//g, '-') : null,
-    detailPanelOpen && selectedRecord ? (selectedRecord as any).id : null,
-    { autoFetch: true }
+  const { entries: auditTimeline, loading: auditLoading, fetchAudit: refreshAudit } = useAuditTrail(
+    detailPanelOpen ? (config.resourceName || config.apiEndpoint.replace('/api/', '').replace(/\//g, '-')) : '',
+    detailPanelOpen && selectedRecord ? (selectedRecord as any).id : undefined
   );
 
   // Field Permissions - for form rendering
   const {
-    isVisible: isFieldVisible,
-    isEditable: isFieldEditable,
-    isRequired: isFieldRequired,
+    canView: isFieldVisible,
+    canEdit: isFieldEditable,
     filterVisibleFields,
   } = useFieldPermissions(config.resourceName || config.apiEndpoint.replace('/api/', '').replace(/\//g, '-'));
 
   // Reference Integrity - for delete impact analysis
   const {
-    impact: deleteImpact,
+    references: deleteImpactRefs,
     loading: impactLoading,
-    checkImpact,
-    blockingMessage,
-    blockingMessageAr,
+    checkReferences: checkImpact,
     canDelete: canDeleteByRef,
-  } = useReferenceIntegrity(config.resourceName || config.apiEndpoint.replace('/api/', '').replace(/\//g, '-'));
+    totalReferences: deleteImpactTotal,
+  } = useReferenceIntegrity([]);
 
   // ─── DERIVED DATA ─────────────────────────────────────────────────────────
   const allFormFields = useMemo(() => {
@@ -249,7 +262,7 @@ export default function EnterpriseMasterPage<T extends Record<string, any> = any
 
   // Collect all unique API endpoints from form + filter fields
   const apiDataSources = useMemo(() => {
-    const sources: Array<{ key: string; endpoint: string; valueField: string; labelField: string; labelArField?: string; dataPath?: string }> = [];
+    const sources: Array<{ key: string; endpoint: string; valueField: string; labelField: string; labelArField?: string; dataPath?: string; parentField?: string; filterParam?: string }> = [];
     const seen = new Set<string>();
     const collectFromFields = (fields: FieldMeta[]) => {
       for (const field of fields) {
@@ -263,6 +276,8 @@ export default function EnterpriseMasterPage<T extends Record<string, any> = any
             labelField: field.dataSource.labelField || 'name_en',
             labelArField: field.dataSource.labelArField,
             dataPath: field.dataSource.dataPath,
+            parentField: field.dataSource.parentField,
+            filterParam: field.dataSource.filterParam,
           });
         }
       }
@@ -274,32 +289,116 @@ export default function EnterpriseMasterPage<T extends Record<string, any> = any
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config.formSections, config.filterFields, extraFilterFields]);
 
+  // Separate non-cascading (independent) and cascading (dependent) data sources
+  const independentSources = useMemo(() => apiDataSources.filter(s => !s.parentField), [apiDataSources]);
+  const dependentSources = useMemo(() => apiDataSources.filter(s => s.parentField), [apiDataSources]);
+
+  // Build a map: parentFieldKey → list of dependent field keys (for clearing on parent change)
+  const parentToDependents = useMemo(() => {
+    const map: Record<string, string[]> = {};
+    for (const src of dependentSources) {
+      if (!src.parentField) continue;
+      if (!map[src.parentField]) map[src.parentField] = [];
+      map[src.parentField].push(src.key);
+    }
+    return map;
+  }, [dependentSources]);
+
+  // Fetch INDEPENDENT (non-cascading) API selects on mount
   useEffect(() => {
-    if (apiDataSources.length === 0) return;
+    if (independentSources.length === 0) return;
     const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
     if (!token) return;
 
+    let cancelled = false;
+    const controller = new AbortController();
+
     const fetchApiSelects = async () => {
       const results: Record<string, Array<{ value: any; label: string; labelAr?: string }>> = {};
-      // Group sources by endpoint to avoid duplicate fetches (e.g. shared /filters endpoint)
-      const byEndpoint = new Map<string, typeof apiDataSources>();
-      for (const src of apiDataSources) {
+      const byEndpoint = new Map<string, typeof independentSources>();
+      for (const src of independentSources) {
         const group = byEndpoint.get(src.endpoint) || [];
         group.push(src);
         byEndpoint.set(src.endpoint, group);
       }
-      // Fetch each unique endpoint once
-      await Promise.all(
-        Array.from(byEndpoint.entries()).map(async ([endpoint, sources]) => {
-          try {
-            const res = await fetch(
-              `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}${endpoint}`,
-              { headers: { Authorization: `Bearer ${token}` } }
-            );
-            if (!res.ok) return;
-            const json = await res.json();
-            // Distribute to each field that uses this endpoint
-            for (const src of sources) {
+      // Fetch sequentially (one at a time) to avoid ERR_INSUFFICIENT_RESOURCES
+      const entries = Array.from(byEndpoint.entries());
+      for (const [endpoint, sources] of entries) {
+        if (cancelled) return;
+        try {
+          const res = await fetch(
+            `${(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api').replace(/\/api\/?$/, '')}${endpoint}`,
+            { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal }
+          );
+          if (!res.ok) continue;
+          const json = await res.json();
+          for (const src of sources) {
+            const items = src.dataPath ? (json[src.dataPath] || json.data?.[src.dataPath]) : (json.data?.data || json.data || json.items || json) || [];
+            if (Array.isArray(items)) {
+              results[src.key] = items.map((item: any) => ({
+                value: item[src.valueField],
+                label: item[src.labelField] || item.name || item.code || String(item[src.valueField]),
+                labelAr: src.labelArField ? item[src.labelArField] : undefined,
+              }));
+            }
+          }
+        } catch { /* silently ignore (includes AbortError) */ }
+      }
+      if (!cancelled) {
+        setApiSelectData(prev => ({ ...prev, ...results }));
+      }
+    };
+    fetchApiSelects();
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [independentSources]);
+
+  // ─── CASCADING SELECT: fetch dependent options when parent value changes ──
+  // Track parent values to detect changes
+  const prevParentValuesRef = useRef<Record<string, any>>({});
+
+  useEffect(() => {
+    if (dependentSources.length === 0) return;
+    const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
+    if (!token) return;
+
+    // Check which parent values changed
+    const changedParents: string[] = [];
+    const currentParentValues: Record<string, any> = {};
+    for (const src of dependentSources) {
+      if (!src.parentField) continue;
+      const parentVal = formData[src.parentField];
+      currentParentValues[src.parentField] = parentVal;
+      if (prevParentValuesRef.current[src.parentField] !== parentVal) {
+        changedParents.push(src.parentField);
+      }
+    }
+    prevParentValuesRef.current = currentParentValues;
+
+    // For each dependent source, fetch options filtered by parent value (batched)
+    const fetchDependentSelects = async () => {
+      const results: Record<string, Array<{ value: any; label: string; labelAr?: string }>> = {};
+      const BATCH_SIZE = 4;
+      for (let i = 0; i < dependentSources.length; i += BATCH_SIZE) {
+        const batch = dependentSources.slice(i, i + BATCH_SIZE);
+        await Promise.all(
+          batch.map(async (src) => {
+            if (!src.parentField || !src.filterParam) return;
+            const parentVal = formData[src.parentField];
+            if (!parentVal) {
+              // Parent is empty → clear dependent options
+              results[src.key] = [];
+              return;
+            }
+            try {
+              const separator = src.endpoint.includes('?') ? '&' : '?';
+              const url = `${(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api').replace(/\/api\/?$/, '')}${src.endpoint}${separator}${src.filterParam}=${parentVal}&limit=500`;
+              const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+              if (!res.ok) { results[src.key] = []; return; }
+              const json = await res.json();
               const items = src.dataPath ? (json[src.dataPath] || json.data?.[src.dataPath]) : (json.data || json.items || json) || [];
               if (Array.isArray(items)) {
                 results[src.key] = items.map((item: any) => ({
@@ -307,19 +406,24 @@ export default function EnterpriseMasterPage<T extends Record<string, any> = any
                   label: item[src.labelField] || item.name || item.code || String(item[src.valueField]),
                   labelAr: src.labelArField ? item[src.labelArField] : undefined,
                 }));
+              } else {
+                results[src.key] = [];
               }
+            } catch {
+              results[src.key] = [];
             }
-          } catch { /* silently ignore */ }
-        })
-      );
-      setApiSelectData(results);
+          })
+        );
+      }
+      setApiSelectData(prev => ({ ...prev, ...results }));
     };
-    fetchApiSelects();
-  }, [apiDataSources]);
+    fetchDependentSelects();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dependentSources, ...dependentSources.map(s => formData[s.parentField || ''])]);
 
   const data = useMemo(() => {
-    let result = rawData || [];
-    if (transformAfterFetch) result = transformAfterFetch(result);
+    let result = Array.isArray(rawData) ? rawData : [];
+    if (transformAfterFetch) result = transformAfterFetch(result) || [];
     
     // Client-side filtering
     if (searchTerm) {
@@ -374,6 +478,15 @@ export default function EnterpriseMasterPage<T extends Record<string, any> = any
     return () => { if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current); };
   }, [searchTerm]);
 
+  // Re-fetch from server when debounced search changes
+  useEffect(() => {
+    if (hasPermission(`${config.permissionPrefix}:view`)) {
+      setCurrentPage(1);
+      fetchList({ page: 1, pageSize, search: debouncedSearch, sortBy: sortField, sortOrder, filters: filterValues });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch]);
+
   // Fetch stats on mount and when filters change
   useEffect(() => {
     if (config.statsConfig && hasPermission(`${config.permissionPrefix}:view`)) {
@@ -381,7 +494,7 @@ export default function EnterpriseMasterPage<T extends Record<string, any> = any
         setStatsLoading(true);
         try {
           const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
-          const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}${config.apiEndpoint}/stats`, {
+          const res = await fetch(`${(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api').replace(/\/api\/?$/, '')}${config.apiEndpoint}/stats`, {
             headers: { Authorization: `Bearer ${token}` },
           });
           if (res.ok) {
@@ -427,7 +540,7 @@ export default function EnterpriseMasterPage<T extends Record<string, any> = any
   // ─── FORM HANDLING ────────────────────────────────────────────────────────
   const handleOpenCreate = () => {
     setEditingRecord(null);
-    setFormData(generateDefaultFormData(allFormFields));
+    setFormData(generateDefaultFormData(config.formSections));
     setFormErrors({});
     setModalOpen(true);
     onFormOpen?.(null);
@@ -435,7 +548,7 @@ export default function EnterpriseMasterPage<T extends Record<string, any> = any
 
   const handleOpenEdit = (record: T) => {
     setEditingRecord(record);
-    setFormData(populateFormFromRecord(allFormFields, record));
+    setFormData(populateFormFromRecord(config.formSections, record));
     setFormErrors({});
     setModalOpen(true);
     onFormOpen?.(record);
@@ -448,13 +561,59 @@ export default function EnterpriseMasterPage<T extends Record<string, any> = any
     setFormErrors({});
   };
 
+  // ─── KEYBOARD SHORTCUTS ──────────────────────────────────────────────────
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't trigger if user is typing in input/textarea/select
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+
+      if (e.ctrlKey || e.metaKey) {
+        switch (e.key.toLowerCase()) {
+          case 'n': // Ctrl+N → Create new
+            e.preventDefault();
+            if (!modalOpen && !importModalOpen) handleOpenCreate();
+            break;
+          case 'r': // Ctrl+R → Refresh
+            e.preventDefault();
+            handleRefresh();
+            break;
+        }
+      }
+
+      if (e.key === 'Escape') {
+        if (modalOpen) setModalOpen(false);
+        if (importModalOpen) setImportModalOpen(false);
+        if (detailPanelOpen) { setDetailPanelOpen(false); setSelectedRecord(null); }
+        if (deleteConfirmOpen) setDeleteConfirmOpen(false);
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [modalOpen, importModalOpen, detailPanelOpen, deleteConfirmOpen, handleRefresh, handleOpenCreate]);
+
   const handleFieldChange = (key: string, value: any) => {
-    setFormData((prev) => ({ ...prev, [key]: value }));
+    setFormData((prev) => {
+      const next = { ...prev, [key]: value };
+      // Clear dependent fields when a parent field changes (cascading selects)
+      if (parentToDependents[key]) {
+        for (const depKey of parentToDependents[key]) {
+          next[depKey] = '';
+        }
+      }
+      return next;
+    });
     // Clear field error on change
     if (formErrors[key]) {
       setFormErrors((prev) => {
         const next = { ...prev };
         delete next[key];
+        // Also clear errors for dependent fields
+        if (parentToDependents[key]) {
+          for (const depKey of parentToDependents[key]) {
+            delete next[depKey];
+          }
+        }
         return next;
       });
     }
@@ -473,9 +632,9 @@ export default function EnterpriseMasterPage<T extends Record<string, any> = any
 
   const handleSubmit = async () => {
     // Validate
-    const result = validateFormFn(allFormFields, formData, !!editingRecord);
-    if (!result.valid) {
-      setFormErrors(result.errors);
+    const errors = validateFormFn(config.formSections, formData);
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors);
       showToast('error', t('common.fixErrors') || 'Please fix the errors before submitting');
       return;
     }
@@ -507,6 +666,9 @@ export default function EnterpriseMasterPage<T extends Record<string, any> = any
             const field = allFormFields.find((f: FieldMeta) => f.key === key);
             const opts = field?.options || field?.dataSource?.options || [];
             if (opts.length > 0 && typeof opts[0]?.value === 'number') {
+              payload[key] = Number(val);
+            } else if (field?.dataSource?.type === 'api') {
+              // API-loaded options: convert numeric string IDs to numbers
               payload[key] = Number(val);
             }
           }
@@ -637,7 +799,7 @@ export default function EnterpriseMasterPage<T extends Record<string, any> = any
             });
           }
           const wb = XLSX.utils.book_new();
-          XLSX.utils.book_append_sheet(wb, ws, (config.titleKey ? t(config.titleKey) : '') || config.title);
+          XLSX.utils.book_append_sheet(wb, ws, config.titleKey ? t(config.titleKey, config.title) : config.title);
           XLSX.writeFile(wb, `${config.exportFilename || 'export'}_${new Date().toISOString().split('T')[0]}.xlsx`);
           showToast('success', t('common.exportSuccess') || 'Data exported successfully');
         } catch {
@@ -668,9 +830,32 @@ export default function EnterpriseMasterPage<T extends Record<string, any> = any
       case 'export-json':
         handleExport('json');
         break;
+      case 'import':
+        setImportModalOpen(true);
+        break;
+      case 'bulk-delete':
+        if (selectedIds.size > 0) {
+          setBulkDeleteConfirmOpen(true);
+        }
+        break;
       default:
         if (onCustomAction) onCustomAction(actionKey);
         break;
+    }
+  };
+
+  const handleBulkDeleteConfirm = async () => {
+    if (selectedIds.size === 0) return;
+    setBulkDeleting(true);
+    try {
+      await bulkRemove(Array.from(selectedIds));
+      setSelectedIds(new Set());
+      setSelectAllAcrossPages(false);
+    } catch (err: any) {
+      showToast('error', err?.message || t('common.deleteFailed') || 'Delete failed');
+    } finally {
+      setBulkDeleting(false);
+      setBulkDeleteConfirmOpen(false);
     }
   };
 
@@ -689,7 +874,7 @@ export default function EnterpriseMasterPage<T extends Record<string, any> = any
         handleRowClick(record);
         break;
       case 'clone':
-        const cloneData = populateFormFromRecord(allFormFields, record);
+        const cloneData = populateFormFromRecord(config.formSections, record);
         delete cloneData.code; // Force new code
         setEditingRecord(null);
         setFormData(cloneData);
@@ -705,9 +890,40 @@ export default function EnterpriseMasterPage<T extends Record<string, any> = any
   // ─── CHECKBOX HANDLING ────────────────────────────────────────────────────
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
+      // Select current page immediately, then fetch all across pages
       setSelectedIds(new Set(data.map((r) => (r as any).id)));
+      handleSelectAllAcrossPages();
     } else {
       setSelectedIds(new Set());
+      setSelectAllAcrossPages(false);
+    }
+  };
+
+  const handleSelectAllAcrossPages = async () => {
+    try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
+      const companyId = typeof window !== 'undefined' ? localStorage.getItem('selectedCompanyId') : null;
+      const headers: Record<string, string> = { 'Authorization': `Bearer ${token}` };
+      if (companyId) headers['X-Company-Id'] = companyId;
+
+      const apiBaseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api').replace(/\/api\/?$/, '');
+      const params = new URLSearchParams({ page: '1', limit: '10000' });
+      if (debouncedSearch) params.set('search', debouncedSearch);
+      if (sortField) params.set('sortBy', sortField);
+      if (sortOrder) params.set('sortOrder', sortOrder);
+      Object.entries(filterValues).forEach(([k, v]) => {
+        if (v !== undefined && v !== '') params.set(k, String(v));
+      });
+
+      const res = await fetch(`${apiBaseUrl}${config.apiEndpoint}?${params}`, { headers });
+      const json = await res.json();
+      const allData = json?.data?.data || json?.data || [];
+      const allIds = allData.map((r: any) => r.id).filter(Boolean);
+      setSelectedIds(new Set(allIds));
+      setSelectAllAcrossPages(true);
+    } catch {
+      // Fallback: just select current page
+      setSelectedIds(new Set(data.map((r) => (r as any).id)));
     }
   };
 
@@ -716,7 +932,25 @@ export default function EnterpriseMasterPage<T extends Record<string, any> = any
     if (checked) next.add(id);
     else next.delete(id);
     setSelectedIds(next);
+    setSelectAllAcrossPages(false);
   };
+
+  // ─── SEARCH HIGHLIGHT HELPER ──────────────────────────────────────────────
+  const highlightText = useCallback((text: string) => {
+    if (!debouncedSearch || !text) return text;
+    const escaped = debouncedSearch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const parts = text.split(new RegExp(`(${escaped})`, 'gi'));
+    if (parts.length <= 1) return text;
+    return (
+      <span>
+        {parts.map((part, i) =>
+          part.toLowerCase() === debouncedSearch.toLowerCase()
+            ? <mark key={i} className="bg-yellow-200 dark:bg-yellow-700/50 rounded px-0.5">{part}</mark>
+            : part
+        )}
+      </span>
+    );
+  }, [debouncedSearch]);
 
   // ─── PERMISSION CHECK ────────────────────────────────────────────────────
   const canView = hasPermission(`${config.permissionPrefix}:view`);
@@ -761,28 +995,11 @@ export default function EnterpriseMasterPage<T extends Record<string, any> = any
     gray:   'bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700',
   };
 
-  // ─── SEARCH HIGHLIGHT HELPER ──────────────────────────────────────────────
-  const highlightText = useCallback((text: string) => {
-    if (!debouncedSearch || !text) return text;
-    const escaped = debouncedSearch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const parts = text.split(new RegExp(`(${escaped})`, 'gi'));
-    if (parts.length <= 1) return text;
-    return (
-      <span>
-        {parts.map((part, i) =>
-          part.toLowerCase() === debouncedSearch.toLowerCase()
-            ? <mark key={i} className="bg-yellow-200 dark:bg-yellow-700/50 rounded px-0.5">{part}</mark>
-            : part
-        )}
-      </span>
-    );
-  }, [debouncedSearch]);
-
   // ─── RENDER ───────────────────────────────────────────────────────────────
   return (
     <MainLayout>
       <Head>
-        <title>{(config.titleKey ? t(config.titleKey) : '') || config.title} - SLMS</title>
+        <title>{config.titleKey ? t(config.titleKey, config.title) : config.title} - SLMS</title>
       </Head>
 
       <div className="space-y-4 pb-8">
@@ -815,11 +1032,11 @@ export default function EnterpriseMasterPage<T extends Record<string, any> = any
             )}
             <div>
               <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                {(config.titleKey ? t(config.titleKey) : '') || config.title}
+                {config.titleKey ? t(config.titleKey, config.title) : config.title}
               </h1>
               {(config.subtitleKey || config.subtitle) && (
                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-                  {(config.subtitleKey ? t(config.subtitleKey) : '') || config.subtitle}
+                  {config.subtitleKey ? t(config.subtitleKey, config.subtitle || '') : config.subtitle}
                 </p>
               )}
             </div>
@@ -845,10 +1062,10 @@ export default function EnterpriseMasterPage<T extends Record<string, any> = any
                 </button>
               </div>
             )}
-            <span className="text-sm text-gray-500 dark:text-gray-400">
+            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 border border-primary-200 dark:border-primary-800">
               {pagination.totalItems > 0
-                ? `${pagination.totalItems} ${t('common.records') || 'records'}`
-                : ''}
+                ? `${pagination.totalItems.toLocaleString()} ${t('common.records') || 'records'}`
+                : t('common.noRecords') || 'No records'}
             </span>
           </div>
         </div>
@@ -856,18 +1073,19 @@ export default function EnterpriseMasterPage<T extends Record<string, any> = any
         {/* ═══ STATS BAR ═══ */}
         {config.statsConfig && (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-            {config.statsConfig.cards.map((card) => (
+            {config.statsConfig.cards.map((card, idx) => (
               <div
                 key={card.key}
-                className={`rounded-xl border px-4 py-3 transition-all ${STAT_COLORS[card.color] || STAT_COLORS.gray}`}
+                className={`rounded-xl border px-4 py-3 transition-all hover:shadow-md hover:-translate-y-0.5 ${STAT_COLORS[card.color] || STAT_COLORS.gray}`}
+                style={{ animationDelay: `${idx * 80}ms` }}
               >
                 <div className="text-xs font-medium uppercase tracking-wider opacity-70 mb-1">
-                  {t(card.labelKey || '') || card.label}
+                  {card.labelKey ? t(card.labelKey, card.label) : card.label}
                 </div>
                 {statsLoading ? (
                   <div className="h-7 w-16 bg-current opacity-10 rounded animate-pulse" />
                 ) : (
-                  <div className="text-2xl font-bold">
+                  <div className="text-2xl font-bold animate-count-up">
                     {stats?.[card.valueKey] != null ? Number(stats[card.valueKey]).toLocaleString() : '—'}
                   </div>
                 )}
@@ -889,6 +1107,54 @@ export default function EnterpriseMasterPage<T extends Record<string, any> = any
           showColumnToggle={config.columns.some((c) => c.hideable !== false)}
           onToggleColumns={() => setShowColumnPicker(!showColumnPicker)}
         />
+
+        {/* ═══ SELECT ALL / BULK ACTIONS BANNER ═══ */}
+        {config.bulkOperationsEnabled && (canDelete || canEdit) && selectedIds.size > 0 && (
+          <div className="flex items-center justify-between gap-3 px-4 py-2.5 bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 rounded-lg">
+            <div className="flex items-center gap-2 text-sm text-primary-700 dark:text-primary-300">
+              <span className="font-semibold">{selectedIds.size}</span>
+              <span>{t('common.itemsSelected') || 'items selected'}</span>
+              {!selectAllAcrossPages && selectedIds.size === data.length && pagination.totalItems > data.length && (
+                <button
+                  onClick={handleSelectAllAcrossPages}
+                  className="underline font-medium hover:text-primary-900 dark:hover:text-primary-100 transition-colors"
+                >
+                  {`${t('common.selectAll') || 'Select all'} ${pagination.totalItems} ${t('common.items') || 'items'}`}
+                </button>
+              )}
+              {selectAllAcrossPages && (
+                <span className="text-xs bg-primary-100 dark:bg-primary-800 px-2 py-0.5 rounded-full">
+                  {t('common.allPagesSelected') || 'All pages selected'}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              {canDelete && (
+                <button
+                  onClick={() => setBulkDeleteConfirmOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors"
+                >
+                  <TrashIcon className="w-3.5 h-3.5" />
+                  {t('common.deleteSelected') || 'Delete Selected'}
+                </button>
+              )}
+              <button
+                onClick={() => { setSelectedIds(new Set()); setSelectAllAcrossPages(false); }}
+                className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+              >
+                {t('common.clearSelection') || 'Clear'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ═══ LOADING PROGRESS BAR ═══ */}
+        {loading && (
+          <div className="h-1 w-full bg-primary-100 dark:bg-primary-900/30 rounded-full animate-loading-bar">
+            <div className="h-full w-1/3 bg-primary-500 rounded-full"
+              style={{ animation: 'loading-shimmer 1.5s ease-in-out infinite' }} />
+          </div>
+        )}
 
         {/* ═══ COLUMN PICKER ═══ */}
         {showColumnPicker && (
@@ -930,7 +1196,7 @@ export default function EnterpriseMasterPage<T extends Record<string, any> = any
             setSearchTerm(v);
             setCurrentPage(1);
           }}
-          searchPlaceholder={`${t('common.searchIn') || 'Search in'} ${(config.titleKey ? t(config.titleKey) : '') || config.title}...`}
+          searchPlaceholder={`${t('common.searchIn', 'Search in')} ${config.titleKey ? t(config.titleKey, config.title) : config.title}...`}
           isExpanded={showFilters}
           showActiveToggle
           activeOnly={activeOnly}
@@ -958,10 +1224,14 @@ export default function EnterpriseMasterPage<T extends Record<string, any> = any
             </div>
           ) : data.length === 0 ? (
             /* Empty State */
-            <div className="text-center py-16 px-6">
-              {config.icon && (
-                <div className="mx-auto w-16 h-16 text-gray-300 dark:text-gray-600 mb-4">
+            <div className="text-center py-16 px-6" style={{ animation: 'scale-in 0.3s ease-out' }}>
+              {config.icon ? (
+                <div className="mx-auto w-20 h-20 text-gray-300 dark:text-gray-600 mb-6 opacity-60">
                   {config.icon}
+                </div>
+              ) : (
+                <div className="mx-auto w-20 h-20 mb-6 rounded-2xl bg-gradient-to-br from-gray-100 to-gray-200 dark:from-slate-700 dark:to-slate-800 flex items-center justify-center">
+                  <TableCellsIcon className="w-10 h-10 text-gray-400 dark:text-gray-500" />
                 </div>
               )}
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
@@ -972,24 +1242,36 @@ export default function EnterpriseMasterPage<T extends Record<string, any> = any
               <p className="text-gray-500 dark:text-gray-400 mt-2 max-w-sm mx-auto">
                 {searchTerm
                   ? (t('common.tryDifferentSearch') || 'Try adjusting your search or filters')
-                  : (t('common.getStarted') || `Get started by creating your first ${((config.titleKey ? t(config.titleKey) : '') || config.title).toLowerCase()}`)}
+                  : (t('common.getStarted', `Get started by creating your first ${(config.titleKey ? t(config.titleKey, config.title) : config.title).toLowerCase()}`))}
               </p>
               {!searchTerm && canCreate && (
-                <Button className="mt-4" onClick={handleOpenCreate}>
-                  <PlusIcon className="w-4 h-4 mr-2" />
-                  {t('common.createFirst') || `Create ${(config.titleKey ? t(config.titleKey) : '') || config.title}`}
-                </Button>
+                <div className="flex items-center justify-center gap-3 mt-4">
+                  <Button onClick={handleOpenCreate}>
+                    <PlusIcon className="w-4 h-4 mr-2" />
+                    {t('common.createFirst', `Create ${config.titleKey ? t(config.titleKey, config.title) : config.title}`)}
+                  </Button>
+                  <button
+                    onClick={() => setImportModalOpen(true)}
+                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg
+                      text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-900/20
+                      border border-emerald-200 dark:border-emerald-800
+                      hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors"
+                  >
+                    <ArrowUpTrayIcon className="w-4 h-4" />
+                    {t('import.importFromExcel') || 'Import from Excel'}
+                  </button>
+                </div>
               )}
             </div>
           ) : (
             /* Data Table */
             <>
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto max-h-[calc(100vh-320px)] overflow-y-auto">
                 <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                  <thead className="bg-gray-50 dark:bg-slate-900/50">
+                  <thead className="bg-gray-50 dark:bg-slate-900/50 sticky top-0 z-10">
                     <tr>
                       {/* Checkbox column */}
-                      {config.bulkOperationsEnabled && (
+                      {config.bulkOperationsEnabled && (canDelete || canEdit) && (
                         <th className="w-12 px-4 py-3">
                           <input
                             type="checkbox"
@@ -1022,7 +1304,7 @@ export default function EnterpriseMasterPage<T extends Record<string, any> = any
                         </th>
                       ))}
                       {/* Actions column */}
-                      {rowActions.length > 0 && (canEdit || canDelete) && (
+                      {rowActions.length > 0 && (
                         <th className="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 w-28">
                           {t('common.actions') || 'Actions'}
                         </th>
@@ -1039,7 +1321,7 @@ export default function EnterpriseMasterPage<T extends Record<string, any> = any
                           key={rid || rowIdx}
                           onClick={() => handleRowClick(row)}
                           className={`
-                            transition-colors animate-fadeInRow
+                            group transition-colors animate-fadeInRow
                             ${config.detailPanelEnabled ? 'cursor-pointer' : ''}
                             ${isSelected
                               ? 'bg-primary-50 dark:bg-primary-900/20'
@@ -1052,7 +1334,7 @@ export default function EnterpriseMasterPage<T extends Record<string, any> = any
                           `}
                           style={{ animationDelay: `${rowIdx * 30}ms` }}
                         >
-                          {config.bulkOperationsEnabled && (
+                          {config.bulkOperationsEnabled && (canDelete || canEdit) && (
                             <td className="w-12 px-4 py-3" onClick={(e) => e.stopPropagation()}>
                               <input
                                 type="checkbox"
@@ -1115,13 +1397,23 @@ export default function EnterpriseMasterPage<T extends Record<string, any> = any
                             );
                           })}
                           {/* Row actions */}
-                          {rowActions.length > 0 && (canEdit || canDelete) && (
+                          {rowActions.length > 0 && (
                             <td className="px-6 py-4 whitespace-nowrap text-right text-sm" onClick={(e) => e.stopPropagation()}>
-                              <div className="flex items-center justify-end gap-1">
+                              <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                                {rowActions.filter((a) => !['edit', 'delete', 'clone'].includes(a.key)).map((a) => (
+                                  <button
+                                    key={a.key}
+                                    onClick={() => handleRowAction(a.key, row)}
+                                    className="p-1.5 text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 rounded-lg hover:bg-primary-50 dark:hover:bg-slate-700 transition-all hover:scale-110"
+                                    title={t(`common.${a.key}`) || a.label}
+                                  >
+                                    <EyeIcon className="w-4 h-4" />
+                                  </button>
+                                ))}
                                 {config.detailPanelEnabled && (
                                   <button
                                     onClick={() => handleRowClick(row)}
-                                    className="p-1.5 text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+                                    className="p-1.5 text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 rounded-lg hover:bg-primary-50 dark:hover:bg-slate-700 transition-all hover:scale-110"
                                     title={t('common.view') || 'View'}
                                   >
                                     <EyeIcon className="w-4 h-4" />
@@ -1130,7 +1422,7 @@ export default function EnterpriseMasterPage<T extends Record<string, any> = any
                                 {canEdit && rowActions.some((a) => a.key === 'edit') && (
                                   <button
                                     onClick={() => handleRowAction('edit', row)}
-                                    className="p-1.5 text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+                                    className="p-1.5 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 rounded-lg hover:bg-blue-50 dark:hover:bg-slate-700 transition-all hover:scale-110"
                                     title={t('common.edit') || 'Edit'}
                                   >
                                     <PencilIcon className="w-4 h-4" />
@@ -1139,7 +1431,7 @@ export default function EnterpriseMasterPage<T extends Record<string, any> = any
                                 {canDelete && rowActions.some((a) => a.key === 'delete') && (
                                   <button
                                     onClick={() => handleRowAction('delete', row)}
-                                    className="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+                                    className="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-slate-700 transition-all hover:scale-110"
                                     title={t('common.delete') || 'Delete'}
                                   >
                                     <TrashIcon className="w-4 h-4" />
@@ -1273,7 +1565,7 @@ export default function EnterpriseMasterPage<T extends Record<string, any> = any
                       <div className="h-1 rounded-t-xl bg-transparent group-hover:bg-primary-500 transition-colors" />
                       <div className="p-4">
                         {/* Checkbox */}
-                        {config.bulkOperationsEnabled && (
+                        {config.bulkOperationsEnabled && (canDelete || canEdit) && (
                           <div className="absolute top-3 right-3" onClick={(e) => e.stopPropagation()}>
                             <input
                               type="checkbox"
@@ -1360,8 +1652,8 @@ export default function EnterpriseMasterPage<T extends Record<string, any> = any
         isOpen={modalOpen}
         onClose={handleCloseModal}
         title={editingRecord
-          ? `${t('common.edit') || 'Edit'} ${(config.titleKey ? t(config.titleKey) : '') || config.title}`
-          : `${t('common.create') || 'Create'} ${(config.titleKey ? t(config.titleKey) : '') || config.title}`
+          ? `${t('common.edit', 'Edit')} ${config.titleKey ? t(config.titleKey, config.title) : config.title}`
+          : `${t('common.create', 'Create')} ${config.titleKey ? t(config.titleKey, config.title) : config.title}`
         }
         size="lg"
       >
@@ -1395,7 +1687,7 @@ export default function EnterpriseMasterPage<T extends Record<string, any> = any
                 )}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {section.fields.map((field) => {
-                    const { visible, required, disabled } = getFieldVisibility(field, formData);
+                    const { visible, required, enabled } = getFieldVisibility(field, formData);
                     if (!visible) return null;
 
                     // Engine-level field permission check (from backend field_permissions table)
@@ -1416,7 +1708,7 @@ export default function EnterpriseMasterPage<T extends Record<string, any> = any
                     }
 
                     const colSpan = field.colSpan === 'full' ? 'md:col-span-2' : '';
-                    const isDisabled = disabled || (field.immutableAfterCreate && !!editingRecord) || submitting;
+                    const isDisabled = !enabled || (field.immutableAfterCreate && !!editingRecord) || submitting;
 
                     return (
                       <div key={field.key} className={colSpan}>
@@ -1450,17 +1742,31 @@ export default function EnterpriseMasterPage<T extends Record<string, any> = any
           setRecordToDelete(null);
         }}
         onConfirm={handleDeleteConfirm}
-        title={`${t('common.delete') || 'Delete'} ${(config.titleKey ? t(config.titleKey) : '') || config.title}`}
+        title={`${t('common.delete', 'Delete')} ${config.titleKey ? t(config.titleKey, config.title) : config.title}`}
         message={
-          deleteImpact && !deleteImpact.can_delete
-            ? ((locale === 'ar' && blockingMessageAr ? blockingMessageAr : blockingMessage) || `Cannot delete: record is referenced by other data`)
-            : deleteImpact && deleteImpact.total_references > 0
-            ? `${t('common.deleteConfirm') || 'Are you sure?'}\n\n⚠️ ${deleteImpact.total_references} reference(s) found: ${deleteImpact.references.map(r => `${r.label_en} (${r.count})`).join(', ')}`
+          !canDeleteByRef
+            ? `Cannot delete: record is referenced by other data`
+            : deleteImpactTotal > 0
+            ? `${t('common.deleteConfirm') || 'Are you sure?'}
+
+⚠️ ${deleteImpactTotal} reference(s) found: ${deleteImpactRefs.map(r => `${r.label} (${r.count})`).join(', ')}`
             : `${t('common.deleteConfirm') || 'Are you sure you want to delete this record? This action cannot be undone.'}`
         }
-        confirmText={deleteImpact && !deleteImpact.can_delete ? (t('common.close') || 'Close') : (t('common.delete') || 'Delete')}
+        confirmText={!canDeleteByRef ? (t('common.close') || 'Close') : (t('common.delete') || 'Delete')}
         variant="danger"
         loading={deleting || impactLoading}
+      />
+
+      {/* ═══ BULK DELETE CONFIRMATION ═══ */}
+      <ConfirmDialog
+        isOpen={bulkDeleteConfirmOpen}
+        onClose={() => setBulkDeleteConfirmOpen(false)}
+        onConfirm={handleBulkDeleteConfirm}
+        title={`${t('common.delete', 'Delete')} ${selectedIds.size} ${t('common.items') || 'items'}`}
+        message={`${t('common.bulkDeleteConfirm') || 'Are you sure you want to delete'} ${selectedIds.size} ${t('common.selectedRecords') || 'selected records'}? ${t('common.actionCannotBeUndone') || 'This action cannot be undone.'}`}
+        confirmText={`${t('common.delete') || 'Delete'} (${selectedIds.size})`}
+        variant="danger"
+        loading={bulkDeleting}
       />
 
       {/* ═══ DETAIL SIDE PANEL ═══ */}
@@ -1480,26 +1786,8 @@ export default function EnterpriseMasterPage<T extends Record<string, any> = any
               : buildDefaultDetailSections(selectedRecord, config, t)
           }
           relations={buildRelations ? buildRelations(selectedRecord) : []}
-          auditEntries={auditTimeline.map(entry => ({
-            id: entry.id,
-            action: entry.action as any,
-            timestamp: entry.timestamp,
-            userId: entry.user_id || 0,
-            userName: entry.user_name || entry.user_email || 'System',
-            description: entry.entry_type === 'field_change'
-              ? `Changed ${entry.field_name}: ${entry.old_value} → ${entry.new_value}`
-              : entry.entry_type === 'workflow'
-              ? `${entry.action}: ${entry.old_value} → ${entry.new_value}${entry.comment ? ` (${entry.comment})` : ''}`
-              : `${entry.action} by ${entry.user_name || entry.user_email || 'system'}`,
-            changes: entry.before_data && entry.after_data
-              ? Object.keys(entry.after_data)
-                  .filter(k => JSON.stringify(entry.before_data?.[k]) !== JSON.stringify(entry.after_data?.[k]))
-                  .reduce((acc, k) => {
-                    acc[k] = { before: entry.before_data?.[k], after: entry.after_data?.[k] };
-                    return acc;
-                  }, {} as Record<string, { before: any; after: any }>)
-              : undefined,
-          }))}
+          onRelationClick={onRelationClick ? (rel) => onRelationClick(rel, selectedRecord!) : undefined}
+          auditEntries={auditTimeline}
           loading={auditLoading}
           onEdit={canEdit ? () => {
             setDetailPanelOpen(false);
@@ -1512,6 +1800,19 @@ export default function EnterpriseMasterPage<T extends Record<string, any> = any
           permissionPrefix={config.permissionPrefix}
         />
       )}
+
+      {/* ═══ IMPORT MODAL ═══ */}
+      <ImportModal
+        isOpen={importModalOpen}
+        onClose={() => setImportModalOpen(false)}
+        apiEndpoint={config.apiEndpoint}
+        resourceName={config.resourceName || config.apiEndpoint.split('/').pop() || ''}
+        title={config.titleKey ? t(config.titleKey, config.title) : config.title}
+        onImportComplete={handleRefresh}
+        canCreate={canCreate}
+        canEdit={canEdit}
+        importEndpoint={config.importEndpoint}
+      />
     </MainLayout>
   );
 

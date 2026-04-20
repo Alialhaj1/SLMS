@@ -8,6 +8,7 @@ import React, { useState, useEffect } from 'react';
 import Input from '../../ui/Input';
 import CurrencySelector from '../../shared/CurrencySelector';
 import PaymentMethodSelector from '../../shared/PaymentMethodSelector';
+import type { PaymentBehaviorInfo } from '../../shared/PaymentMethodSelector';
 import ExchangeRateField from '../../ui/ExchangeRateField';
 import { BanknotesIcon } from '@heroicons/react/24/outline';
 import type { InvoiceFormData, PaymentTermRef } from './types';
@@ -93,30 +94,19 @@ export function InvoiceFinancials({
           paymentMethodId={formData.payment_method_id}
           bankAccountId={formData.bank_account_id}
           cashBoxId={formData.cash_box_id}
-          onPaymentMethodChange={(methodId, _type) => onFormChange({
+          chequeNumber={formData.cheque_number}
+          chequeDate={formData.cheque_date}
+          onPaymentMethodChange={(methodId, _type, _beh) => onFormChange({
             payment_method_id: methodId
           })}
           onBankAccountChange={(id) => onFormChange({ bank_account_id: id })}
           onCashBoxChange={(id) => onFormChange({ cash_box_id: id })}
+          onChequeNumberChange={(v) => onFormChange({ cheque_number: v })}
+          onChequeDateChange={(v) => onFormChange({ cheque_date: v })}
           companyId={companyId}
           locale={locale}
+          showInlineFields={true}
         />
-
-        {/* Cheque Details */}
-        <div className="grid grid-cols-2 gap-4 mt-4 bg-gray-50 dark:bg-slate-800 p-3 rounded">
-          <Input
-            label={isArabic ? 'رقم الشيك / المرجع' : 'Cheque # / Reference'}
-            value={formData.cheque_number || ''}
-            onChange={e => onFormChange({ cheque_number: e.target.value })}
-            placeholder="Ref No..."
-          />
-          <Input
-            type="date"
-            label={isArabic ? 'تاريخ الشيك' : 'Cheque Date'}
-            value={formData.cheque_date || ''}
-            onChange={e => onFormChange({ cheque_date: e.target.value })}
-          />
-        </div>
       </div>
     </div>
   );

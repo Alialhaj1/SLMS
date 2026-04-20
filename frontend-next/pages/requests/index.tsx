@@ -32,7 +32,6 @@ import Input from '../../components/ui/Input';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import { DataTablePro } from '../../components/ui/DataTablePro';
 import {
-  PlusIcon,
   MagnifyingGlassIcon,
   FunnelIcon,
   ArrowPathIcon,
@@ -47,6 +46,8 @@ import {
   ClockIcon,
   ArchiveBoxIcon,
   Squares2X2Icon,
+  BellIcon,
+  BellAlertIcon,
 } from '@heroicons/react/24/outline';
 
 type RequestTab = 
@@ -130,16 +131,70 @@ interface PaymentRequest {
 export default function RequestsPage() {
   const router = useRouter();
   const { user } = useAuth();
-  const { hasPermission, hasAnyPermission } = usePermissions();
+  const { hasAnyPermission } = usePermissions();
   const { showToast } = useToast();
   const { t, locale } = useTranslation();
 
-  const [activeTab, setActiveTab] = useState<RequestTab>('all');
+  const [activeTab, setActiveTab] = useState<RequestTab>('expense');
+
+  // Sync tab with URL query parameter
+  useEffect(() => {
+    const { tab } = router.query;
+    if (tab && typeof tab === 'string') {
+      const validTabs: RequestTab[] = ['all', 'expense', 'transfer', 'payment', 'expense_printed', 'transfer_printed', 'payment_printed', 'deleted'];
+      // Map URL-friendly names: 'printed' → 'expense_printed', 'unprinted' → 'expense'
+      let resolvedTab: RequestTab | undefined;
+      if (tab === 'printed') resolvedTab = 'expense_printed';
+      else if (tab === 'unprinted') resolvedTab = 'expense';
+      else resolvedTab = validTabs.find(t => t === tab);
+      if (resolvedTab) setActiveTab(resolvedTab);
+    }
+  }, [router.query]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
+  // Notification state
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [showNotifications, setShowNotifications] = useState(false);
+
+  // Fetch notifications
+  const fetchNotifications = async () => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      const res = await fetch('/api/users/notifications/approval?limit=20', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setNotifications(data.data || []);
+        setUnreadCount(data.unread_count || 0);
+      }
+    } catch (err) { /* silent */ }
+  };
+
+  const markNotificationsRead = async (ids?: number[]) => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      await fetch('/api/users/notifications/mark-read', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(ids ? { notification_ids: ids } : { mark_all: true }),
+      });
+      setUnreadCount(0);
+      setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+    } catch (err) { /* silent */ }
+  };
+
+  // Fetch notifications on mount and every 30 seconds
+  useEffect(() => {
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
   // All Requests State (unprinted from all types)
-  const [allRequests, setAllRequests] = useState<ExpenseRequest[]>([]);
+  const [allRequests, setAllRequests] = useState<(ExpenseRequest & { _type?: string })[]>([]);
   const [allTotal, setAllTotal] = useState(0);
   const [allPage, setAllPage] = useState(1);
   const [allLimit] = useState(50);
@@ -168,6 +223,24 @@ export default function RequestsPage() {
   const [deletedPage, setDeletedPage] = useState(1);
   const [deletedLimit] = useState(50);
 
+  // Printed Expense Requests State (separate from unprinted)
+  const [expensePrintedRequests, setExpensePrintedRequests] = useState<ExpenseRequest[]>([]);
+  const [expensePrintedTotal, setExpensePrintedTotal] = useState(0);
+  const [expensePrintedPage, setExpensePrintedPage] = useState(1);
+  const [expensePrintedLimit] = useState(50);
+
+  // Printed Transfer Requests State
+  const [transferPrintedRequests, setTransferPrintedRequests] = useState<TransferRequest[]>([]);
+  const [transferPrintedTotal, setTransferPrintedTotal] = useState(0);
+  const [transferPrintedPage, setTransferPrintedPage] = useState(1);
+  const [transferPrintedLimit] = useState(50);
+
+  // Printed Payment Requests State
+  const [paymentPrintedRequests, setPaymentPrintedRequests] = useState<PaymentRequest[]>([]);
+  const [paymentPrintedTotal, setPaymentPrintedTotal] = useState(0);
+  const [paymentPrintedPage, setPaymentPrintedPage] = useState(1);
+  const [paymentPrintedLimit] = useState(50);
+
   // Delete confirmation
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [requestToDelete, setRequestToDelete] = useState<{id: number; type: 'expense' | 'transfer' | 'payment'} | null>(null);
@@ -187,47 +260,70 @@ export default function RequestsPage() {
 
   // Permission checks
   const canViewExpenseRequests = hasAnyPermission(['expense_requests:view', 'expense_requests:manage']);
-  const canCreateExpenseRequest = hasPermission('expense_requests:create');
   const canDeleteExpenseRequest = hasAnyPermission(['expense_requests:delete', 'expense_requests:manage']);
   const canViewTransferRequests = hasAnyPermission(['transfer_requests:view', 'transfer_requests:manage']);
   const canDeleteTransferRequest = hasAnyPermission(['transfer_requests:delete', 'transfer_requests:manage']);
   const canViewPaymentRequests = hasAnyPermission(['payment_requests:view', 'payment_requests:manage']);
   const canDeletePaymentRequest = hasAnyPermission(['payment_requests:delete', 'payment_requests:manage']);
 
-  // Fetch All Expense Requests (unprinted only - for "All Requests" tab)
+  // Fetch All Requests (unprinted from all types, combined)
   const fetchAllRequests = async () => {
-    if (!canViewExpenseRequests) return;
-
     try {
       setLoading(true);
       const token = localStorage.getItem('accessToken');
-      
-      const params = new URLSearchParams({
-        page: allPage.toString(),
-        limit: allLimit.toString(),
-        is_printed: 'false',
+      const headers = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
+
+      const buildParams = () => {
+        const params = new URLSearchParams({ limit: '50' });
+        if (searchTerm) params.append('search', searchTerm);
+        if (statusFilter) params.append('status_id', statusFilter);
+        if (dateFrom) params.append('date_from', dateFrom);
+        if (dateTo) params.append('date_to', dateTo);
+        return params;
+      };
+
+      const fetches = [];
+      if (canViewExpenseRequests) fetches.push(fetch(`/api/expense-requests?${buildParams()}`, { headers }).then(async r => ({ type: 'expense', data: r.ok ? await r.json() : null })));
+      if (canViewTransferRequests) fetches.push(fetch(`/api/transfer-requests?${buildParams()}`, { headers }).then(async r => ({ type: 'transfer', data: r.ok ? await r.json() : null })));
+      if (canViewPaymentRequests) fetches.push(fetch(`/api/payment-requests?${buildParams()}`, { headers }).then(async r => ({ type: 'payment', data: r.ok ? await r.json() : null })));
+
+      const results = await Promise.allSettled(fetches);
+      const combined: (ExpenseRequest & { _type?: string })[] = [];
+
+      results.forEach(result => {
+        if (result.status !== 'fulfilled' || !result.value.data) return;
+        const { type, data } = result.value;
+        (data.data || []).forEach((r: any) => {
+          combined.push({
+            id: r.id,
+            request_number: r.request_number,
+            request_date: r.request_date || r.created_at,
+            project_name: r.project_name || '',
+            shipment_number: r.shipment_number || '',
+            expense_type_name: r.expense_type_name || '',
+            expense_type_name_ar: r.expense_type_name_ar || '',
+            vendor_name: r.vendor_name || '',
+            total_amount: parseFloat(r.total_amount || r.transfer_amount || r.payment_amount || 0),
+            currency_code: r.currency_code || '',
+            status_name: r.status_name || '',
+            status_name_ar: r.status_name_ar || '',
+            status_color: r.status_color || 'gray',
+            requested_by_name: r.requested_by_name || '',
+            is_printed: r.is_printed || false,
+            print_count: r.print_count || 0,
+            created_at: r.created_at,
+            _type: type,
+          });
+        });
       });
 
-      if (searchTerm) params.append('search', searchTerm);
-      if (statusFilter) params.append('status_id', statusFilter);
-      if (dateFrom) params.append('date_from', dateFrom);
-      if (dateTo) params.append('date_to', dateTo);
-
-      const response = await fetch(`/api/expense-requests?${params}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!response.ok) throw new Error('Failed to fetch all requests');
-
-      const data = await response.json();
-      setAllRequests(data.data || []);
-      setAllTotal(data.pagination?.total || 0);
+      // Sort by date descending
+      combined.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      setAllRequests(combined);
+      setAllTotal(combined.length);
     } catch (error: any) {
       console.error('Error fetching all requests:', error);
-      showToast(locale === 'ar' ? 'فشل في جلب الطلبات' : 'Failed to fetch requests', 'error');
+      showToast({ type: 'error', message: locale === 'ar' ? 'فشل في جلب الطلبات' : 'Failed to fetch requests' });
     } finally {
       setLoading(false);
     }
@@ -266,7 +362,7 @@ export default function RequestsPage() {
       setExpenseTotal(data.pagination?.total || 0);
     } catch (error: any) {
       console.error('Error fetching expense requests:', error);
-      showToast(t('Failed to fetch expense requests'), 'error');
+      showToast({ type: 'error', message: locale === 'ar' ? 'فشل في جلب طلبات المصاريف' : 'Failed to fetch expense requests' });
     } finally {
       setLoading(false);
     }
@@ -305,7 +401,7 @@ export default function RequestsPage() {
       setTransferTotal(data.pagination?.total || 0);
     } catch (error: any) {
       console.error('Error fetching transfer requests:', error);
-      showToast(t('Failed to fetch transfer requests'), 'error');
+      showToast({ type: 'error', message: locale === 'ar' ? 'فشل في جلب طلبات التحويل' : 'Failed to fetch transfer requests' });
     } finally {
       setLoading(false);
     }
@@ -344,38 +440,144 @@ export default function RequestsPage() {
       setPaymentTotal(data.pagination?.total || 0);
     } catch (error: any) {
       console.error('Error fetching payment requests:', error);
-      showToast(t('Failed to fetch payment requests'), 'error');
+      showToast({ type: 'error', message: locale === 'ar' ? 'فشل في جلب طلبات السداد' : 'Failed to fetch payment requests' });
     } finally {
       setLoading(false);
     }
   };
 
-  // Fetch Deleted Requests
+  // Fetch Printed Expense Requests (dedicated — avoids state conflict with unprinted tab)
+  const fetchExpensePrintedRequests = async () => {
+    if (!canViewExpenseRequests) return;
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('accessToken');
+      const params = new URLSearchParams({
+        page: expensePrintedPage.toString(),
+        limit: expensePrintedLimit.toString(),
+        is_printed: 'true',
+      });
+      if (searchTerm) params.append('search', searchTerm);
+      if (statusFilter) params.append('status_id', statusFilter);
+      if (dateFrom) params.append('date_from', dateFrom);
+      if (dateTo) params.append('date_to', dateTo);
+      const response = await fetch(`/api/expense-requests?${params}`, {
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+      });
+      if (!response.ok) throw new Error();
+      const data = await response.json();
+      setExpensePrintedRequests(data.data || []);
+      setExpensePrintedTotal(data.pagination?.total || 0);
+    } catch {
+      showToast({ type: 'error', message: locale === 'ar' ? 'فشل في جلب طلبات المصاريف السابقة' : 'Failed to fetch previous expense requests' });
+    } finally { setLoading(false); }
+  };
+
+  // Fetch Printed Transfer Requests
+  const fetchTransferPrintedRequests = async () => {
+    if (!canViewTransferRequests) return;
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('accessToken');
+      const params = new URLSearchParams({
+        page: transferPrintedPage.toString(),
+        limit: transferPrintedLimit.toString(),
+        is_printed: 'true',
+      });
+      if (searchTerm) params.append('search', searchTerm);
+      if (statusFilter) params.append('status_id', statusFilter);
+      if (dateFrom) params.append('date_from', dateFrom);
+      if (dateTo) params.append('date_to', dateTo);
+      const response = await fetch(`/api/transfer-requests?${params}`, {
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+      });
+      if (!response.ok) throw new Error();
+      const data = await response.json();
+      setTransferPrintedRequests(data.data || []);
+      setTransferPrintedTotal(data.pagination?.total || 0);
+    } catch {
+      showToast({ type: 'error', message: locale === 'ar' ? 'فشل في جلب طلبات التحويل السابقة' : 'Failed to fetch previous transfer requests' });
+    } finally { setLoading(false); }
+  };
+
+  // Fetch Printed Payment Requests
+  const fetchPaymentPrintedRequests = async () => {
+    if (!canViewPaymentRequests) return;
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('accessToken');
+      const params = new URLSearchParams({
+        page: paymentPrintedPage.toString(),
+        limit: paymentPrintedLimit.toString(),
+        is_printed: 'true',
+      });
+      if (searchTerm) params.append('search', searchTerm);
+      if (statusFilter) params.append('status_id', statusFilter);
+      if (dateFrom) params.append('date_from', dateFrom);
+      if (dateTo) params.append('date_to', dateTo);
+      const response = await fetch(`/api/payment-requests?${params}`, {
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+      });
+      if (!response.ok) throw new Error();
+      const data = await response.json();
+      setPaymentPrintedRequests(data.data || []);
+      setPaymentPrintedTotal(data.pagination?.total || 0);
+    } catch {
+      showToast({ type: 'error', message: locale === 'ar' ? 'فشل في جلب طلبات السداد السابقة' : 'Failed to fetch previous payment requests' });
+    } finally { setLoading(false); }
+  };
+
+  // Fetch Deleted Requests (all types)
   const fetchDeletedRequests = async () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('accessToken');
-      
-      const params = new URLSearchParams({
-        page: deletedPage.toString(),
-        limit: deletedLimit.toString(),
-        deleted_only: 'true',
+      const headers = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
+
+      const buildParams = () => {
+        const params = new URLSearchParams({ limit: '50', deleted_only: 'true' });
+        if (searchTerm) params.append('search', searchTerm);
+        return params;
+      };
+
+      const fetches = [];
+      if (canViewExpenseRequests) fetches.push(fetch(`/api/expense-requests?${buildParams()}`, { headers }).then(async r => ({ type: 'expense', data: r.ok ? await r.json() : null })));
+      if (canViewTransferRequests) fetches.push(fetch(`/api/transfer-requests?${buildParams()}`, { headers }).then(async r => ({ type: 'transfer', data: r.ok ? await r.json() : null })));
+      if (canViewPaymentRequests) fetches.push(fetch(`/api/payment-requests?${buildParams()}`, { headers }).then(async r => ({ type: 'payment', data: r.ok ? await r.json() : null })));
+
+      const results = await Promise.allSettled(fetches);
+      const combined: (ExpenseRequest & { _type?: string })[] = [];
+
+      results.forEach(result => {
+        if (result.status !== 'fulfilled' || !result.value.data) return;
+        const { type, data } = result.value;
+        (data.data || []).forEach((r: any) => {
+          combined.push({
+            id: r.id,
+            request_number: r.request_number,
+            request_date: r.request_date || r.created_at,
+            project_name: r.project_name || '',
+            shipment_number: r.shipment_number || '',
+            expense_type_name: r.expense_type_name || '',
+            expense_type_name_ar: r.expense_type_name_ar || '',
+            vendor_name: r.vendor_name || '',
+            total_amount: parseFloat(r.total_amount || r.transfer_amount || r.payment_amount || 0),
+            currency_code: r.currency_code || '',
+            status_name: r.status_name || '',
+            status_name_ar: r.status_name_ar || '',
+            status_color: r.status_color || 'gray',
+            requested_by_name: r.requested_by_name || '',
+            is_printed: r.is_printed || false,
+            print_count: r.print_count || 0,
+            created_at: r.created_at,
+            _type: type,
+          });
+        });
       });
 
-      if (searchTerm) params.append('search', searchTerm);
-
-      const response = await fetch(`/api/expense-requests?${params}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!response.ok) throw new Error('Failed to fetch deleted requests');
-
-      const data = await response.json();
-      setDeletedRequests(data.data || []);
-      setDeletedTotal(data.pagination?.total || 0);
+      combined.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      setDeletedRequests(combined);
+      setDeletedTotal(combined.length);
     } catch (error: any) {
       console.error('Error fetching deleted requests:', error);
     } finally {
@@ -399,13 +601,13 @@ export default function RequestsPage() {
         fetchPaymentRequests(false);
         break;
       case 'expense_printed':
-        fetchExpenseRequests(true);
+        fetchExpensePrintedRequests();
         break;
       case 'transfer_printed':
-        fetchTransferRequests(true);
+        fetchTransferPrintedRequests();
         break;
       case 'payment_printed':
-        fetchPaymentRequests(true);
+        fetchPaymentPrintedRequests();
         break;
       case 'deleted':
         fetchDeletedRequests();
@@ -423,7 +625,7 @@ export default function RequestsPage() {
   // Load data when tab changes
   useEffect(() => {
     loadTabData(activeTab);
-  }, [activeTab, allPage, expensePage, transferPage, paymentPage, deletedPage]);
+  }, [activeTab, allPage, expensePage, transferPage, paymentPage, deletedPage, expensePrintedPage, transferPrintedPage, paymentPrintedPage]);
 
   // Print and mark as printed
   const handlePrint = async (id: number, type: 'expense' | 'transfer' | 'payment') => {
@@ -451,17 +653,17 @@ export default function RequestsPage() {
       const printUrl = `/requests/${type}/${id}/print`;
       const printWindow = window.open(printUrl, '_blank');
       if (!printWindow) {
-        showToast(locale === 'ar' ? 'الرجاء السماح بالنوافذ المنبثقة' : 'Please allow popups for printing', 'warning');
+        showToast({ type: 'warning', message: locale === 'ar' ? 'الرجاء السماح بالنوافذ المنبثقة' : 'Please allow popups for printing' });
       }
 
       // Refresh current tab data
       handleRefresh();
-      showToast(locale === 'ar' ? 'تم إرسال الطلب للطباعة' : 'Request sent to print', 'success');
+      showToast({ type: 'success', message: locale === 'ar' ? 'تم إرسال الطلب للطباعة' : 'Request sent to print' });
     } catch (error) {
       // Still open print window even if marking fails
       const printUrl = `/requests/${type}/${id}/print`;
       window.open(printUrl, '_blank');
-      showToast(locale === 'ar' ? 'تم فتح نافذة الطباعة' : 'Print window opened', 'info');
+      showToast({ type: 'info', message: locale === 'ar' ? 'تم فتح نافذة الطباعة' : 'Print window opened' });
     }
   };
 
@@ -489,10 +691,10 @@ export default function RequestsPage() {
 
       if (!response.ok) throw new Error('Failed to delete request');
 
-      showToast(locale === 'ar' ? 'تم حذف الطلب' : 'Request deleted', 'success');
+      showToast({ type: 'success', message: locale === 'ar' ? 'تم حذف الطلب' : 'Request deleted' });
       handleRefresh();
     } catch (error) {
-      showToast(locale === 'ar' ? 'فشل في حذف الطلب' : 'Failed to delete request', 'error');
+      showToast({ type: 'error', message: locale === 'ar' ? 'فشل في حذف الطلب' : 'Failed to delete request' });
     } finally {
       setDeleting(false);
       setDeleteConfirmOpen(false);
@@ -524,10 +726,10 @@ export default function RequestsPage() {
 
       if (!response.ok) throw new Error('Failed to restore request');
 
-      showToast(locale === 'ar' ? 'تم استعادة الطلب' : 'Request restored', 'success');
+      showToast({ type: 'success', message: locale === 'ar' ? 'تم استعادة الطلب' : 'Request restored' });
       handleRefresh();
     } catch (error) {
-      showToast(locale === 'ar' ? 'فشل في استعادة الطلب' : 'Failed to restore request', 'error');
+      showToast({ type: 'error', message: locale === 'ar' ? 'فشل في استعادة الطلب' : 'Failed to restore request' });
     } finally {
       setRestoring(false);
       setRestoreConfirmOpen(false);
@@ -555,14 +757,14 @@ export default function RequestsPage() {
 
   // Tab definitions
   const tabs = [
-    { key: 'all' as RequestTab, label: locale === 'ar' ? 'جميع الطلبات' : 'All Requests', icon: Squares2X2Icon, show: canViewExpenseRequests },
-    { key: 'expense' as RequestTab, label: locale === 'ar' ? 'طلبات المصاريف' : 'Expense Requests', icon: DocumentTextIcon, show: canViewExpenseRequests },
-    { key: 'transfer' as RequestTab, label: locale === 'ar' ? 'طلبات التحويل' : 'Transfer Requests', icon: BanknotesIcon, show: canViewTransferRequests },
-    { key: 'payment' as RequestTab, label: locale === 'ar' ? 'طلبات السداد' : 'Payment Requests', icon: CreditCardIcon, show: canViewPaymentRequests },
-    { key: 'expense_printed' as RequestTab, label: locale === 'ar' ? 'طلبات المصاريف السابقة' : 'Previous Expense Requests', icon: ClockIcon, show: canViewExpenseRequests },
-    { key: 'transfer_printed' as RequestTab, label: locale === 'ar' ? 'طلبات التحويل السابقة' : 'Previous Transfer Requests', icon: ClockIcon, show: canViewTransferRequests },
-    { key: 'payment_printed' as RequestTab, label: locale === 'ar' ? 'طلبات السداد السابقة' : 'Previous Payment Requests', icon: ClockIcon, show: canViewPaymentRequests },
-    { key: 'deleted' as RequestTab, label: locale === 'ar' ? 'المحذوفة' : 'Deleted', icon: ArchiveBoxIcon, show: canViewExpenseRequests || canViewTransferRequests || canViewPaymentRequests },
+    { key: 'all' as RequestTab, label: locale === 'ar' ? 'جميع الطلبات' : 'All Requests', icon: Squares2X2Icon, count: allTotal, show: canViewExpenseRequests || canViewTransferRequests || canViewPaymentRequests },
+    { key: 'expense' as RequestTab, label: locale === 'ar' ? 'طلبات المصاريف' : 'Expense Requests', icon: DocumentTextIcon, count: expenseTotal, show: canViewExpenseRequests },
+    { key: 'transfer' as RequestTab, label: locale === 'ar' ? 'طلبات التحويل' : 'Transfer Requests', icon: BanknotesIcon, count: transferTotal, show: canViewTransferRequests },
+    { key: 'payment' as RequestTab, label: locale === 'ar' ? 'طلبات السداد' : 'Payment Requests', icon: CreditCardIcon, count: paymentTotal, show: canViewPaymentRequests },
+    { key: 'expense_printed' as RequestTab, label: locale === 'ar' ? 'طلبات المصاريف السابقة' : 'Previous Expense Requests', icon: ClockIcon, count: expensePrintedTotal, show: canViewExpenseRequests },
+    { key: 'transfer_printed' as RequestTab, label: locale === 'ar' ? 'طلبات التحويل السابقة' : 'Previous Transfer Requests', icon: ClockIcon, count: transferPrintedTotal, show: canViewTransferRequests },
+    { key: 'payment_printed' as RequestTab, label: locale === 'ar' ? 'طلبات السداد السابقة' : 'Previous Payment Requests', icon: ClockIcon, count: paymentPrintedTotal, show: canViewPaymentRequests },
+    { key: 'deleted' as RequestTab, label: locale === 'ar' ? 'المحذوفة' : 'Deleted', icon: ArchiveBoxIcon, count: deletedTotal, show: canViewExpenseRequests || canViewTransferRequests || canViewPaymentRequests },
   ];
 
   // Common columns for expense requests
@@ -924,10 +1126,63 @@ export default function RequestsPage() {
               {locale === 'ar' ? 'طلباتي' : 'My Requests'}
             </h1>
             <p className="text-gray-600 dark:text-gray-400 mt-1">
-              {locale === 'ar' ? 'إدارة جميع طلباتك في مكان واحد' : 'Manage all your requests in one place'}
+              {locale === 'ar' ? 'إدارة ومتابعة جميع الطلبات والموافقات' : 'Manage and track all requests & approvals'}
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center">
+            {/* Notification Bell */}
+            <div className="relative">
+              <button
+                onClick={() => { setShowNotifications(!showNotifications); if (!showNotifications && unreadCount > 0) markNotificationsRead(); }}
+                className="relative p-2 rounded-lg text-gray-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
+                title={locale === 'ar' ? 'الإشعارات' : 'Notifications'}
+              >
+                {unreadCount > 0 ? <BellAlertIcon className="w-6 h-6 text-blue-600" /> : <BellIcon className="w-6 h-6" />}
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-5 h-5 flex items-center justify-center rounded-full font-bold">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+              </button>
+              {showNotifications && (
+                <div className="absolute right-0 top-full mt-2 w-80 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-xl z-50 max-h-96 overflow-y-auto">
+                  <div className="p-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                    <h3 className="font-semibold text-gray-900 dark:text-white text-sm">
+                      {locale === 'ar' ? 'الإشعارات' : 'Notifications'}
+                    </h3>
+                    {notifications.length > 0 && (
+                      <button onClick={() => markNotificationsRead()} className="text-xs text-blue-600 hover:underline">
+                        {locale === 'ar' ? 'قراءة الكل' : 'Mark all read'}
+                      </button>
+                    )}
+                  </div>
+                  {notifications.length === 0 ? (
+                    <div className="p-6 text-center text-gray-400 text-sm">
+                      {locale === 'ar' ? 'لا توجد إشعارات' : 'No notifications'}
+                    </div>
+                  ) : notifications.map((n: any) => (
+                    <button key={n.id}
+                      onClick={() => {
+                        setShowNotifications(false);
+                        if (n.request_type && n.request_id) router.push(`/requests/${n.request_type}/${n.request_id}`);
+                      }}
+                      className={`w-full text-start p-3 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors ${!n.is_read ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''}`}>
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">
+                        {locale === 'ar' ? n.title_ar : n.title}
+                      </p>
+                      {(n.message || n.message_ar) && (
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                          {locale === 'ar' ? n.message_ar : n.message}
+                        </p>
+                      )}
+                      <p className="text-xs text-gray-400 mt-1">
+                        {new Date(n.created_at).toLocaleDateString(locale === 'ar' ? 'ar-SA' : 'en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             <Button
               variant="secondary"
               onClick={() => setShowFilters(!showFilters)}
@@ -943,15 +1198,6 @@ export default function RequestsPage() {
               <ArrowPathIcon className="w-5 h-5" />
               {locale === 'ar' ? 'تحديث' : 'Refresh'}
             </Button>
-            {(activeTab === 'expense' || activeTab === 'expense_printed') && canCreateExpenseRequest && (
-              <Button
-                variant="primary"
-                onClick={() => router.push('/requests/expense/create')}
-              >
-                <PlusIcon className="w-5 h-5" />
-                {locale === 'ar' ? 'طلب مصروف جديد' : 'New Expense Request'}
-              </Button>
-            )}
           </div>
         </div>
 
@@ -1005,6 +1251,15 @@ export default function RequestsPage() {
               >
                 <tab.icon className="w-5 h-5" />
                 {tab.label}
+                {tab.count > 0 && (
+                  <span className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-bold ${
+                    activeTab === tab.key
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
+                  }`}>
+                    {tab.count > 99 ? '99+' : tab.count}
+                  </span>
+                )}
               </button>
             ))}
           </nav>
@@ -1015,8 +1270,34 @@ export default function RequestsPage() {
           {/* All Requests Tab (Unprinted from all types) */}
           {activeTab === 'all' && (
             <DataTablePro
-              keyExtractor={(row) => row.id}
-              columns={getExpenseColumns(true, false)}
+              keyExtractor={(row) => `${row._type}-${row.id}`}
+              columns={[
+                {
+                  label: locale === 'ar' ? 'النوع' : 'Type',
+                  key: '_type',
+                  render: (row: any) => {
+                    const typeMap: Record<string, { label: string; labelAr: string; color: string }> = {
+                      expense: { label: 'Expense', labelAr: 'مصروف', color: 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' },
+                      transfer: { label: 'Transfer', labelAr: 'تحويل', color: 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400' },
+                      payment: { label: 'Payment', labelAr: 'سداد', color: 'bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' },
+                    };
+                    const t = typeMap[row._type] || typeMap.expense;
+                    return <span className={`px-2 py-1 rounded text-xs font-medium ${t.color}`}>{locale === 'ar' ? t.labelAr : t.label}</span>;
+                  },
+                },
+                ...getExpenseColumns(true, false).map(col => {
+                  if (col.key === 'request_number') {
+                    return {
+                      ...col,
+                      render: (row: any) => (
+                        <Link href={`/requests/${row._type || 'expense'}/${row.id}`}
+                          className="text-blue-600 dark:text-blue-400 hover:underline font-medium">{row.request_number}</Link>
+                      ),
+                    };
+                  }
+                  return col;
+                }),
+              ]}
               data={allRequests}
               loading={loading}
               pagination={{
@@ -1044,18 +1325,18 @@ export default function RequestsPage() {
             />
           )}
 
-          {/* Expense Requests Tab (Printed) */}
+          {/* Expense Requests Tab (Printed / Previous) */}
           {activeTab === 'expense_printed' && (
             <DataTablePro
               keyExtractor={(row) => row.id}
               columns={getExpenseColumns(true, false)}
-              data={expenseRequests}
+              data={expensePrintedRequests}
               loading={loading}
               pagination={{
-                page: expensePage,
-                pageSize: expenseLimit,
-                total: expenseTotal,
-                onPageChange: setExpensePage,
+                page: expensePrintedPage,
+                pageSize: expensePrintedLimit,
+                total: expensePrintedTotal,
+                onPageChange: setExpensePrintedPage,
               }}
             />
           )}
@@ -1076,18 +1357,18 @@ export default function RequestsPage() {
             />
           )}
 
-          {/* Transfer Requests Tab (Printed) */}
+          {/* Transfer Requests Tab (Printed / Previous) */}
           {activeTab === 'transfer_printed' && (
             <DataTablePro
               keyExtractor={(row) => row.id}
               columns={getTransferColumns(true, false)}
-              data={transferRequests}
+              data={transferPrintedRequests}
               loading={loading}
               pagination={{
-                page: transferPage,
-                pageSize: transferLimit,
-                total: transferTotal,
-                onPageChange: setTransferPage,
+                page: transferPrintedPage,
+                pageSize: transferPrintedLimit,
+                total: transferPrintedTotal,
+                onPageChange: setTransferPrintedPage,
               }}
             />
           )}
@@ -1108,18 +1389,18 @@ export default function RequestsPage() {
             />
           )}
 
-          {/* Payment Requests Tab (Printed) */}
+          {/* Payment Requests Tab (Printed / Previous) */}
           {activeTab === 'payment_printed' && (
             <DataTablePro
               keyExtractor={(row) => row.id}
               columns={getPaymentColumns(true, false)}
-              data={paymentRequests}
+              data={paymentPrintedRequests}
               loading={loading}
               pagination={{
-                page: paymentPage,
-                pageSize: paymentLimit,
-                total: paymentTotal,
-                onPageChange: setPaymentPage,
+                page: paymentPrintedPage,
+                pageSize: paymentPrintedLimit,
+                total: paymentPrintedTotal,
+                onPageChange: setPaymentPrintedPage,
               }}
             />
           )}
@@ -1127,8 +1408,23 @@ export default function RequestsPage() {
           {/* Deleted Requests Tab */}
           {activeTab === 'deleted' && (
             <DataTablePro
-              keyExtractor={(row) => `deleted-${row.id}`}
-              columns={getExpenseColumns(false, true)}
+              keyExtractor={(row) => `deleted-${row._type}-${row.id}`}
+              columns={[
+                {
+                  label: locale === 'ar' ? 'النوع' : 'Type',
+                  key: '_type',
+                  render: (row: any) => {
+                    const typeMap: Record<string, { label: string; labelAr: string; color: string }> = {
+                      expense: { label: 'Expense', labelAr: 'مصروف', color: 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' },
+                      transfer: { label: 'Transfer', labelAr: 'تحويل', color: 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400' },
+                      payment: { label: 'Payment', labelAr: 'سداد', color: 'bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' },
+                    };
+                    const t = typeMap[row._type] || typeMap.expense;
+                    return <span className={`px-2 py-1 rounded text-xs font-medium ${t.color}`}>{locale === 'ar' ? t.labelAr : t.label}</span>;
+                  },
+                },
+                ...getExpenseColumns(false, true),
+              ]}
               data={deletedRequests}
               loading={loading}
               pagination={{

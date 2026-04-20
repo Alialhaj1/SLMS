@@ -64,7 +64,7 @@ export default function InventoryLedgerPage() {
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [adjustForm, setAdjustForm] = useState<AdjustmentForm>({ itemId: '', warehouseId: null, quantityDelta: '', notes: '' });
 
-  const apiUrl = (process.env.NEXT_PUBLIC_API_URL || '') + '/api';
+  const apiUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api').replace(/\/api\/?$/, '') + '/api';
 
   const parseApiError = async (res: Response) => {
     try {

@@ -16,6 +16,9 @@ interface EnvConfig {
   // Database
   DATABASE_URL: string;
   
+  // Redis
+  REDIS_URL: string;
+  
   // JWT
   JWT_SECRET: string;
   JWT_ACCESS_EXPIRATION: string;
@@ -28,6 +31,24 @@ interface EnvConfig {
   
   // CORS
   CORS_ORIGINS: string[];
+
+  // Payment Gateways (optional — e-commerce)
+  STRIPE_SECRET_KEY: string;
+  STRIPE_WEBHOOK_SECRET: string;
+  STRIPE_PUBLISHABLE_KEY: string;
+  PAYPAL_CLIENT_ID: string;
+  PAYPAL_CLIENT_SECRET: string;
+  PAYPAL_WEBHOOK_ID: string;
+  PAYPAL_SANDBOX: boolean;
+  MADA_API_KEY: string;
+  MADA_WEBHOOK_SECRET: string;
+
+  // Email (optional)
+  SMTP_HOST: string;
+  SMTP_PORT: number;
+  SMTP_USER: string;
+  SMTP_PASS: string;
+  SMTP_FROM: string;
 }
 
 /**
@@ -76,19 +97,40 @@ function validateEnv(): EnvConfig {
     
     // Database
     DATABASE_URL: DATABASE_URL!,
+
+    // Redis
+    REDIS_URL: process.env.REDIS_URL || 'redis://redis:6379',
     
     // JWT
     JWT_SECRET: JWT_SECRET!,
     JWT_ACCESS_EXPIRATION: process.env.JWT_ACCESS_EXPIRATION || '15m',
-    JWT_REFRESH_EXPIRATION: process.env.JWT_REFRESH_EXPIRATION || '30d',
+    JWT_REFRESH_EXPIRATION: process.env.JWT_REFRESH_EXPIRATION || '7d',
     
     // Security
-    BCRYPT_ROUNDS: parseInt(process.env.BCRYPT_ROUNDS || '10', 10),
+    BCRYPT_ROUNDS: parseInt(process.env.BCRYPT_ROUNDS || '12', 10),
     RATE_LIMIT_WINDOW_MS: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000', 10), // 15 min
     RATE_LIMIT_MAX_REQUESTS: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '5', 10),
     
     // CORS
     CORS_ORIGINS,
+
+    // Payment Gateways (all optional — only needed for e-commerce)
+    STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY || '',
+    STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET || '',
+    STRIPE_PUBLISHABLE_KEY: process.env.STRIPE_PUBLISHABLE_KEY || '',
+    PAYPAL_CLIENT_ID: process.env.PAYPAL_CLIENT_ID || '',
+    PAYPAL_CLIENT_SECRET: process.env.PAYPAL_CLIENT_SECRET || '',
+    PAYPAL_WEBHOOK_ID: process.env.PAYPAL_WEBHOOK_ID || '',
+    PAYPAL_SANDBOX: process.env.PAYPAL_SANDBOX !== 'false',
+    MADA_API_KEY: process.env.MADA_API_KEY || '',
+    MADA_WEBHOOK_SECRET: process.env.MADA_WEBHOOK_SECRET || '',
+
+    // Email (optional)
+    SMTP_HOST: process.env.SMTP_HOST || '',
+    SMTP_PORT: parseInt(process.env.SMTP_PORT || '587', 10),
+    SMTP_USER: process.env.SMTP_USER || '',
+    SMTP_PASS: process.env.SMTP_PASS || '',
+    SMTP_FROM: process.env.SMTP_FROM || 'noreply@example.com',
   };
 }
 

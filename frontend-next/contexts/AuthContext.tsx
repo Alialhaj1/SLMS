@@ -14,6 +14,7 @@ import { useToast } from './ToastContext';
 
 interface AuthContextType {
   user: UserProfile | null;
+  token: string | null;
   loading: boolean;
   /** True once the fresh profile from /api/me has been loaded (not just cached user) */
   profileReady: boolean;
@@ -49,6 +50,9 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 // ===========================
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  // SSR-safe defaults: both server and client start with the same values
+  // so React hydration matches. loadUser() then reads from localStorage
+  // synchronously (one frame) before doing the background API refresh.
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [profileReady, setProfileReady] = useState(false);
@@ -63,35 +67,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!authService.isAuthenticated()) {
         setUser(null);
         setProfileReady(true);
+        setLoading(false);
         return;
       }
-      // Prefer cached user first to avoid hard-failing when /api/me is unavailable
+      // Step 1: Synchronously read cached user from localStorage.
+      // setUser + setProfileReady + setLoading are batched by React into
+      // a single re-render, giving the page its auth state in ONE frame.
       const cachedUserRaw = typeof window !== 'undefined' ? localStorage.getItem('user') : null;
       if (cachedUserRaw) {
         try {
           const cachedUser = JSON.parse(cachedUserRaw) as UserProfile;
           setUser(cachedUser);
+          setProfileReady(true);
+          setLoading(false);
         } catch (e) {
           localStorage.removeItem('user');
         }
       }
 
-      // Try to refresh user from API; tolerate 404 by keeping cached user
+      // Step 2: Background API refresh. Only update state if profile data
+      // actually changed, to avoid cascading re-renders through the
+      // permission/menu/sidebar chain.
       try {
         const profile = await authService.getProfile();
-        setUser(profile);
+        setUser(prev => {
+          if (prev && JSON.stringify(prev) === JSON.stringify(profile)) return prev;
+          return profile;
+        });
         setProfileReady(true);
         if (typeof window !== 'undefined') {
           localStorage.setItem('user', JSON.stringify(profile));
         }
       } catch (err: any) {
         console.error('Failed to load user profile:', err);
-        // If API missing, keep cached user; otherwise clear auth
         if (!cachedUserRaw) {
           setUser(null);
           authService.clearLocalAuth();
         }
-        // Even on failure, mark profile as ready so permission guards can proceed
         setProfileReady(true);
       }
     } catch (error) {
@@ -106,6 +118,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     loadUser();
+  }, [loadUser]);
+
+  // Listen for auth:login events from components that login outside AuthContext
+  useEffect(() => {
+    const handleAuthLogin = () => {
+      loadUser();
+    };
+    window.addEventListener('auth:login', handleAuthLogin);
+    return () => window.removeEventListener('auth:login', handleAuthLogin);
   }, [loadUser]);
 
   /**
@@ -214,9 +235,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(null);
       setProfileReady(false);
       authService.clearLocalAuth();
-      router.push('/');
+
+      if (typeof window !== 'undefined') {
+        window.location.assign('/auth/login');
+      }
     }
-  }, [router]);
+  }, []);
 
   /**
    * Change password
@@ -233,7 +257,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         confirm_password: confirmPassword
       });
 
-      showToast('Password changed successfully. Please login again.', 'success');
+      showToast({
+        type: 'success',
+        message: 'Password changed successfully. Please login again.',
+      });
 
       // Logout and redirect to login
       setTimeout(() => {
@@ -244,7 +271,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const errorMessage = error?.response?.data?.error?.message || 
                           error?.message || 
                           'Failed to change password';
-      showToast(errorMessage, 'error');
+      showToast({
+        type: 'error',
+        message: errorMessage,
+      });
       throw error;
     }
   }, [showToast, logout]);
@@ -263,6 +293,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const value: AuthContextType = {
     user,
+    token: authService.getAccessToken(),
     loading,
     profileReady,
     isAuthenticated: !!user && authService.isAuthenticated(),

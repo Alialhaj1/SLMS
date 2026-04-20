@@ -11,6 +11,7 @@
  */
 
 import React, { useEffect, useState, useCallback } from 'react';
+import { useRouter } from 'next/router';
 import { withPermission } from '../../utils/withPermission';
 import { MenuPermissions } from '@/config/menu.permissions';
 import EnterpriseMasterPage from '@/components/enterprise/EnterpriseMasterPage';
@@ -20,6 +21,7 @@ import { companyStore } from '@/lib/companyStore';
 type RefOption = { value: any; label: string };
 
 function VendorsPage() {
+  const router = useRouter();
   const [companiesRef, setCompaniesRef] = useState<RefOption[]>([]);
   const [countriesRef, setCountriesRef] = useState<RefOption[]>([]);
   const [citiesRef, setCitiesRef] = useState<RefOption[]>([]);
@@ -46,7 +48,7 @@ function VendorsPage() {
         { url: `${apiUrl}/api/master/companies?limit=500`,                  setter: setCompaniesRef,          fmt: (c: any) => ({ value: c.id, label: `${c.name} (${c.code})` }) },
         { url: `${apiUrl}/api/master/countries?limit=500&is_active=true`,   setter: setCountriesRef,          fmt: (c: any) => ({ value: c.id, label: `${c.flag || ''} ${c.name} (${c.code})`.trim() }) },
         { url: `${apiUrl}/api/master/cities?limit=1000&is_active=true`,     setter: setCitiesRef,             fmt: (c: any) => ({ value: c.id, label: `${c.name}${c.code ? ' (' + c.code + ')' : ''}` }) },
-        { url: `${apiUrl}/api/master/currencies?limit=500&is_active=true`,  setter: setCurrenciesRef,         fmt: (c: any) => ({ value: c.id, label: `${c.code} — ${c.name}` }) },
+        { url: `${apiUrl}/api/finance/currencies?is_active=true`,  setter: setCurrenciesRef,         fmt: (c: any) => ({ value: c.id, label: `${c.code} — ${c.name}` }) },
         { url: `${apiUrl}/api/master/languages?limit=500&is_active=true`,   setter: setLanguagesRef,          fmt: (c: any) => ({ value: c.id, label: `${c.name}${c.native_name ? ' / ' + c.native_name : ''}` }) },
         { url: `${apiUrl}/api/master/supplier-types?limit=500`,             setter: setSupplierTypesRef,      fmt: (c: any) => ({ value: c.id, label: c.name }) },
         { url: `${apiUrl}/api/master/supplier-categories?limit=500`,        setter: setSupplierCategoriesRef, fmt: (c: any) => ({ value: c.id, label: c.name }) },
@@ -55,14 +57,17 @@ function VendorsPage() {
         { url: `${apiUrl}/api/master/delivery-terms?limit=500`,             setter: setDeliveryTermsRef,      fmt: (c: any) => ({ value: c.id, label: `${c.incoterm_code || c.code || ''} — ${c.name}`.replace(/^ — /, '') }) },
       ];
 
-      const responses = await Promise.all(endpoints.map(e => fetch(e.url, { headers })));
-
-      for (let i = 0; i < responses.length; i++) {
-        if (responses[i].ok) {
-          const json = await responses[i].json();
-          const items = json.data || json || [];
-          endpoints[i].setter(items.map(endpoints[i].fmt));
-        }
+      // Fetch sequentially to avoid ERR_INSUFFICIENT_RESOURCES
+      for (const ep of endpoints) {
+        try {
+          const response = await fetch(ep.url, { headers });
+          if (response.ok) {
+            const json = await response.json();
+            const raw = json.data?.data || json.data || json.items || json || [];
+            const items = Array.isArray(raw) ? raw : [];
+            ep.setter(items.map(ep.fmt));
+          }
+        } catch { /* ignore individual failures */ }
       }
     } catch (err) {
       console.error('Failed to load vendor reference data:', err);
@@ -99,6 +104,11 @@ function VendorsPage() {
   return (
     <EnterpriseMasterPage<Vendor>
       config={vendorsConfig}
+      onCustomAction={(actionKey, record) => {
+        if (actionKey === 'details' && record) {
+          router.push(`/master/vendors/${(record as any).id}`);
+        }
+      }}
       referenceData={{
         company_id: companiesRef,
         country_id: countriesRef,

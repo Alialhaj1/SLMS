@@ -1,1 +1,143 @@
-﻿test
+═══ §2 Platform Admin Management Tests ═══
+
+  Logged in as superadmin@slms.sa
+
+
+╔══════════════════════════════════════╗
+║  §2.1 — Dashboard Tests (D01-D08)    ║
+╚══════════════════════════════════════╝
+
+  ✅ D01: Dashboard: 200 (10ms)
+  ✅ D02: Tenants: total=6 active=6 trial=0 suspended=0
+  ✅ D03: Users: total=12 active=12 platform=3
+  ✅ D04: Tenant analytics: 200 — 6 tenants
+  ✅ D05: System health: 200 — DB size=104 MB
+  ✅ D06: Dashboard idempotent: 200 (3ms)
+  ✅ D07: Available modules: 200 — 19 modules
+  ✅ D08: Security analytics: 200
+
+╔══════════════════════════════════════════╗
+║  §2.2 — Tenant Creation (TC01-TC10)      ║
+╚══════════════════════════════════════════╝
+
+  ✅ TC01: Wizard modules: 200 — 19 modules
+  ✅ TC02: Step 1 validation: 200 — valid=true
+  ✅ TC03: Duplicate code rejected: 400 — Company code already exists
+  ✅ TC04: Step 2 validation: 200 — valid=true
+  ✅ TC05: Duplicate email rejected: 400 — Email already in use by another account
+  ✅ TC06: Missing code rejected: 400 — Company code is required
+  ✅ TC07: Full creation: 201 — WIZ-MMHQ3
+  ❌ TC08: DB verify: NOT FOUND
+  ❌ TC09: Seed data: admin user NOT FOUND
+  ⚠️ TC10: Welcome email: Not testable (no SMTP in dev)
+
+╔══════════════════════════════════════════╗
+║  §2.3 — Tenant CRUD (TC11-TC20)          ║
+╚══════════════════════════════════════════╝
+
+  [info] DARKHAWLAN company id=13 code=DARKHAWLAN
+  [info] ALHCO company id=1 code=ALHCO
+
+  ✅ TC11: List: 200 — 4 tenants
+  ✅ TC12: Search DARKHAWLAN: 200 — found=true
+  ✅ TC13: Filter active: 200 — 4 results, all active=true
+  ❌ TC14: Stats: 200 — total=0 active=0
+  ✅ TC15: Update DARKHAWLAN (id=13): 200
+  ✅ TC16: Suspend ALHCO: 200 — status=suspended
+  ❌ TC16b: Login after suspend: 200 — blocked=false msg=
+  ✅ TC17: Activate ALHCO: 200 — status=active
+  ✅ TC17b: Login after reactivate: 200
+  ❌ TC18: Temp create failed: 500 — duplicate key value violates unique constraint "tenants_domain_key"
+  ❌ TC18b: Skipped
+  ✅ TC19: Audit logs: 1 tenant-related entries
+  ⚠️ TC20: Data export: Frontend-only feature
+
+╔══════════════════════════════════════════╗
+║  §2.4 — Module Management (TM01-TM06)    ║
+╚══════════════════════════════════════════╝
+
+  ✅ TM01: List modules: 200 — 19 modules
+    Sample: auth, companies, core, expenses, platform
+  ⚠️ TM02: Module detail (shipments): 200
+  ✅ TM03: Deactivate expenses: 200
+  ✅ TM04: Enable expenses for tenant 8: 200
+  ✅ TM05: Disable expenses for tenant 8: 200
+  ✅ TM06: Core module disable blocked: 400 — Core modules cannot be disabled
+
+╔══════════════════════════════════════════╗
+║  §2.5 — Impersonation (IMP01-IMP07)      ║
+╚══════════════════════════════════════════╝
+
+  [info] Target user: id=22 email=del.1772972374907@test.com tenant=10
+
+  ✅ IMP01: Start impersonation: 200
+  ✅ IMP02: Token scope: type=impersonation impersonated_by=11
+  ✅ IMP03: Impersonated /api/me: 200
+  ❌ IMP04: End impersonation: 403
+  ✅ IMP05: Impersonation logs: 200 — 0 entries
+  ✅ IMP06: Active sessions: 200 — 0 active
+  ✅ IMP07: Non-platform user blocked: 403
+
+╔══════════════════════════════════════════════╗
+║            §2 TEST SUMMARY                    ║
+╚══════════════════════════════════════════════╝
+
+  PASS: 34  |  FAIL: 7  |  N/A: 3  |  TOTAL: 44
+
+  ┌─────────┬────────┬──────────────────────────────────────────────┐
+  │ Test ID │ Result │ Detail                                       │
+  ├─────────┼────────┼──────────────────────────────────────────────┤
+  │ D01     │ PASS   │ Dashboard: 200 (10ms)                        │
+  │ D02     │ PASS   │ Tenants: total=6 active=6 trial=0 suspend... │
+  │ D03     │ PASS   │ Users: total=12 active=12 platform=3         │
+  │ D04     │ PASS   │ Tenant analytics: 200 — 6 tenants            │
+  │ D05     │ PASS   │ System health: 200 — DB size=104 MB          │
+  │ D06     │ PASS   │ Dashboard idempotent: 200 (3ms)              │
+  │ D07     │ PASS   │ Available modules: 200 — 19 modules          │
+  │ D08     │ PASS   │ Security analytics: 200                      │
+  │ TC01    │ PASS   │ Wizard modules: 200 — 19 modules             │
+  │ TC02    │ PASS   │ Step 1 validation: 200 — valid=true          │
+  │ TC03    │ PASS   │ Duplicate code rejected: 400 — Company co... │
+  │ TC04    │ PASS   │ Step 2 validation: 200 — valid=true          │
+  │ TC05    │ PASS   │ Duplicate email rejected: 400 — Email alr... │
+  │ TC06    │ PASS   │ Missing code rejected: 400 — Company code... │
+  │ TC07    │ PASS   │ Full creation: 201 — WIZ-MMHQ3               │
+  │ TC08    │ FAIL   │ DB verify: NOT FOUND                         │
+  │ TC09    │ FAIL   │ Seed data: admin user NOT FOUND              │
+  │ TC10    │ N/A    │ Welcome email: Not testable (no SMTP in dev) │
+  │ TC11    │ PASS   │ List: 200 — 4 tenants                        │
+  │ TC12    │ PASS   │ Search DARKHAWLAN: 200 — found=true          │
+  │ TC13    │ PASS   │ Filter active: 200 — 4 results, all activ... │
+  │ TC14    │ FAIL   │ Stats: 200 — total=0 active=0                │
+  │ TC15    │ PASS   │ Update DARKHAWLAN (id=13): 200               │
+  │ TC16    │ PASS   │ Suspend ALHCO: 200 — status=suspended        │
+  │ TC16b   │ FAIL   │ Login after suspend: 200 — blocked=false ... │
+  │ TC17    │ PASS   │ Activate ALHCO: 200 — status=active          │
+  │ TC17b   │ PASS   │ Login after reactivate: 200                  │
+  │ TC18    │ FAIL   │ Temp create failed: 500 — duplicate key v... │
+  │ TC18b   │ FAIL   │ Skipped                                      │
+  │ TC19    │ PASS   │ Audit logs: 1 tenant-related entries         │
+  │ TC20    │ N/A    │ Data export: Frontend-only feature           │
+  │ TM01    │ PASS   │ List modules: 200 — 19 modules               │
+  │ TM02    │ N/A    │ Module detail (shipments): 200               │
+  │ TM03    │ PASS   │ Deactivate expenses: 200                     │
+  │ TM04    │ PASS   │ Enable expenses for tenant 8: 200            │
+  │ TM05    │ PASS   │ Disable expenses for tenant 8: 200           │
+  │ TM06    │ PASS   │ Core module disable blocked: 400 — Core m... │
+  │ IMP01   │ PASS   │ Start impersonation: 200                     │
+  │ IMP02   │ PASS   │ Token scope: type=impersonation impersona... │
+  │ IMP03   │ PASS   │ Impersonated /api/me: 200                    │
+  │ IMP04   │ FAIL   │ End impersonation: 403                       │
+  │ IMP05   │ PASS   │ Impersonation logs: 200 — 0 entries          │
+  │ IMP06   │ PASS   │ Active sessions: 200 — 0 active              │
+  │ IMP07   │ PASS   │ Non-platform user blocked: 403               │
+  └─────────┴────────┴──────────────────────────────────────────────┘
+
+  ── Failed Tests ──
+  ❌ TC08: DB verify: NOT FOUND
+  ❌ TC09: Seed data: admin user NOT FOUND
+  ❌ TC14: Stats: 200 — total=0 active=0
+  ❌ TC16b: Login after suspend: 200 — blocked=false msg=
+  ❌ TC18: Temp create failed: 500 — duplicate key value violates unique constraint "tenants_domain_key"
+  ❌ TC18b: Skipped
+  ❌ IMP04: End impersonation: 403

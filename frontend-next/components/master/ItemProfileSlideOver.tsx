@@ -286,7 +286,7 @@ export default function ItemProfileSlideOver({ itemId, isOpen, onClose }: ItemPr
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
             {isRTL ? 'الوحدة الأساسية' : 'Base Unit'}
           </label>
-          <p className="text-base font-semibold text-gray-900 dark:text-white">{item.base_uom_code || '-'}</p>
+          <p className="text-base font-semibold text-gray-900 dark:text-white">{item.base_uom_name || item.base_uom_code || '-'}</p>
         </div>
 
         {item.unit_conversions && item.unit_conversions.length > 0 && (

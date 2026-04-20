@@ -9,7 +9,7 @@ export interface WarehouseType {
   is_active: boolean;
 }
 
-const warehouseTypesConfig: PageConfig = {
+export const warehouseTypesConfig: PageConfig = {
   pageKey: 'master:warehouse_types',
   title: 'Warehouse Types',
   description: 'Manage warehouse type classifications',
@@ -53,4 +53,5 @@ const warehouseTypesConfig: PageConfig = {
   ] as PageSection[],
 };
 
+export const warehouseTypeConfig = warehouseTypesConfig;
 export default warehouseTypesConfig;

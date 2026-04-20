@@ -25,8 +25,8 @@ router.get(
 
       const result = await pool.query(
         `SELECT 
-          id, code, name_en, name_ar,
-          account_number, category, default_distribution_method, is_active
+          id, code, name AS name_en, name_ar,
+          category, display_order, is_active
          FROM shipment_expense_types
          WHERE company_id = $1 AND deleted_at IS NULL AND is_active = true
          ORDER BY code`,
@@ -46,6 +46,87 @@ router.get(
           message: 'Failed to fetch shipment expense types'
         }
       });
+    }
+  }
+);
+
+/**
+ * POST /api/master/shipment-expense-types
+ * Create a new shipment expense type
+ */
+router.post(
+  '/master/shipment-expense-types',
+  authenticate,
+  loadCompanyContext,
+  async (req: Request, res: Response) => {
+    try {
+      const companyId = req.companyId;
+      const { code, name_en, name, name_ar, category, display_order, is_active = true } = req.body;
+      const theName = name || name_en;
+      if (!theName) return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'name is required' } });
+      const finalCode = code || theName.replace(/[^a-zA-Z0-9]/g, '_').toUpperCase().substring(0, 20);
+      const result = await pool.query(
+        `INSERT INTO shipment_expense_types (company_id, code, name, name_ar, category, display_order, is_active, created_at, updated_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,NOW(),NOW()) RETURNING *, name AS name_en`,
+        [companyId, finalCode, theName, name_ar || theName, category || 'other', display_order || 0, is_active]
+      );
+      res.status(201).json({ success: true, data: result.rows[0], message: 'Shipment expense type created' });
+    } catch (error: any) {
+      if (error.code === '23505') return res.status(400).json({ success: false, error: { code: 'DUPLICATE', message: 'Code already exists' } });
+      console.error('Error creating shipment expense type:', error);
+      res.status(500).json({ success: false, error: { code: 'CREATE_ERROR', message: 'Failed to create shipment expense type' } });
+    }
+  }
+);
+
+/**
+ * PUT /api/master/shipment-expense-types/:id
+ * Update a shipment expense type
+ */
+router.put(
+  '/master/shipment-expense-types/:id',
+  authenticate,
+  loadCompanyContext,
+  async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const { code, name_en, name, name_ar, category, display_order, is_active } = req.body;
+      const existing = await pool.query(`SELECT * FROM shipment_expense_types WHERE id = $1 AND deleted_at IS NULL`, [id]);
+      if (existing.rows.length === 0) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Shipment expense type not found' } });
+      const theName = name || name_en;
+      const result = await pool.query(
+        `UPDATE shipment_expense_types SET code=COALESCE($1,code), name=COALESCE($2,name), name_ar=COALESCE($3,name_ar),
+         category=COALESCE($4,category), display_order=COALESCE($5,display_order),
+         is_active=COALESCE($6,is_active), updated_at=NOW()
+         WHERE id = $7 AND deleted_at IS NULL RETURNING *, name AS name_en`,
+        [code, theName, name_ar, category, display_order, is_active, id]
+      );
+      res.json({ success: true, data: result.rows[0], message: 'Shipment expense type updated' });
+    } catch (error: any) {
+      if (error.code === '23505') return res.status(400).json({ success: false, error: { code: 'DUPLICATE', message: 'Code already exists' } });
+      console.error('Error updating shipment expense type:', error);
+      res.status(500).json({ success: false, error: { code: 'UPDATE_ERROR', message: 'Failed to update shipment expense type' } });
+    }
+  }
+);
+
+/**
+ * DELETE /api/master/shipment-expense-types/:id
+ * Soft delete a shipment expense type
+ */
+router.delete(
+  '/master/shipment-expense-types/:id',
+  authenticate,
+  async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const existing = await pool.query(`SELECT id FROM shipment_expense_types WHERE id = $1 AND deleted_at IS NULL`, [id]);
+      if (existing.rows.length === 0) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Shipment expense type not found' } });
+      await pool.query(`UPDATE shipment_expense_types SET deleted_at = NOW() WHERE id = $1`, [id]);
+      res.json({ success: true, message: 'Shipment expense type deleted' });
+    } catch (error: any) {
+      console.error('Error deleting shipment expense type:', error);
+      res.status(500).json({ success: false, error: { code: 'DELETE_ERROR', message: 'Failed to delete shipment expense type' } });
     }
   }
 );

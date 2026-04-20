@@ -6,6 +6,7 @@ import { MenuPermissions } from '../../config/menu.permissions';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import Modal from '../../components/ui/Modal';
+import { useCurrencies } from '../../hooks/useReferenceData';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import { usePermissions } from '../../hooks/usePermissions';
 import { useTranslation } from '../../hooks/useTranslation';
@@ -90,6 +91,7 @@ function CompaniesPage() {
   const { showToast } = useToast();
   const { locale, dir } = useLocale();
   const { t } = useTranslation();
+  const { currencies: currencyList } = useCurrencies();
 
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
@@ -127,13 +129,13 @@ function CompaniesPage() {
         const result = await res.json();
         setCompanies(result.data || []);
       } else if (res.status === 401 || res.status === 403) {
-        showToast('Access denied', 'error');
+        showToast(t('adminCompanies.accessDenied'), 'error');
       } else {
-        showToast('Failed to load companies', 'error');
+        showToast(t('adminCompanies.saveFailed'), 'error');
       }
     } catch (error) {
       console.error('Failed to fetch companies:', error);
-      showToast('Failed to load companies', 'error');
+      showToast(t('adminCompanies.saveFailed'), 'error');
     } finally {
       setLoading(false);
     }
@@ -142,18 +144,18 @@ function CompaniesPage() {
   const validateForm = (): boolean => {
     const errors: Record<string, string> = {};
 
-    if (!formData.code.trim()) errors.code = 'Company code is required';
-    if (!formData.name.trim()) errors.name = 'Company name is required';
-    if (!formData.currency.trim()) errors.currency = 'Currency is required';
+    if (!formData.code.trim()) errors.code = t('adminCompanies.codeRequired');
+    if (!formData.name.trim()) errors.name = t('adminCompanies.nameRequired');
+    if (!formData.currency.trim()) errors.currency = t('adminCompanies.currencyRequired');
 
     // Email validation
     if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      errors.email = 'Invalid email format';
+      errors.email = t('adminCompanies.invalidEmail');
     }
 
     // Website validation
     if (formData.website && !/^https?:\/\/.+/.test(formData.website)) {
-      errors.website = 'Website must start with http:// or https://';
+      errors.website = t('adminCompanies.invalidWebsite');
     }
 
     setFormErrors(errors);
@@ -220,16 +222,16 @@ function CompaniesPage() {
       });
 
       if (res.ok) {
-        showToast(editingCompany ? 'Company updated successfully' : 'Company created successfully', 'success');
+        showToast(editingCompany ? t('adminCompanies.companyUpdated') : t('adminCompanies.companyCreated'), 'success');
         handleCloseModal();
         fetchCompanies();
       } else {
         const error = await res.json();
-        showToast(error.error || 'Failed to save company', 'error');
+        showToast(error.error || t('adminCompanies.saveFailed'), 'error');
       }
     } catch (error) {
       console.error('Failed to save company:', error);
-      showToast('Failed to save company', 'error');
+      showToast(t('adminCompanies.saveFailed'), 'error');
     } finally {
       setSubmitting(false);
     }
@@ -252,15 +254,15 @@ function CompaniesPage() {
       });
 
       if (res.ok) {
-        showToast('Company deleted successfully', 'success');
+        showToast(t('adminCompanies.companyDeleted'), 'success');
         fetchCompanies();
       } else {
         const error = await res.json();
-        showToast(error.error || 'Failed to delete company', 'error');
+        showToast(error.error || t('adminCompanies.deleteFailed'), 'error');
       }
     } catch (error) {
       console.error('Failed to delete company:', error);
-      showToast('Failed to delete company', 'error');
+      showToast(t('adminCompanies.deleteFailed'), 'error');
     } finally {
       setDeleting(false);
       setDeleteConfirmOpen(false);
@@ -283,22 +285,22 @@ function CompaniesPage() {
   return (
     <MainLayout>
       <Head>
-        <title>Companies Management - SLMS</title>
+        <title>{t('adminCompanies.title')} - SLMS</title>
       </Head>
 
       <div className="space-y-6">
         {/* Page header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Companies</h1>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">{t('adminCompanies.title')}</h1>
             <p className="text-gray-600 dark:text-gray-400 mt-1">
-              Manage company profiles and settings
+              {t('adminCompanies.subtitle')}
             </p>
           </div>
           {hasPermission('companies:create') && (
             <Button onClick={() => handleOpenModal()}>
               <PlusIcon className="w-5 h-5 mr-2" />
-              Add Company
+              {t('adminCompanies.addCompany')}
             </Button>
           )}
         </div>
@@ -311,7 +313,7 @@ function CompaniesPage() {
                 <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <input
                   type="text"
-                  placeholder="Search by name, code, or email..."
+                  placeholder={t('adminCompanies.searchPlaceholder')}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="input pl-10 w-full"
@@ -355,7 +357,7 @@ function CompaniesPage() {
                 className="rounded border-gray-300 dark:border-gray-600"
               />
               <label htmlFor="activeOnly" className="text-sm text-gray-700 dark:text-gray-300">
-                Active only
+                {t('adminCompanies.activeOnly')}
               </label>
             </div>
           </div>
@@ -390,14 +392,14 @@ function CompaniesPage() {
           {loading ? (
             <div className="text-center py-12">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
-              <p className="text-gray-500 dark:text-gray-400 mt-4">Loading companies...</p>
+              <p className="text-gray-500 dark:text-gray-400 mt-4">{t('adminCompanies.loading')}</p>
             </div>
           ) : filteredCompanies.length === 0 ? (
             <div className="text-center py-12">
               <BuildingOfficeIcon className="w-16 h-16 mx-auto text-gray-400 mb-4" />
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">No companies found</h3>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('adminCompanies.noCompanies')}</h3>
               <p className="text-gray-600 dark:text-gray-400 mt-2">
-                {searchTerm ? 'Try adjusting your search criteria' : 'Get started by creating a new company'}
+                {searchTerm ? t('adminCompanies.adjustSearch') : t('adminCompanies.createFirst')}
               </p>
             </div>
           ) : (
@@ -406,28 +408,28 @@ function CompaniesPage() {
                 <thead className="bg-gray-50 dark:bg-gray-800">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Code
+                      {t('adminCompanies.code')}
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Company
+                      {t('adminCompanies.company')}
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Contact
+                      {t('adminCompanies.contact')}
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Location
+                      {t('adminCompanies.location')}
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Currency
+                      {t('adminCompanies.currency')}
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Branches
+                      {t('adminCompanies.branches')}
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Status
+                      {t('adminCompanies.status')}
                     </th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Actions
+                      {t('adminCompanies.actions')}
                     </th>
                   </tr>
                 </thead>
@@ -445,7 +447,7 @@ function CompaniesPage() {
                             {company.name}
                             {company.is_default && (
                               <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
-                                Default
+                                {t('adminCompanies.default')}
                               </span>
                             )}
                           </div>
@@ -476,7 +478,7 @@ function CompaniesPage() {
                               : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
                           }`}
                         >
-                          {company.is_active ? 'Active' : 'Inactive'}
+                          {company.is_active ? t('adminCompanies.active') : t('adminCompanies.inactive')}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
@@ -485,7 +487,7 @@ function CompaniesPage() {
                             <button
                               onClick={() => handleOpenModal(company)}
                               className="text-primary-600 hover:text-primary-900 dark:text-primary-400 dark:hover:text-primary-300"
-                              title="Edit"
+                              title={t('adminCompanies.editCompany')}
                             >
                               <PencilIcon className="w-5 h-5" />
                             </button>
@@ -494,7 +496,7 @@ function CompaniesPage() {
                             <button
                               onClick={() => handleDeleteClick(company)}
                               className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
-                              title="Delete"
+                              title={t('adminCompanies.delete')}
                             >
                               <TrashIcon className="w-5 h-5" />
                             </button>
@@ -515,14 +517,14 @@ function CompaniesPage() {
       <Modal
         isOpen={modalOpen}
         onClose={handleCloseModal}
-        title={editingCompany ? 'Edit Company' : 'Create Company'}
+        title={editingCompany ? t('adminCompanies.editCompany') : t('adminCompanies.createCompany')}
         size="lg"
       >
         <div className="space-y-4">
           {/* Basic Information */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Input
-              label="Company Code"
+              label={t('adminCompanies.companyCode')}
               required
               value={formData.code}
               onChange={(e) => setFormData({ ...formData, code: e.target.value })}
@@ -530,8 +532,7 @@ function CompaniesPage() {
               disabled={!!editingCompany}
             />
             <Input
-              label="Company Name"
-              required
+              label={t('adminCompanies.companyName')}
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               error={formErrors.name}
@@ -566,12 +567,12 @@ function CompaniesPage() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Input
-              label="Company Name (Arabic)"
+              label={t('adminCompanies.companyNameAr')}
               value={formData.name_ar}
               onChange={(e) => setFormData({ ...formData, name_ar: e.target.value })}
             />
             <Input
-              label="Legal Name"
+              label={t('adminCompanies.legalName')}
               value={formData.legal_name}
               onChange={(e) => setFormData({ ...formData, legal_name: e.target.value })}
             />
@@ -580,12 +581,12 @@ function CompaniesPage() {
           {/* Tax & Registration */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Input
-              label="Tax Number"
+              label={t('adminCompanies.taxNumber')}
               value={formData.tax_number}
               onChange={(e) => setFormData({ ...formData, tax_number: e.target.value })}
             />
             <Input
-              label="Registration Number"
+              label={t('adminCompanies.registrationNumber')}
               value={formData.registration_number}
               onChange={(e) => setFormData({ ...formData, registration_number: e.target.value })}
             />
@@ -594,33 +595,32 @@ function CompaniesPage() {
           {/* Location */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Input
-              label="Country"
+              label={t('adminCompanies.country')}
               value={formData.country}
               onChange={(e) => setFormData({ ...formData, country: e.target.value })}
             />
             <Input
-              label="City"
+              label={t('adminCompanies.city')}
               value={formData.city}
               onChange={(e) => setFormData({ ...formData, city: e.target.value })}
             />
           </div>
 
           <Input
-            label="Address"
-            value={formData.address}
+            label={t('adminCompanies.address')}
             onChange={(e) => setFormData({ ...formData, address: e.target.value })}
           />
 
           {/* Contact */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Input
-              label="Phone"
+              label={t('adminCompanies.phone')}
               type="tel"
               value={formData.phone}
               onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
             />
             <Input
-              label="Email"
+              label={t('adminCompanies.email')}
               type="email"
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
@@ -629,30 +629,28 @@ function CompaniesPage() {
           </div>
 
           <Input
-            label="Website"
+            label={t('adminCompanies.website')}
             type="url"
             value={formData.website}
             onChange={(e) => setFormData({ ...formData, website: e.target.value })}
             error={formErrors.website}
-            helperText="Must start with http:// or https://"
+            helperText={t('adminCompanies.websiteHelper')}
           />
 
           {/* Currency & Status */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Currency <span className="text-red-500">*</span>
+                {t('adminCompanies.currency')} <span className="text-red-500">*</span>
               </label>
               <select
                 value={formData.currency}
                 onChange={(e) => setFormData({ ...formData, currency: e.target.value })}
                 className="input"
               >
-                <option value="USD">USD</option>
-                <option value="SAR">SAR</option>
-                <option value="AED">AED</option>
-                <option value="EUR">EUR</option>
-                <option value="GBP">GBP</option>
+                {currencyList.map(c => (
+                  <option key={c.code} value={c.code}>{c.code} - {c.name}</option>
+                ))}
               </select>
               {formErrors.currency && (
                 <p className="text-sm text-red-600 dark:text-red-400">{formErrors.currency}</p>
@@ -671,7 +669,7 @@ function CompaniesPage() {
                 className="rounded border-gray-300 dark:border-gray-600"
               />
               <label htmlFor="is_active" className="text-sm text-gray-700 dark:text-gray-300">
-                Active
+                {t('adminCompanies.isActive')}
               </label>
             </div>
             <div className="flex items-center gap-2">
@@ -683,7 +681,7 @@ function CompaniesPage() {
                 className="rounded border-gray-300 dark:border-gray-600"
               />
               <label htmlFor="is_default" className="text-sm text-gray-700 dark:text-gray-300">
-                Default Company
+                {t('adminCompanies.defaultCompany')}
               </label>
             </div>
           </div>
@@ -691,10 +689,10 @@ function CompaniesPage() {
 
         <div className="flex justify-end gap-3 mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
           <Button variant="secondary" onClick={handleCloseModal} disabled={submitting}>
-            Cancel
+            {t('adminCompanies.cancel')}
           </Button>
           <Button onClick={handleSubmit} loading={submitting}>
-            {editingCompany ? 'Update' : 'Create'}
+            {editingCompany ? t('adminCompanies.update') : t('adminCompanies.create')}
           </Button>
         </div>
       </Modal>
@@ -707,9 +705,9 @@ function CompaniesPage() {
           setCompanyToDelete(null);
         }}
         onConfirm={handleDeleteConfirm}
-        title="Delete Company"
-        message={`Are you sure you want to delete "${companyToDelete?.name}"? This action cannot be undone.`}
-        confirmText="Delete"
+        title={t('adminCompanies.deleteCompany')}
+        message={t('adminCompanies.deleteConfirm', { name: companyToDelete?.name || '' })}
+        confirmText={t('adminCompanies.delete')}
         variant="danger"
         loading={deleting}
       />

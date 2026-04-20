@@ -298,7 +298,7 @@ function buildMenu(
 export function useMenu() {
   const { t } = useTranslation();
   const { locale } = useLocale();
-  const { hasPermission, loading: permissionsLoading } = usePermissions();
+  const { hasPermission, loading: permissionsLoading, isTenantAdmin, isSuperAdmin } = usePermissions();
   const { user } = useAuth();
   const { 
     getBadgeCount, 
@@ -317,10 +317,11 @@ export function useMenu() {
 
   // بناء القائمة مع إعادة البناء عند تغيير اللغة أو الصلاحيات أو الـ Badges
   const menu = useMemo(() => {
-    if (permissionsLoading) return [];
+    // Don't clear the menu for admins — they have full access regardless of loading state
+    if (permissionsLoading && !isTenantAdmin && !isSuperAdmin) return [];
     
     return buildMenu(MENU_REGISTRY, t, hasPermission, getBadgeCount, moduleCtx);
-  }, [locale, t, hasPermission, permissionsLoading, badgeCounts, getBadgeCount, moduleCtx]);
+  }, [locale, t, hasPermission, permissionsLoading, isTenantAdmin, isSuperAdmin, badgeCounts, getBadgeCount, moduleCtx]);
 
   return {
     menu,

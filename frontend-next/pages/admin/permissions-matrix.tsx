@@ -22,7 +22,7 @@ import MainLayout from '@/components/layout/MainLayout';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
-import { useToast } from '@/contexts/ToastContext';
+import { useToast } from '@/hooks/useToast';
 import { useTranslation } from '@/hooks/useTranslation';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useAuth } from '@/hooks/useAuth';
@@ -128,7 +128,7 @@ const MODULE_CATEGORY_COLORS: Record<string, string> = {
   crm: 'bg-purple-50 text-purple-700 dark:bg-purple-900/20 dark:text-purple-300',
 };
 
-const API_BASE = (process.env.NEXT_PUBLIC_API_URL || '') + '/api';
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api').replace(/\/api\/?$/, '') + '/api';
 
 // ============================================================================
 // Component
@@ -244,7 +244,7 @@ function PermissionsMatrixV2Page() {
         setTemplates(templatesJson.templates || []);
       }
     } catch (e) {
-      showToast(e instanceof Error ? e.message : 'Error loading data', 'error');
+      showToast('error', e instanceof Error ? e.message : 'Error loading data');
     } finally {
       setLoading(false);
     }
@@ -281,7 +281,7 @@ function PermissionsMatrixV2Page() {
         const allModCodes = modules.map(m => m.module_code);
         setExpandedModules(new Set(allModCodes));
       } catch (e) {
-        showToast(e instanceof Error ? e.message : 'Error', 'error');
+        showToast('error', e instanceof Error ? e.message : 'Error');
       }
     };
     loadRole();
@@ -443,10 +443,10 @@ function PermissionsMatrixV2Page() {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || 'Failed to save');
       }
-      showToast(t('messages.saved') || 'Permissions saved successfully', 'success');
+      showToast('success', t('messages.saved') || 'Permissions saved successfully');
       setHasChanges(false);
     } catch (e) {
-      showToast(e instanceof Error ? e.message : 'Error', 'error');
+      showToast('error', e instanceof Error ? e.message : 'Error');
     } finally {
       setSaving(false);
     }
@@ -469,10 +469,10 @@ function PermissionsMatrixV2Page() {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || 'Failed to clone');
       }
-      showToast(t('messages.cloned') || 'Role cloned successfully', 'success');
+      showToast('success', t('messages.cloned') || 'Role cloned successfully');
       loadData();
     } catch (e) {
-      showToast(e instanceof Error ? e.message : 'Error', 'error');
+      showToast('error', e instanceof Error ? e.message : 'Error');
     }
   };
 
@@ -481,7 +481,7 @@ function PermissionsMatrixV2Page() {
     if (!canEdit || !selectedRole) return;
     updatePermissions([...template.permissions]);
     setShowTemplates(false);
-    showToast(`Applied template: ${template.name}`, 'success');
+    showToast('success', `Applied template: ${template.name}`);
   };
 
   // CSV export

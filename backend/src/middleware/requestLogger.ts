@@ -3,6 +3,35 @@ import { v4 as uuidv4 } from 'uuid';
 import logger from '../utils/logger';
 import { trackPerformance } from '../routes/healthDetailed';
 
+// ─── §17 SECURITY: Sensitive fields that must NEVER appear in logs ──────────
+const SENSITIVE_FIELDS = [
+  'password', 'new_password', 'old_password', 'current_password',
+  'confirm_password', 'newPassword', 'oldPassword', 'currentPassword',
+  'confirmPassword', 'secret', 'token', 'refreshToken', 'refresh_token',
+  'accessToken', 'access_token', 'credit_card', 'creditCard', 'cvv', 'ssn',
+];
+
+/**
+ * Recursively redact sensitive fields from an object for safe logging.
+ * Returns a shallow copy with sensitive values replaced by '[REDACTED]'.
+ */
+function redactSensitiveFields(obj: any): any {
+  if (!obj || typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) return obj.map(item => redactSensitiveFields(item));
+
+  const redacted: Record<string, any> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (SENSITIVE_FIELDS.includes(key)) {
+      redacted[key] = '[REDACTED]';
+    } else if (typeof value === 'object' && value !== null) {
+      redacted[key] = redactSensitiveFields(value);
+    } else {
+      redacted[key] = value;
+    }
+  }
+  return redacted;
+}
+
 // Extend Express Request to include requestId
 declare global {
   namespace Express {
@@ -66,6 +95,10 @@ export const requestLogger = (
     url: req.originalUrl,
     ip: req.ip || req.socket.remoteAddress,
     userAgent: req.get('user-agent') || 'unknown',
+    // §17 SECURITY: Redact sensitive fields from body before logging
+    ...(req.body && ['POST', 'PUT', 'PATCH'].includes(req.method) && Object.keys(req.body).length > 0
+      ? { body: redactSensitiveFields(req.body) }
+      : {}),
   };
 
   // Log request received

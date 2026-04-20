@@ -66,7 +66,7 @@ router.get(
       if (shipmentIdRaw) {
         const shipmentId = Number(shipmentIdRaw);
         if (!Number.isNaN(shipmentId)) {
-          where.push(`shipment_id = $${paramCount}`);
+          where.push(`(shipment_id = $${paramCount} OR logistics_shipment_id = $${paramCount})`);
           params.push(shipmentId);
           paramCount++;
         }
@@ -121,7 +121,7 @@ router.get(
       const totalPages = Math.max(1, Math.ceil(totalItems / limit));
 
       const listResult = await pool.query(
-        `SELECT id, company_id, shipment_id, shipment_reference, event_type, event_source, stage_code, status_code, location,
+        `SELECT id, company_id, shipment_id, logistics_shipment_id, shipment_reference, event_type, event_source, stage_code, status_code, location,
           description_en, description_ar, occurred_at, metadata, created_by, created_at, updated_at
          FROM shipment_events
          ${whereSql}
@@ -188,7 +188,7 @@ router.get(
       if (shipmentIdRaw) {
         const shipmentId = Number(shipmentIdRaw);
         if (!Number.isNaN(shipmentId)) {
-          where.push(`shipment_id = $${paramCount}`);
+          where.push(`(shipment_id = $${paramCount} OR logistics_shipment_id = $${paramCount})`);
           params.push(shipmentId);
           paramCount++;
         }
@@ -235,7 +235,7 @@ router.get(
       const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
       const result = await pool.query(
-        `SELECT id, shipment_id, shipment_reference, event_type, event_source, stage_code, status_code, location,
+        `SELECT id, shipment_id, logistics_shipment_id, shipment_reference, event_type, event_source, stage_code, status_code, location,
           description_en, description_ar, occurred_at, created_at
          FROM shipment_events
          ${whereSql}

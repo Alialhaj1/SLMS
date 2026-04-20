@@ -69,7 +69,7 @@ services:
       - "3001:3001"
     environment:
       - NODE_ENV=development
-      - NEXT_PUBLIC_API_URL=http://localhost:4000
+      - NEXT_PUBLIC_API_URL=http://localhost:4000/api
       - INTERNAL_API_URL=http://backend:4000
       - WATCHPACK_POLLING=true
       - WATCHPACK_POLLING_INTERVAL=1000

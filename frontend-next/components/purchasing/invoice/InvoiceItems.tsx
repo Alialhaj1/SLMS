@@ -146,7 +146,7 @@ export function InvoiceItems({
                   <div className="font-medium">{item.item_name}</div>
                   <div className="text-xs text-gray-500">{item.item_code}</div>
                 </td>
-                <td className="p-2 text-right">{item.quantity} {item.uom_code}</td>
+                <td className="p-2 text-right">{item.quantity} {item.uom_name || item.uom_code}</td>
                 <td className="p-2 text-center font-bold text-green-600">
                   {item.bonus_quantity > 0 ? `+${item.bonus_quantity}` : '-'}
                 </td>

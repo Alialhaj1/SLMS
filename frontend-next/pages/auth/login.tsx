@@ -1,1228 +1,938 @@
 /**
  * ============================================================================
- * ULTRA PREMIUM LOGIN EXPERIENCE
- * Enterprise Banking Grade Multi-Tenant Authentication
+ * SLMS PROFESSIONAL LANDING + LOGIN PAGE
  * ============================================================================
- * Features:
- * - Animated gradient background with particles
- * - Glass morphism card design
- * - Platform vs Tenant login modes
- * - Company identification with logo/branding
- * - MFA support
- * - Session management
- * - Premium micro-interactions
+ * Full landing page with:
+ *   - Sticky navbar with logo, nav links, login icon dropdown
+ *   - Hero section with animated slider
+ *   - About Us section
+ *   - Services section
+ *   - Products section
+ *   - Features grid (from DB)
+ *   - News & Announcements
+ *   - FAQ / Help
+ *   - Terms & Conditions summary
+ *   - Footer with contact info
+ *   - Login modal: "Platform Clients" / "Platform Admin"
+ *   - Account request modal
+ *   - All admin-configurable from /admin/platform/login-page
  */
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import Link from 'next/link';
 import { useAuth } from '../../contexts/AuthContext';
-import { authService } from '../../lib/authService';
-import { useTheme } from '../../contexts/ThemeContext';
 import { useLocale } from '../../contexts/LocaleContext';
-import { useToast } from '../../contexts/ToastContext';
-import { 
-  ArrowRightOnRectangleIcon, 
-  ExclamationCircleIcon,
-  EyeIcon,
-  EyeSlashIcon,
-  SunIcon,
-  MoonIcon,
-  GlobeAltIcon,
-  ShieldCheckIcon,
-  BuildingOffice2Icon,
-  MagnifyingGlassIcon,
-  QrCodeIcon,
-  CheckCircleIcon,
-  LockClosedIcon,
-  UserIcon,
-  KeyIcon,
-  ArrowLeftIcon,
-  SparklesIcon,
-  FingerPrintIcon,
-  DevicePhoneMobileIcon,
+import { useTheme } from '../../contexts/ThemeContext';
+import MultiStageLoginForm from '../../components/auth/MultiStageLoginForm';
+import loginPageService from '../../lib/loginPageService';
+import type { LoginPageContent, LoginPageSettings, LoginPageContentItem } from '../../lib/loginPageService';
+import {
+  ShieldCheckIcon, SunIcon, MoonIcon, GlobeAltIcon, TruckIcon,
+  CurrencyDollarIcon, BanknotesIcon, ShoppingCartIcon, FolderIcon,
+  SparklesIcon, UserPlusIcon,
+  QuestionMarkCircleIcon, NewspaperIcon, MegaphoneIcon,
+  EnvelopeIcon, PhoneIcon, ChatBubbleLeftRightIcon,
+  ChevronDownIcon, StarIcon, CheckBadgeIcon,
+  RocketLaunchIcon, CubeTransparentIcon, ClockIcon, MapPinIcon,
+  DocumentCheckIcon, BuildingOffice2Icon, GlobeAmericasIcon,
+  BoltIcon, PresentationChartBarIcon, Bars3Icon, XMarkIcon,
+  UserCircleIcon, UsersIcon, WrenchScrewdriverIcon,
+  ArrowRightIcon, ArrowLeftIcon, InformationCircleIcon,
+  HeartIcon, CubeIcon, ServerStackIcon, ChartBarIcon,
+  ArrowUpIcon, LockClosedIcon, CloudArrowUpIcon,
+  LightBulbIcon, ComputerDesktopIcon, DevicePhoneMobileIcon,
+  BuildingStorefrontIcon, ScaleIcon, AcademicCapIcon,
 } from '@heroicons/react/24/outline';
-import { CheckIcon, XMarkIcon } from '@heroicons/react/24/solid';
-import AccountRequestWizard from '../../components/AccountRequestWizard';
 
-// ============================================================================
-// Types
-// ============================================================================
-
-type LoginMode = 'platform' | 'tenant';
-type LoginStep = 'mode' | 'company' | 'credentials' | 'mfa';
-
-interface Tenant {
-  id: number;
-  tenant_code: string;
-  name: string;
-  name_ar: string;
-  logo_url?: string;
-  primary_color?: string;
-  secondary_color?: string;
+/* ━━━ ICON MAP ━━━ */
+const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
+  TruckIcon, CurrencyDollarIcon, BanknotesIcon, ShoppingCartIcon, FolderIcon,
+  SparklesIcon, ShieldCheckIcon, RocketLaunchIcon, CubeTransparentIcon,
+  ClockIcon, MapPinIcon, DocumentCheckIcon, BuildingOffice2Icon,
+  GlobeAmericasIcon, BoltIcon, PresentationChartBarIcon, StarIcon,
+  CheckBadgeIcon, NewspaperIcon, MegaphoneIcon, ServerStackIcon,
+  ChartBarIcon, LockClosedIcon, CloudArrowUpIcon,
+};
+function DIcon({ name, className }: { name: string | null; className?: string }) {
+  const I = name ? ICON_MAP[name] : null;
+  return I ? <I className={className} /> : <SparklesIcon className={className} />;
 }
 
-interface Particle {
-  id: number;
-  x: number;
-  y: number;
-  size: number;
-  duration: number;
-  delay: number;
-}
-
-// ============================================================================
-// Particle Background Component
-// ============================================================================
-
-function ParticleBackground() {
-  const [particles, setParticles] = useState<Particle[]>([]);
-
-  useEffect(() => {
-    const newParticles: Particle[] = Array.from({ length: 30 }, (_, i) => ({
-      id: i,
-      x: Math.random() * 100,
-      y: Math.random() * 100,
-      size: Math.random() * 4 + 2,
-      duration: Math.random() * 10 + 10,
-      delay: Math.random() * 5,
-    }));
-    setParticles(newParticles);
-  }, []);
-
+/* ━━━ FLOATING PARTICLES ━━━ */
+function Particles() {
   return (
     <div className="absolute inset-0 overflow-hidden pointer-events-none">
-      {particles.map((particle) => (
-        <div
-          key={particle.id}
-          className="login-particle bg-blue-400/20"
+      {Array.from({ length: 25 }).map((_, i) => (
+        <div key={i} className="absolute rounded-full bg-white/10"
           style={{
-            left: `${particle.x}%`,
-            top: `${particle.y}%`,
-            width: `${particle.size}px`,
-            height: `${particle.size}px`,
-            animationDuration: `${particle.duration}s`,
-            animationDelay: `${particle.delay}s`,
-          }}
-        />
+            width: `${2 + Math.random() * 4}px`, height: `${2 + Math.random() * 4}px`,
+            left: `${Math.random() * 100}%`, top: `${Math.random() * 100}%`,
+            animation: `slmsFloat ${8 + Math.random() * 14}s ease-in-out ${Math.random() * 6}s infinite alternate`,
+          }} />
       ))}
-      {/* Gradient Orbs */}
-      <div className="absolute top-1/4 -left-20 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl" />
-      <div className="absolute bottom-1/4 -right-20 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl" />
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-indigo-500/5 rounded-full blur-3xl" />
+      <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-blue-500/10 rounded-full blur-[150px] -translate-y-1/2 translate-x-1/3" />
+      <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-indigo-500/10 rounded-full blur-[120px] translate-y-1/3 -translate-x-1/4" />
+      <div className="absolute top-1/2 left-1/2 w-[350px] h-[350px] bg-cyan-500/5 rounded-full blur-[100px] -translate-x-1/2 -translate-y-1/2" />
     </div>
   );
 }
 
-// ============================================================================
-// Mode Selector Component
-// ============================================================================
-
-interface ModeSelectorProps {
-  mode: LoginMode;
-  onChange: (mode: LoginMode) => void;
-  isRTL: boolean;
-}
-
-function ModeSelector({ mode, onChange, isRTL }: ModeSelectorProps) {
+/* ━━━ SCROLL TO TOP ━━━ */
+function ScrollTop() {
+  const [show, setShow] = useState(false);
+  useEffect(() => {
+    const h = () => setShow(window.scrollY > 400);
+    window.addEventListener('scroll', h, { passive: true });
+    return () => window.removeEventListener('scroll', h);
+  }, []);
+  if (!show) return null;
   return (
-    <div className="mode-toggle-premium">
-      <button
-        type="button"
-        onClick={() => onChange('tenant')}
-        className={`mode-toggle-btn ${mode === 'tenant' ? 'active' : ''}`}
-      >
-        <BuildingOffice2Icon className="w-5 h-5" />
-        <span>{isRTL ? 'دخول العملاء' : 'Tenant Login'}</span>
-      </button>
-      <button
-        type="button"
-        onClick={() => onChange('platform')}
-        className={`mode-toggle-btn ${mode === 'platform' ? 'active platform' : ''}`}
-      >
-        <ShieldCheckIcon className="w-5 h-5" />
-        <span>{isRTL ? 'إدارة المنصة' : 'Platform Admin'}</span>
-      </button>
-    </div>
+    <button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+      className="fixed bottom-6 end-6 z-50 w-12 h-12 rounded-full bg-blue-600 text-white shadow-lg shadow-blue-500/30 flex items-center justify-center hover:bg-blue-700 transition-all hover:scale-110 animate-[slmsFadeUp_0.3s_ease-out]">
+      <ArrowUpIcon className="w-5 h-5" />
+    </button>
   );
 }
 
-// ============================================================================
-// Step Indicator Component
-// ============================================================================
-
-interface StepIndicatorProps {
-  currentStep: LoginStep;
-  mode: LoginMode;
-  isRTL: boolean;
+/* ━━━ NAVBAR ━━━ */
+interface NavProps {
+  isRTL: boolean; locale: string; setLocale: (l: string) => void;
+  theme: string; toggleTheme: () => void; onLogin: (type: 'tenant' | 'admin') => void;
 }
+function Navbar({ isRTL, locale, setLocale, theme, toggleTheme, onLogin }: NavProps) {
+  const [scrolled, setScrolled] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [loginOpen, setLoginOpen] = useState(false);
+  const loginRef = useRef<HTMLDivElement>(null);
 
-function StepIndicator({ currentStep, mode, isRTL }: StepIndicatorProps) {
-  const steps = mode === 'tenant' 
-    ? ['company', 'credentials', 'mfa'] 
-    : ['credentials', 'mfa'];
-  
-  const stepLabels = {
-    company: isRTL ? 'الشركة' : 'Company',
-    credentials: isRTL ? 'الدخول' : 'Login',
-    mfa: isRTL ? 'التحقق' : 'Verify',
-  };
+  useEffect(() => {
+    const h = () => setScrolled(window.scrollY > 20);
+    window.addEventListener('scroll', h, { passive: true });
+    return () => window.removeEventListener('scroll', h);
+  }, []);
+  useEffect(() => {
+    const h = (e: MouseEvent) => { if (loginRef.current && !loginRef.current.contains(e.target as Node)) setLoginOpen(false); };
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, []);
 
-  const currentIndex = steps.indexOf(currentStep);
+  const scrollTo = (id: string) => { setMobileOpen(false); document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' }); };
+  const navItems = [
+    { id: 'about', label: isRTL ? 'من نحن' : 'About Us' },
+    { id: 'services', label: isRTL ? 'خدماتنا' : 'Services' },
+    { id: 'products', label: isRTL ? 'منتجاتنا' : 'Products' },
+    { id: 'features', label: isRTL ? 'المميزات' : 'Features' },
+    { id: 'news', label: isRTL ? 'الأخبار' : 'News' },
+    { id: 'faq', label: isRTL ? 'المساعدة' : 'Help' },
+  ];
 
   return (
-    <div className="flex items-center justify-center gap-2 mb-6">
-      {steps.map((step, index) => (
-        <div key={step} className="flex items-center">
-          <div className={`step-indicator ${
-            index < currentIndex ? 'completed' : 
-            index === currentIndex ? 'active' : 'pending'
-          }`}>
-            {index < currentIndex ? (
-              <CheckIcon className="w-4 h-4" />
-            ) : (
-              index + 1
-            )}
-          </div>
-          <span className={`mx-2 text-sm ${
-            index <= currentIndex ? 'text-white' : 'text-white/40'
-          }`}>
-            {stepLabels[step as keyof typeof stepLabels]}
-          </span>
-          {index < steps.length - 1 && (
-            <div className={`w-8 h-0.5 mx-2 ${
-              index < currentIndex ? 'bg-green-500' : 'bg-white/20'
-            }`} />
-          )}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// ============================================================================
-// Company Search Component
-// ============================================================================
-
-interface CompanySearchProps {
-  tenants: Tenant[];
-  selectedTenant: Tenant | null;
-  tenantCode: string;
-  onCodeChange: (code: string) => void;
-  onSelect: (tenant: Tenant) => void;
-  loading: boolean;
-  isRTL: boolean;
-}
-
-function CompanySearch({ 
-  tenants, 
-  selectedTenant, 
-  tenantCode, 
-  onCodeChange, 
-  onSelect,
-  loading,
-  isRTL 
-}: CompanySearchProps) {
-  const [showQRScanner, setShowQRScanner] = useState(false);
-
-  return (
-    <div className="space-y-6">
-      {/* Company Code Input - PRIMARY METHOD */}
-      <div>
-        <label className="block text-sm font-medium text-white/70 mb-2">
-          {isRTL ? 'رمز الشركة' : 'Company Code'}
-        </label>
-        <p className="text-xs text-white/40 mb-3">
-          {isRTL ? 'أدخل رمز الشركة المقدم من مدير حسابك' : 'Enter the company code provided by your account administrator'}
-        </p>
-        <div className="relative">
-          <BuildingOffice2Icon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
-          <input
-            type="text"
-            value={tenantCode}
-            onChange={(e) => onCodeChange(e.target.value.toUpperCase())}
-            placeholder={isRTL ? 'مثال: ALHAJCO' : 'e.g. ALHAJCO'}
-            className="login-input-premium pl-12 uppercase tracking-widest font-mono text-lg"
-            style={{ letterSpacing: '0.2em' }}
-            autoFocus
-          />
-        </div>
-      </div>
-
-      {/* Selected Company Display */}
-      {selectedTenant && (
-        <div className="p-4 rounded-xl bg-green-500/10 border border-green-500/30 animate-fade-in">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-green-500/20 flex items-center justify-center">
-              <CheckCircleIcon className="w-6 h-6 text-green-400" />
+    <nav className={`fixed top-0 inset-x-0 z-[100] transition-all duration-500 ${scrolled ? 'bg-slate-900/95 backdrop-blur-xl shadow-xl shadow-black/10 border-b border-white/5' : 'bg-transparent'}`}>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between h-16 lg:h-20">
+          {/* Logo */}
+          <button onClick={() => scrollTo('hero')} className="flex items-center gap-3 group">
+            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-cyan-400 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20 group-hover:shadow-blue-500/40 transition-all group-hover:scale-105">
+              <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+              </svg>
             </div>
             <div>
-              <p className="text-green-400 font-medium">
-                {isRTL ? 'تم اختيار الشركة' : 'Company Selected'}
-              </p>
-              <p className="text-white font-semibold">
-                {isRTL ? selectedTenant.name_ar || selectedTenant.name : selectedTenant.name}
-              </p>
+              <span className="text-white font-bold text-lg tracking-tight">SLMS</span>
+              <span className="hidden sm:block text-blue-400/60 text-[10px] font-medium tracking-widest uppercase">
+                {isRTL ? 'اللوجستيات الذكية' : 'Smart Logistics'}
+              </span>
             </div>
-          </div>
-        </div>
-      )}
+          </button>
 
-      {/* QR Scanner Modal */}
-      {showQRScanner && (
-        <div 
-          className="qr-scanner-overlay animate-fade-in"
-          onClick={() => setShowQRScanner(false)}
-        >
-          <div className="text-center">
-            <div className="w-64 h-64 border-2 border-dashed border-white/30 rounded-2xl flex items-center justify-center mb-4">
-              <QrCodeIcon className="w-24 h-24 text-white/30" />
+          {/* Desktop Nav */}
+          <div className="hidden lg:flex items-center gap-1">
+            {navItems.map(n => (
+              <button key={n.id} onClick={() => scrollTo(n.id)}
+                className="px-3 py-2 text-sm text-white/70 hover:text-white font-medium rounded-lg hover:bg-white/5 transition-all">
+                {n.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Right controls */}
+          <div className="flex items-center gap-2">
+            <button onClick={() => setLocale(locale === 'ar' ? 'en' : 'ar')}
+              className="p-2 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-all" title={isRTL ? 'English' : 'عربي'}>
+              <GlobeAltIcon className="w-5 h-5" />
+            </button>
+            <button onClick={toggleTheme} className="p-2 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-all">
+              {theme === 'dark' ? <SunIcon className="w-5 h-5" /> : <MoonIcon className="w-5 h-5" />}
+            </button>
+
+            {/* Login Dropdown */}
+            <div ref={loginRef} className="relative">
+              <button onClick={() => setLoginOpen(!loginOpen)}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-500 text-white text-sm font-semibold hover:from-blue-500 hover:to-cyan-400 transition-all shadow-lg shadow-blue-500/20 hover:shadow-blue-500/40 hover:scale-105">
+                <UserCircleIcon className="w-5 h-5" />
+                <span className="hidden sm:inline">{isRTL ? 'تسجيل الدخول' : 'Sign In'}</span>
+              </button>
+              {loginOpen && (
+                <div className="absolute end-0 mt-2 w-64 bg-slate-800/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/10 overflow-hidden animate-[slmsFadeUp_0.2s_ease-out]">
+                  <div className="p-3 border-b border-white/5">
+                    <p className="text-white/40 text-xs font-medium uppercase tracking-wider px-1">
+                      {isRTL ? 'اختر نوع الدخول' : 'Choose Login Type'}
+                    </p>
+                  </div>
+                  <div className="p-2">
+                    <button onClick={() => { setLoginOpen(false); onLogin('tenant'); }}
+                      className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 text-white/80 hover:text-white transition-all group">
+                      <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center group-hover:bg-blue-500/20 transition-all">
+                        <UsersIcon className="w-5 h-5 text-blue-400" />
+                      </div>
+                      <div className={isRTL ? 'text-right' : 'text-left'}>
+                        <p className="text-sm font-semibold">{isRTL ? 'عملاء المنصة' : 'Platform Clients'}</p>
+                        <p className="text-xs text-white/40">{isRTL ? 'دخول الشركات والمستخدمين' : 'Companies & users login'}</p>
+                      </div>
+                    </button>
+                    <button onClick={() => { setLoginOpen(false); onLogin('admin'); }}
+                      className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 text-white/80 hover:text-white transition-all group">
+                      <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center group-hover:bg-purple-500/20 transition-all">
+                        <ShieldCheckIcon className="w-5 h-5 text-purple-400" />
+                      </div>
+                      <div className={isRTL ? 'text-right' : 'text-left'}>
+                        <p className="text-sm font-semibold">{isRTL ? 'إدارة المنصة' : 'Platform Admin'}</p>
+                        <p className="text-xs text-white/40">{isRTL ? 'لوحة تحكم المنصة' : 'Platform management panel'}</p>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
-            <p className="text-white/70">{isRTL ? 'امسح رمز QR للشركة' : 'Scan company QR code'}</p>
-            <button
-              onClick={() => setShowQRScanner(false)}
-              className="mt-4 px-6 py-2 rounded-lg bg-white/10 text-white hover:bg-white/20 transition-colors"
-            >
-              {isRTL ? 'إغلاق' : 'Close'}
+
+            <button onClick={() => setMobileOpen(!mobileOpen)} className="lg:hidden p-2 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-all">
+              {mobileOpen ? <XMarkIcon className="w-6 h-6" /> : <Bars3Icon className="w-6 h-6" />}
             </button>
           </div>
         </div>
+      </div>
+      {/* Mobile nav */}
+      {mobileOpen && (
+        <div className="lg:hidden bg-slate-900/98 backdrop-blur-xl border-t border-white/5 animate-[slmsFadeUp_0.2s_ease-out]">
+          <div className="px-4 py-3 space-y-1">
+            {navItems.map(n => (
+              <button key={n.id} onClick={() => scrollTo(n.id)}
+                className="block w-full text-start px-4 py-3 text-white/70 hover:text-white hover:bg-white/5 rounded-xl transition-all text-sm font-medium">
+                {n.label}
+              </button>
+            ))}
+          </div>
+        </div>
       )}
-    </div>
+    </nav>
   );
 }
 
-// ============================================================================
-// Credentials Form Component
-// ============================================================================
+/* ━━━ HERO SECTION ━━━ */
+function HeroSection({ slides, isRTL, interval, onLogin }: { slides: LoginPageContentItem[]; isRTL: boolean; interval: number; onLogin: () => void }) {
+  const [cur, setCur] = useState(0);
+  const timer = useRef<NodeJS.Timeout>();
+  const reset = useCallback(() => {
+    if (timer.current) clearInterval(timer.current);
+    if (slides.length > 1) timer.current = setInterval(() => setCur(p => (p + 1) % slides.length), interval);
+  }, [slides.length, interval]);
+  useEffect(() => { reset(); return () => { if (timer.current) clearInterval(timer.current); }; }, [reset]);
 
-interface CredentialsFormProps {
-  email: string;
-  password: string;
-  rememberMe: boolean;
-  onEmailChange: (value: string) => void;
-  onPasswordChange: (value: string) => void;
-  onRememberMeChange: (value: boolean) => void;
-  errors: Record<string, string>;
-  mode: LoginMode;
-  selectedTenant: Tenant | null;
-  isRTL: boolean;
-}
-
-function CredentialsForm({
-  email,
-  password,
-  rememberMe,
-  onEmailChange,
-  onPasswordChange,
-  onRememberMeChange,
-  errors,
-  mode,
-  selectedTenant,
-  isRTL,
-}: CredentialsFormProps) {
-  const [showPassword, setShowPassword] = useState(false);
+  const fallbackSlides = slides.length ? slides : [{
+    id: 0, section: 'hero_slide' as const, title: 'Smart Logistics Management System', title_ar: 'نظام إدارة اللوجستيات الذكي',
+    subtitle: 'Streamline your operations with AI-powered logistics solutions', subtitle_ar: 'بسّط عملياتك مع حلول لوجستية مدعومة بالذكاء الاصطناعي',
+    icon: 'TruckIcon', sort_order: 1, body: null, body_ar: null, image_url: null, link_url: null, link_label: null, link_label_ar: null,
+    badge_text: null, badge_text_ar: null, bg_color: null, text_color: null,
+  }];
+  const s = fallbackSlides[cur % fallbackSlides.length];
 
   return (
-    <div className="space-y-5">
-      {/* Company Badge (for tenant mode) */}
-      {mode === 'tenant' && selectedTenant && (
-        <div className="flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/10 mb-6">
-          <div className="company-logo-premium w-12 h-12 text-lg">
-            {selectedTenant.logo_url ? (
-              <img src={selectedTenant.logo_url} alt={selectedTenant.name} className="w-8 h-8 object-contain" />
-            ) : (
-              selectedTenant.name.charAt(0)
+    <section id="hero" className="relative min-h-screen flex items-center overflow-hidden">
+      <Particles />
+      <div className="absolute inset-0 bg-gradient-to-br from-slate-950 via-blue-950 to-indigo-950" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,rgba(59,130,246,0.08),transparent_50%)]" />
+      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full pt-24 pb-16">
+        <div className="grid lg:grid-cols-2 gap-12 items-center">
+          <div key={cur} className="animate-[slmsFadeUp_0.6s_ease-out]">
+            {s.badge_text && (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-500/10 border border-blue-500/20 text-blue-300 text-xs font-bold uppercase tracking-wider rounded-full mb-6">
+                <SparklesIcon className="w-3.5 h-3.5" />
+                {isRTL ? s.badge_text_ar || s.badge_text : s.badge_text}
+              </span>
             )}
-          </div>
-          <div>
-            <p className="text-white font-medium">
-              {isRTL ? selectedTenant.name_ar || selectedTenant.name : selectedTenant.name}
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black text-white leading-[1.1] mb-6">
+              {isRTL ? s.title_ar || s.title : s.title || s.title_ar}
+            </h1>
+            <p className="text-lg sm:text-xl text-blue-200/70 leading-relaxed mb-8 max-w-xl">
+              {isRTL ? s.subtitle_ar || s.subtitle : s.subtitle || s.subtitle_ar}
             </p>
-            <p className="text-white/50 text-sm font-mono">{selectedTenant.tenant_code}</p>
+            <div className="flex flex-wrap gap-4">
+              <button onClick={onLogin}
+                className="group flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold rounded-2xl shadow-xl shadow-blue-500/25 hover:shadow-blue-500/40 hover:scale-105 transition-all text-base">
+                {isRTL ? 'ابدأ الآن' : 'Get Started'}
+                {isRTL ? <ArrowLeftIcon className="w-5 h-5 group-hover:-translate-x-1 transition-transform" /> : <ArrowRightIcon className="w-5 h-5 group-hover:translate-x-1 transition-transform" />}
+              </button>
+              <button onClick={() => document.getElementById('about')?.scrollIntoView({ behavior: 'smooth' })}
+                className="flex items-center gap-2 px-8 py-4 bg-white/5 border border-white/10 text-white font-semibold rounded-2xl hover:bg-white/10 transition-all text-base">
+                {isRTL ? 'اكتشف المزيد' : 'Learn More'}
+              </button>
+            </div>
+            {/* Stats */}
+            <div className="grid grid-cols-3 gap-6 mt-12 pt-8 border-t border-white/5">
+              {[
+                { n: '500+', l: isRTL ? 'شركة' : 'Companies' },
+                { n: '10K+', l: isRTL ? 'مستخدم' : 'Users' },
+                { n: '99.9%', l: isRTL ? 'وقت التشغيل' : 'Uptime' },
+              ].map(st => (
+                <div key={st.n}>
+                  <p className="text-2xl sm:text-3xl font-black text-white">{st.n}</p>
+                  <p className="text-white/40 text-sm mt-1">{st.l}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+          {/* Right side – dashboard mockup */}
+          <div className="hidden lg:block relative">
+            <div className="relative bg-white/5 backdrop-blur-sm rounded-3xl border border-white/10 p-6 shadow-2xl shadow-blue-500/5">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-3 h-3 rounded-full bg-red-400/60" /><div className="w-3 h-3 rounded-full bg-amber-400/60" /><div className="w-3 h-3 rounded-full bg-emerald-400/60" />
+                <span className="ms-2 text-white/30 text-xs">SLMS Dashboard</span>
+              </div>
+              <div className="space-y-3">
+                <div className="h-8 bg-white/5 rounded-lg w-3/4 animate-pulse" />
+                <div className="grid grid-cols-3 gap-3">
+                  {['from-blue-500/20 to-blue-600/10', 'from-emerald-500/20 to-emerald-600/10', 'from-purple-500/20 to-purple-600/10'].map((g, i) => (
+                    <div key={i} className={`h-20 bg-gradient-to-br ${g} rounded-xl border border-white/5 p-3`}>
+                      <div className="h-2 bg-white/10 rounded w-1/2 mb-2" /><div className="h-4 bg-white/5 rounded w-3/4" />
+                    </div>
+                  ))}
+                </div>
+                <div className="h-32 bg-white/5 rounded-xl border border-white/5 p-4">
+                  <div className="flex items-end gap-2 h-full">
+                    {[40,65,45,80,55,70,90,60,75,85,50,95].map((h,i) => (
+                      <div key={i} className="flex-1 bg-gradient-to-t from-blue-500/30 to-cyan-500/10 rounded-t" style={{height:`${h}%`}} />
+                    ))}
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3"><div className="h-16 bg-white/5 rounded-xl border border-white/5" /><div className="h-16 bg-white/5 rounded-xl border border-white/5" /></div>
+              </div>
+              <div className="absolute -inset-4 bg-gradient-to-r from-blue-500/10 via-cyan-500/5 to-purple-500/10 rounded-[2rem] blur-xl -z-10" />
+            </div>
           </div>
         </div>
-      )}
-
-      {/* Platform Admin Badge */}
-      {mode === 'platform' && (
-        <div className="flex items-center gap-3 p-3 rounded-xl bg-purple-500/10 border border-purple-500/30 mb-6">
-          <div className="w-12 h-12 rounded-xl bg-purple-500/20 flex items-center justify-center">
-            <ShieldCheckIcon className="w-6 h-6 text-purple-400" />
+        {fallbackSlides.length > 1 && (
+          <div className="flex justify-center gap-2 mt-12">
+            {fallbackSlides.map((_, i) => (
+              <button key={i} onClick={() => { setCur(i); reset(); }}
+                className={`h-2 rounded-full transition-all duration-300 ${i === cur % fallbackSlides.length ? 'w-8 bg-blue-400' : 'w-2 bg-white/20 hover:bg-white/40'}`} />
+            ))}
           </div>
-          <div>
-            <p className="text-purple-400 font-medium">
-              {isRTL ? 'دخول مدير المنصة' : 'Platform Administrator'}
-            </p>
-            <p className="text-white/50 text-sm">
-              {isRTL ? 'وصول كامل للمنصة' : 'Full platform access'}
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Email Input */}
-      <div>
-        <label className="block text-sm font-medium text-white/70 mb-2">
-          {isRTL ? 'البريد الإلكتروني' : 'Email Address'}
-        </label>
-        <div className="relative">
-          <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => onEmailChange(e.target.value)}
-            placeholder={isRTL ? 'أدخل بريدك الإلكتروني' : 'Enter your email'}
-            className={`login-input-premium pl-12 ${errors.email ? 'border-red-500/50' : ''}`}
-            autoComplete="email"
-          />
-        </div>
-        {errors.email && (
-          <p className="mt-2 text-sm text-red-400 flex items-center gap-1">
-            <ExclamationCircleIcon className="w-4 h-4" />
-            {errors.email}
-          </p>
         )}
       </div>
-
-      {/* Password Input */}
-      <div>
-        <label className="block text-sm font-medium text-white/70 mb-2">
-          {isRTL ? 'كلمة المرور' : 'Password'}
-        </label>
-        <div className="relative">
-          <KeyIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
-          <input
-            type={showPassword ? 'text' : 'password'}
-            value={password}
-            onChange={(e) => onPasswordChange(e.target.value)}
-            placeholder={isRTL ? 'أدخل كلمة المرور' : 'Enter your password'}
-            className={`login-input-premium pl-12 pr-12 ${errors.password ? 'border-red-500/50' : ''}`}
-            autoComplete="current-password"
-          />
-          <button
-            type="button"
-            onClick={() => setShowPassword(!showPassword)}
-            className="absolute right-4 top-1/2 -translate-y-1/2 p-1 rounded-lg hover:bg-white/10 transition-colors"
-          >
-            {showPassword ? (
-              <EyeSlashIcon className="w-5 h-5 text-white/40" />
-            ) : (
-              <EyeIcon className="w-5 h-5 text-white/40" />
-            )}
-          </button>
+      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce">
+        <div className="w-6 h-10 rounded-full border-2 border-white/20 flex items-start justify-center pt-2">
+          <div className="w-1.5 h-3 bg-white/40 rounded-full animate-[slmsScrollDot_1.5s_ease-in-out_infinite]" />
         </div>
-        {errors.password && (
-          <p className="mt-2 text-sm text-red-400 flex items-center gap-1">
-            <ExclamationCircleIcon className="w-4 h-4" />
-            {errors.password}
-          </p>
-        )}
       </div>
-
-      {/* Remember Me & Forgot Password */}
-      <div className="flex items-center justify-between">
-        <label className="flex items-center gap-2 cursor-pointer group">
-          <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${
-            rememberMe 
-              ? 'bg-blue-500 border-blue-500' 
-              : 'border-white/30 group-hover:border-white/50'
-          }`}>
-            {rememberMe && <CheckIcon className="w-3 h-3 text-white" />}
-          </div>
-          <input
-            type="checkbox"
-            checked={rememberMe}
-            onChange={(e) => onRememberMeChange(e.target.checked)}
-            className="sr-only"
-          />
-          <span className="text-sm text-white/70">{isRTL ? 'تذكرني' : 'Remember me'}</span>
-        </label>
-        
-        <Link 
-          href="/auth/forgot-password" 
-          className="text-sm text-blue-400 hover:text-blue-300 transition-colors"
-        >
-          {isRTL ? 'نسيت كلمة المرور؟' : 'Forgot password?'}
-        </Link>
-      </div>
-
-      {/* General Error */}
-      {errors.general && (
-        <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/30 animate-fade-in">
-          <p className="text-red-400 flex items-center gap-2">
-            <ExclamationCircleIcon className="w-5 h-5" />
-            {errors.general}
-          </p>
-        </div>
-      )}
-    </div>
+    </section>
   );
 }
 
-// ============================================================================
-// MFA Form Component
-// ============================================================================
-
-interface MFAFormProps {
-  code: string;
-  onCodeChange: (value: string) => void;
-  error?: string;
-  isRTL: boolean;
-  useRecoveryCode: boolean;
-  onToggleRecoveryCode: () => void;
-  recoveryCode: string;
-  onRecoveryCodeChange: (value: string) => void;
+/* ━━━ ABOUT US ━━━ */
+function AboutSection({ isRTL }: { isRTL: boolean }) {
+  return (
+    <section id="about" className="py-24 bg-gradient-to-b from-slate-950 to-slate-900 relative overflow-hidden">
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(59,130,246,0.05),transparent_50%)]" />
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+        <div className="grid lg:grid-cols-2 gap-16 items-center">
+          <div>
+            <span className="inline-flex items-center gap-2 text-blue-400 text-sm font-bold uppercase tracking-widest mb-4">
+              <InformationCircleIcon className="w-5 h-5" />{isRTL ? 'من نحن' : 'About Us'}
+            </span>
+            <h2 className="text-3xl sm:text-4xl font-black text-white mb-6 leading-tight">
+              {isRTL ? 'نقود الابتكار في عالم اللوجستيات' : 'Leading Innovation in Logistics'}
+            </h2>
+            <p className="text-blue-200/60 leading-relaxed mb-6">
+              {isRTL
+                ? 'نظام SLMS هو منصة متكاملة لإدارة اللوجستيات والسلسلة التوريدية، مصمم خصيصًا لتلبية احتياجات الشركات في المنطقة. نقدم حلولًا ذكية تعتمد على أحدث التقنيات لتبسيط العمليات وتحسين الكفاءة وخفض التكاليف.'
+                : 'SLMS is an integrated logistics and supply chain management platform, designed specifically to meet the needs of enterprises in the region. We deliver smart solutions powered by the latest technologies to streamline operations, improve efficiency, and reduce costs.'}
+            </p>
+            <p className="text-blue-200/60 leading-relaxed mb-8">
+              {isRTL
+                ? 'فريقنا من الخبراء المتخصصين يعمل بشكل مستمر على تطوير النظام وإضافة ميزات جديدة تواكب متطلبات السوق المتغيرة، مع الحفاظ على أعلى معايير الأمان والجودة.'
+                : 'Our team of specialized experts continuously works on developing the system and adding new features that keep pace with changing market demands, while maintaining the highest standards of security and quality.'}
+            </p>
+            <div className="grid grid-cols-2 gap-4">
+              {[
+                { icon: <AcademicCapIcon className="w-5 h-5" />, t: isRTL ? 'خبرة +15 عامًا' : '15+ Years Experience' },
+                { icon: <GlobeAmericasIcon className="w-5 h-5" />, t: isRTL ? 'تغطية إقليمية' : 'Regional Coverage' },
+                { icon: <ShieldCheckIcon className="w-5 h-5" />, t: isRTL ? 'أمان مؤسسي' : 'Enterprise Security' },
+                { icon: <HeartIcon className="w-5 h-5" />, t: isRTL ? 'دعم متواصل 24/7' : '24/7 Support' },
+              ].map((item, i) => (
+                <div key={i} className="flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/5">
+                  <div className="text-blue-400">{item.icon}</div>
+                  <span className="text-white/80 text-sm font-medium">{item.t}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="relative">
+            <div className="grid grid-cols-2 gap-4">
+              {[
+                { n: '500+', l: isRTL ? 'شركة تثق بنا' : 'Trusted Companies', c: 'from-blue-500/20 to-blue-600/5 border-blue-500/10' },
+                { n: '50+', l: isRTL ? 'وحدة نظامية' : 'System Modules', c: 'from-emerald-500/20 to-emerald-600/5 border-emerald-500/10' },
+                { n: '10K+', l: isRTL ? 'مستخدم نشط' : 'Active Users', c: 'from-purple-500/20 to-purple-600/5 border-purple-500/10' },
+                { n: '99.9%', l: isRTL ? 'وقت تشغيل' : 'Uptime SLA', c: 'from-amber-500/20 to-amber-600/5 border-amber-500/10' },
+              ].map((s, i) => (
+                <div key={i} className={`p-6 rounded-2xl bg-gradient-to-br ${s.c} border backdrop-blur-sm text-center hover:scale-105 transition-all`}>
+                  <p className="text-3xl font-black text-white mb-2">{s.n}</p>
+                  <p className="text-white/50 text-sm">{s.l}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
 }
 
-function MFAForm({ code, onCodeChange, error, isRTL, useRecoveryCode, onToggleRecoveryCode, recoveryCode, onRecoveryCodeChange }: MFAFormProps) {
-  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
-  const codeDigits = Array.from({ length: 6 }, (_, i) => code[i] || '');
-
-  const handleInput = (index: number, value: string) => {
-    if (value.length > 1) value = value.charAt(0);
-    if (!/^\d*$/.test(value)) return;
-
-    const digits = [...codeDigits];
-    digits[index] = value || '';
-    const newCode = digits.join('').replace(/\s/g, '');
-    onCodeChange(newCode);
-
-    // Auto-focus next input
-    if (value && index < 5) {
-      inputRefs.current[index + 1]?.focus();
-    }
-  };
-
-  const handleKeyDown = (index: number, e: React.KeyboardEvent) => {
-    if (e.key === 'Backspace' && !codeDigits[index] && index > 0) {
-      inputRefs.current[index - 1]?.focus();
-    }
-  };
-
-  const handlePaste = (e: React.ClipboardEvent) => {
-    e.preventDefault();
-    const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
-    if (pasted.length > 0) {
-      onCodeChange(pasted);
-      const focusIdx = Math.min(pasted.length, 5);
-      inputRefs.current[focusIdx]?.focus();
-    }
-  };
-
+/* ━━━ SERVICES ━━━ */
+function ServicesSection({ isRTL }: { isRTL: boolean }) {
+  const services = [
+    { icon: <TruckIcon className="w-7 h-7" />, t: isRTL ? 'إدارة الشحنات' : 'Shipment Management', d: isRTL ? 'تتبع وإدارة جميع شحناتك في الوقت الفعلي مع تنبيهات ذكية وتقارير شاملة' : 'Track and manage all shipments in real-time with smart alerts and comprehensive reports', c: 'from-blue-500/20 to-blue-600/5 border-blue-500/10 hover:border-blue-500/30', ic: 'text-blue-400' },
+    { icon: <BanknotesIcon className="w-7 h-7" />, t: isRTL ? 'الإدارة المالية' : 'Financial Management', d: isRTL ? 'نظام محاسبي متكامل يشمل دفتر أستاذ، ذمم مدينة ودائنة، وتسوية بنكية' : 'Complete accounting system with GL, AP/AR, and bank reconciliation', c: 'from-emerald-500/20 to-emerald-600/5 border-emerald-500/10 hover:border-emerald-500/30', ic: 'text-emerald-400' },
+    { icon: <ShoppingCartIcon className="w-7 h-7" />, t: isRTL ? 'المشتريات والتوريد' : 'Procurement & Supply', d: isRTL ? 'إدارة دورة المشتريات الكاملة من طلبات عروض الأسعار إلى أوامر الشراء' : 'Manage complete procurement cycle from RFQs to purchase orders', c: 'from-purple-500/20 to-purple-600/5 border-purple-500/10 hover:border-purple-500/30', ic: 'text-purple-400' },
+    { icon: <FolderIcon className="w-7 h-7" />, t: isRTL ? 'إدارة المشاريع' : 'Project Management', d: isRTL ? 'تتبع المشاريع والمراحل والميزانيات وربطها بالشحنات والمصروفات' : 'Track projects, phases, budgets, and link to shipments and expenses', c: 'from-amber-500/20 to-amber-600/5 border-amber-500/10 hover:border-amber-500/30', ic: 'text-amber-400' },
+    { icon: <ChartBarIcon className="w-7 h-7" />, t: isRTL ? 'التقارير والتحليلات' : 'Reports & Analytics', d: isRTL ? 'لوحات معلومات تفاعلية وتقارير مفصلة لاتخاذ قرارات مبنية على البيانات' : 'Interactive dashboards and detailed reports for data-driven decisions', c: 'from-cyan-500/20 to-cyan-600/5 border-cyan-500/10 hover:border-cyan-500/30', ic: 'text-cyan-400' },
+    { icon: <ShieldCheckIcon className="w-7 h-7" />, t: isRTL ? 'الأمان والامتثال' : 'Security & Compliance', d: isRTL ? 'مصادقة متعددة العوامل وتحكم بالصلاحيات وسجل تدقيق كامل للامتثال' : 'Multi-factor auth, role-based access control, and full audit trail', c: 'from-rose-500/20 to-rose-600/5 border-rose-500/10 hover:border-rose-500/30', ic: 'text-rose-400' },
+  ];
   return (
-    <div className="space-y-6">
-      {/* MFA Icon */}
-      <div className="text-center">
-        <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-blue-500/20 mb-4">
-          <FingerPrintIcon className="w-10 h-10 text-blue-400" />
+    <section id="services" className="py-24 bg-slate-900 relative overflow-hidden">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+        <div className="text-center mb-16">
+          <span className="inline-flex items-center gap-2 text-cyan-400 text-sm font-bold uppercase tracking-widest mb-4">
+            <WrenchScrewdriverIcon className="w-5 h-5" />{isRTL ? 'خدماتنا' : 'Our Services'}
+          </span>
+          <h2 className="text-3xl sm:text-4xl font-black text-white mb-4">
+            {isRTL ? 'حلول شاملة لكل احتياجاتك' : 'Comprehensive Solutions for Every Need'}
+          </h2>
+          <p className="text-blue-200/50 max-w-2xl mx-auto">{isRTL ? 'نقدم مجموعة متكاملة من الخدمات المصممة لتحسين كفاءة عملياتك اللوجستية' : 'We offer a complete suite of services designed to optimize your logistics operations'}</p>
         </div>
-        <h3 className="text-xl font-semibold text-white mb-2">
-          {isRTL ? 'التحقق بخطوتين' : 'Two-Factor Authentication'}
-        </h3>
-        <p className="text-white/60 text-sm">
-          {useRecoveryCode
-            ? (isRTL ? 'أدخل أحد رموز الاسترداد' : 'Enter one of your recovery codes')
-            : (isRTL ? 'أدخل الرمز من تطبيق المصادقة' : 'Enter the code from your authenticator app')
-          }
-        </p>
-      </div>
-
-      {useRecoveryCode ? (
-        /* Recovery Code Input */
-        <div className="px-4">
-          <input
-            type="text"
-            value={recoveryCode}
-            onChange={(e) => onRecoveryCodeChange(e.target.value.toUpperCase())}
-            placeholder={isRTL ? 'أدخل رمز الاسترداد' : 'Enter recovery code'}
-            className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white text-center text-lg tracking-widest font-mono placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50"
-            autoFocus
-          />
-        </div>
-      ) : (
-        /* MFA Code Inputs */
-        <div className="flex justify-center gap-3" dir="ltr" onPaste={handlePaste}>
-          {Array.from({ length: 6 }).map((_, index) => (
-            <input
-              key={index}
-              ref={(el) => { inputRefs.current[index] = el; }}
-              type="text"
-              inputMode="numeric"
-              maxLength={1}
-              value={codeDigits[index] || ''}
-              onChange={(e) => handleInput(index, e.target.value)}
-              onKeyDown={(e) => handleKeyDown(index, e)}
-              className="mfa-input"
-              autoFocus={index === 0}
-            />
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {services.map((s, i) => (
+            <div key={i} className={`group p-6 rounded-2xl bg-gradient-to-br ${s.c} border backdrop-blur-sm hover:scale-[1.02] transition-all duration-300`}>
+              <div className={`w-14 h-14 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-center mb-4 ${s.ic} group-hover:scale-110 transition-transform`}>{s.icon}</div>
+              <h3 className="text-white font-bold text-lg mb-2">{s.t}</h3>
+              <p className="text-white/40 text-sm leading-relaxed">{s.d}</p>
+            </div>
           ))}
         </div>
-      )}
+      </div>
+    </section>
+  );
+}
 
-      {/* Error */}
-      {error && (
-        <p className="text-center text-sm text-red-400">{error}</p>
-      )}
+/* ━━━ PRODUCTS ━━━ */
+function ProductsSection({ isRTL }: { isRTL: boolean }) {
+  const products = [
+    { icon: <ComputerDesktopIcon className="w-8 h-8" />, name: isRTL ? 'SLMS Enterprise' : 'SLMS Enterprise', desc: isRTL ? 'النظام الكامل للشركات الكبيرة - إدارة شاملة لكل العمليات اللوجستية والمالية والتشغيلية' : 'Full system for large enterprises — comprehensive logistics, financial & operational management', tag: isRTL ? 'الأكثر طلبًا' : 'Most Popular', tagColor: 'bg-blue-500/20 text-blue-300 border-blue-500/20' },
+    { icon: <DevicePhoneMobileIcon className="w-8 h-8" />, name: isRTL ? 'SLMS Mobile' : 'SLMS Mobile', desc: isRTL ? 'تطبيق الجوال للوصول السريع - تتبع الشحنات والموافقات وإدارة المهام من أي مكان' : 'Mobile app for quick access — track shipments, approvals & task management from anywhere', tag: isRTL ? 'قريبًا' : 'Coming Soon', tagColor: 'bg-amber-500/20 text-amber-300 border-amber-500/20' },
+    { icon: <BuildingStorefrontIcon className="w-8 h-8" />, name: isRTL ? 'SLMS Marketplace' : 'SLMS Marketplace', desc: isRTL ? 'سوق إلكتروني متكامل - منصة تجارة إلكترونية مدمجة مع النظام اللوجستي' : 'Integrated marketplace — e-commerce platform embedded with the logistics system', tag: isRTL ? 'جديد' : 'New', tagColor: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/20' },
+  ];
+  return (
+    <section id="products" className="py-24 bg-gradient-to-b from-slate-900 to-slate-950 relative overflow-hidden">
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,rgba(147,51,234,0.05),transparent_50%)]" />
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+        <div className="text-center mb-16">
+          <span className="inline-flex items-center gap-2 text-purple-400 text-sm font-bold uppercase tracking-widest mb-4">
+            <CubeIcon className="w-5 h-5" />{isRTL ? 'منتجاتنا' : 'Our Products'}
+          </span>
+          <h2 className="text-3xl sm:text-4xl font-black text-white mb-4">{isRTL ? 'منتجات مصممة لنجاحك' : 'Products Built for Your Success'}</h2>
+        </div>
+        <div className="grid md:grid-cols-3 gap-8">
+          {products.map((p, i) => (
+            <div key={i} className="group relative p-8 rounded-3xl bg-white/[0.02] border border-white/5 hover:border-white/15 backdrop-blur-sm transition-all duration-500 hover:bg-white/[0.04]">
+              <span className={`inline-flex px-3 py-1 text-[10px] font-bold uppercase tracking-wider rounded-full border mb-6 ${p.tagColor}`}>{p.tag}</span>
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-white/5 to-white/[0.02] border border-white/5 flex items-center justify-center text-white/70 mb-6 group-hover:scale-110 transition-transform">{p.icon}</div>
+              <h3 className="text-xl font-bold text-white mb-3">{p.name}</h3>
+              <p className="text-white/40 text-sm leading-relaxed">{p.desc}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
 
-      {/* Toggle between OTP and Recovery Code */}
-      <div className="pt-4 border-t border-white/10">
-        <div className="text-center">
-          <button
-            type="button"
-            onClick={onToggleRecoveryCode}
-            className="text-sm text-blue-400 hover:text-blue-300 transition-colors"
-          >
-            {useRecoveryCode
-              ? (isRTL ? 'استخدام رمز التحقق' : 'Use authenticator code')
-              : (isRTL ? 'استخدام رمز الاسترداد' : 'Use a recovery code')
-            }
+/* ━━━ FEATURES GRID (from DB) ━━━ */
+function FeaturesSection({ features, isRTL }: { features: LoginPageContentItem[]; isRTL: boolean }) {
+  const colors = [
+    'from-blue-500/15 to-blue-600/5 border-blue-400/10', 'from-emerald-500/15 to-emerald-600/5 border-emerald-400/10',
+    'from-purple-500/15 to-purple-600/5 border-purple-400/10', 'from-amber-500/15 to-amber-600/5 border-amber-400/10',
+    'from-cyan-500/15 to-cyan-600/5 border-cyan-400/10', 'from-rose-500/15 to-rose-600/5 border-rose-400/10',
+  ];
+  const iconC = ['text-blue-400', 'text-emerald-400', 'text-purple-400', 'text-amber-400', 'text-cyan-400', 'text-rose-400'];
+  if (!features.length) return null;
+  return (
+    <section id="features" className="py-24 bg-slate-950 relative overflow-hidden">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+        <div className="text-center mb-16">
+          <span className="inline-flex items-center gap-2 text-emerald-400 text-sm font-bold uppercase tracking-widest mb-4">
+            <RocketLaunchIcon className="w-5 h-5" />{isRTL ? 'المميزات' : 'Features'}
+          </span>
+          <h2 className="text-3xl sm:text-4xl font-black text-white mb-4">{isRTL ? 'مميزات تمنحك التفوق' : 'Features That Give You the Edge'}</h2>
+        </div>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
+          {features.map((f, i) => (
+            <div key={f.id} className={`group p-5 rounded-2xl bg-gradient-to-br ${colors[i % colors.length]} border backdrop-blur-sm hover:scale-[1.04] transition-all duration-300`}>
+              <DIcon name={f.icon} className={`w-7 h-7 ${iconC[i % iconC.length]} mb-3 group-hover:scale-110 transition-transform`} />
+              <h3 className="text-white font-bold text-sm mb-1.5">{isRTL ? f.title_ar || f.title : f.title || f.title_ar}</h3>
+              <p className="text-white/40 text-xs leading-relaxed line-clamp-3">{isRTL ? f.subtitle_ar || f.subtitle : f.subtitle || f.subtitle_ar}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ━━━ NEWS & ANNOUNCEMENTS ━━━ */
+function NewsSection({ news, announcements, isRTL }: { news: LoginPageContentItem[]; announcements: LoginPageContentItem[]; isRTL: boolean }) {
+  if (!news.length && !announcements.length) return null;
+  return (
+    <section id="news" className="py-24 bg-gradient-to-b from-slate-950 to-slate-900 relative">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+        <div className="text-center mb-16">
+          <span className="inline-flex items-center gap-2 text-amber-400 text-sm font-bold uppercase tracking-widest mb-4">
+            <NewspaperIcon className="w-5 h-5" />{isRTL ? 'آخر الأخبار والإعلانات' : 'Latest News & Announcements'}
+          </span>
+          <h2 className="text-3xl sm:text-4xl font-black text-white mb-4">{isRTL ? 'ابقَ على اطلاع' : 'Stay Informed'}</h2>
+        </div>
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {announcements.map(a => (
+            <div key={a.id} className="group p-6 rounded-2xl bg-gradient-to-br from-amber-500/10 to-amber-600/5 border border-amber-500/10 hover:border-amber-500/25 transition-all">
+              <div className="flex items-center gap-2 mb-3">
+                <MegaphoneIcon className="w-5 h-5 text-amber-400" />
+                <span className="text-amber-400/60 text-xs font-bold uppercase tracking-wider">{isRTL ? 'إعلان' : 'Announcement'}</span>
+              </div>
+              <h3 className="text-white font-bold mb-2">{isRTL ? a.title_ar || a.title : a.title || a.title_ar}</h3>
+              <p className="text-white/40 text-sm leading-relaxed">{isRTL ? a.subtitle_ar || a.subtitle : a.subtitle || a.subtitle_ar}</p>
+            </div>
+          ))}
+          {news.map(n => (
+            <div key={n.id} className="group p-6 rounded-2xl bg-white/[0.02] border border-white/5 hover:border-white/15 transition-all">
+              <div className="flex items-center gap-2 mb-3">
+                <DIcon name={n.icon} className="w-5 h-5 text-blue-400" />
+                <span className="text-blue-400/60 text-xs font-bold uppercase tracking-wider">{isRTL ? 'خبر' : 'News'}</span>
+              </div>
+              <h3 className="text-white font-bold mb-2">{isRTL ? n.title_ar || n.title : n.title || n.title_ar}</h3>
+              <p className="text-white/40 text-sm leading-relaxed">{isRTL ? n.subtitle_ar || n.subtitle : n.subtitle || n.subtitle_ar}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ━━━ FAQ / HELP ━━━ */
+function FAQSection({ faqs, isRTL }: { faqs: LoginPageContentItem[]; isRTL: boolean }) {
+  const [open, setOpen] = useState<number | null>(null);
+  const defaultFaqs = [
+    { q: isRTL ? 'كيف أقوم بتسجيل الدخول؟' : 'How do I log in?', a: isRTL ? 'اضغط على زر تسجيل الدخول في الأعلى، اختر نوع الدخول، ثم أدخل رمز الشركة (مثال: ACME-001) متبوعًا ببياناتك' : 'Click the Sign In button at the top, choose login type, then enter your company code (e.g., ACME-001) followed by your credentials' },
+    { q: isRTL ? 'كيف أطلب فتح حساب جديد؟' : 'How do I request a new account?', a: isRTL ? 'اضغط على "طلب فتح حساب" في صفحة الدخول واملأ النموذج بمعلومات شركتك وسنتواصل معك خلال يوم عمل' : 'Click "Request Account" on the login page, fill in your company details, and we\'ll contact you within 1 business day' },
+    { q: isRTL ? 'هل يدعم النظام اللغة العربية؟' : 'Does the system support Arabic?', a: isRTL ? 'نعم، النظام يدعم اللغتين العربية والإنجليزية بالكامل مع واجهة RTL احترافية' : 'Yes, the system fully supports both Arabic and English with professional RTL interface' },
+    { q: isRTL ? 'ما هي الأجهزة المدعومة؟' : 'What devices are supported?', a: isRTL ? 'يعمل النظام على جميع المتصفحات الحديثة وعلى الأجهزة المكتبية والأجهزة اللوحية والهواتف الذكية' : 'The system works on all modern browsers and on desktops, tablets, and smartphones' },
+    { q: isRTL ? 'كيف أتواصل مع الدعم الفني؟' : 'How do I contact support?', a: isRTL ? 'يمكنك التواصل معنا عبر البريد الإلكتروني أو الهاتف أو واتساب الموجودة في أسفل الصفحة' : 'You can reach us via email, phone, or WhatsApp listed at the bottom of the page' },
+  ];
+  const items = faqs.length ? faqs : defaultFaqs.map((f, i) => ({
+    id: 9000 + i, section: 'faq' as const, title: f.q, title_ar: f.q, subtitle: f.a, subtitle_ar: f.a, body: f.a, body_ar: f.a,
+    image_url: null, icon: null, link_url: null, link_label: null, link_label_ar: null, badge_text: null, badge_text_ar: null, bg_color: null, text_color: null, sort_order: i,
+  }));
+  return (
+    <section id="faq" className="py-24 bg-slate-900 relative overflow-hidden">
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+        <div className="text-center mb-16">
+          <span className="inline-flex items-center gap-2 text-purple-400 text-sm font-bold uppercase tracking-widest mb-4">
+            <QuestionMarkCircleIcon className="w-5 h-5" />{isRTL ? 'المساعدة والأسئلة الشائعة' : 'Help & FAQ'}
+          </span>
+          <h2 className="text-3xl sm:text-4xl font-black text-white mb-4">{isRTL ? 'كيف يمكننا مساعدتك؟' : 'How Can We Help?'}</h2>
+        </div>
+        <div className="space-y-3">
+          {items.map((f, i) => (
+            <div key={f.id} className="rounded-2xl bg-white/[0.02] border border-white/5 overflow-hidden hover:border-white/10 transition-all">
+              <button onClick={() => setOpen(open === i ? null : i)} className="w-full flex items-center justify-between p-5 text-start">
+                <span className="text-white font-semibold text-sm pe-4">{isRTL ? f.title_ar || f.title : f.title || f.title_ar}</span>
+                <div className={`flex-shrink-0 w-8 h-8 rounded-full bg-white/5 flex items-center justify-center transition-transform ${open === i ? 'rotate-180' : ''}`}>
+                  <ChevronDownIcon className="w-4 h-4 text-white/40" />
+                </div>
+              </button>
+              {open === i && (
+                <div className="px-5 pb-5 text-sm text-white/50 leading-relaxed animate-[slmsFadeUp_0.2s_ease-out]">
+                  {isRTL ? f.body_ar || f.body || f.subtitle_ar || f.subtitle : f.body || f.body_ar || f.subtitle || f.subtitle_ar}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ━━━ TERMS BANNER ━━━ */
+function TermsBanner({ isRTL }: { isRTL: boolean }) {
+  return (
+    <section className="py-16 bg-gradient-to-r from-blue-950 via-slate-950 to-indigo-950 relative overflow-hidden">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(59,130,246,0.05),transparent_60%)]" />
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
+        <ScaleIcon className="w-10 h-10 text-blue-400/60 mx-auto mb-4" />
+        <h2 className="text-2xl font-bold text-white mb-3">{isRTL ? 'الشروط والأحكام' : 'Terms & Conditions'}</h2>
+        <p className="text-blue-200/50 text-sm max-w-2xl mx-auto mb-6 leading-relaxed">
+          {isRTL
+            ? 'باستخدامك لنظام SLMS فإنك توافق على الشروط والأحكام وسياسة الخصوصية الخاصة بنا. نلتزم بحماية بياناتك وفقًا لأعلى معايير الأمان الدولية وأنظمة حماية البيانات المعمول بها.'
+            : 'By using SLMS you agree to our Terms & Conditions and Privacy Policy. We are committed to protecting your data according to the highest international security standards and applicable data protection regulations.'}
+        </p>
+        <div className="flex justify-center gap-4">
+          <Link href="/terms" className="px-6 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white/70 text-sm font-medium hover:bg-white/10 hover:text-white transition-all">{isRTL ? 'الشروط والأحكام' : 'Terms & Conditions'}</Link>
+          <Link href="/privacy" className="px-6 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white/70 text-sm font-medium hover:bg-white/10 hover:text-white transition-all">{isRTL ? 'سياسة الخصوصية' : 'Privacy Policy'}</Link>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ━━━ FOOTER ━━━ */
+function Footer({ settings, isRTL }: { settings: LoginPageSettings | null; isRTL: boolean }) {
+  const email = settings?.contact_email || 'ali@alhajco.com';
+  const phone = settings?.contact_phone || '+966 533845104';
+  const whatsapp = settings?.contact_whatsapp || '+966533845104';
+  return (
+    <footer className="bg-slate-950 border-t border-white/5 pt-16 pb-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="grid md:grid-cols-4 gap-10 mb-12">
+          <div className="md:col-span-2">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-cyan-400 rounded-xl flex items-center justify-center">
+                <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+                </svg>
+              </div>
+              <div>
+                <span className="text-white font-bold text-lg">SLMS</span>
+                <p className="text-blue-400/50 text-xs">Smart Logistics Management System</p>
+              </div>
+            </div>
+            <p className="text-white/40 text-sm leading-relaxed max-w-md mb-6">
+              {isRTL ? 'منصة متكاملة لإدارة اللوجستيات وسلسلة التوريد، مصممة لتمكين الشركات من تحقيق أقصى كفاءة تشغيلية.' : 'An integrated logistics and supply chain management platform, designed to empower businesses to achieve maximum operational efficiency.'}
+            </p>
+          </div>
+          <div>
+            <h4 className="text-white font-bold text-sm mb-4">{isRTL ? 'روابط سريعة' : 'Quick Links'}</h4>
+            <div className="space-y-2">
+              {[
+                { id: 'about', l: isRTL ? 'من نحن' : 'About Us' },
+                { id: 'services', l: isRTL ? 'خدماتنا' : 'Services' },
+                { id: 'products', l: isRTL ? 'منتجاتنا' : 'Products' },
+                { id: 'faq', l: isRTL ? 'المساعدة' : 'Help' },
+              ].map(lk => (
+                <button key={lk.id} onClick={() => document.getElementById(lk.id)?.scrollIntoView({ behavior: 'smooth' })}
+                  className="block text-white/40 hover:text-white/70 text-sm transition-colors">{lk.l}</button>
+              ))}
+              <Link href="/terms" className="block text-white/40 hover:text-white/70 text-sm transition-colors">{isRTL ? 'الشروط والأحكام' : 'Terms'}</Link>
+              <Link href="/privacy" className="block text-white/40 hover:text-white/70 text-sm transition-colors">{isRTL ? 'سياسة الخصوصية' : 'Privacy'}</Link>
+            </div>
+          </div>
+          <div>
+            <h4 className="text-white font-bold text-sm mb-4">{isRTL ? 'تواصل معنا' : 'Contact Us'}</h4>
+            <div className="space-y-3">
+              <a href={`mailto:${email}`} className="flex items-center gap-3 text-white/40 hover:text-white/70 text-sm transition-colors">
+                <EnvelopeIcon className="w-4 h-4 flex-shrink-0" /> {email}
+              </a>
+              <a href={`tel:${phone.replace(/\s/g, '')}`} className="flex items-center gap-3 text-white/40 hover:text-white/70 text-sm transition-colors">
+                <PhoneIcon className="w-4 h-4 flex-shrink-0" /> <span dir="ltr">{phone}</span>
+              </a>
+              <a href={`https://wa.me/${whatsapp.replace(/[^0-9]/g, '')}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 text-emerald-400/60 hover:text-emerald-400 text-sm transition-colors">
+                <ChatBubbleLeftRightIcon className="w-4 h-4 flex-shrink-0" /> WhatsApp
+              </a>
+            </div>
+          </div>
+        </div>
+        <div className="pt-8 border-t border-white/5 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <p className="text-white/25 text-xs">
+            &copy; {new Date().getFullYear()} {isRTL ? settings?.footer_text_ar || 'نظام إدارة اللوجستيات الذكي' : settings?.footer_text || 'SLMS'} — {isRTL ? 'جميع الحقوق محفوظة' : 'All rights reserved'}
+          </p>
+          <div className="flex items-center gap-4 text-xs text-white/25">
+            <Link href="/terms" className="hover:text-white/50 transition-colors">{isRTL ? 'الشروط' : 'Terms'}</Link>
+            <Link href="/privacy" className="hover:text-white/50 transition-colors">{isRTL ? 'الخصوصية' : 'Privacy'}</Link>
+          </div>
+        </div>
+      </div>
+    </footer>
+  );
+}
+
+/* ━━━ LOGIN MODAL ━━━ */
+function LoginModal({ isOpen, loginType, onClose, onSwitchType, isRTL }: {
+  isOpen: boolean; loginType: 'tenant' | 'admin'; onClose: () => void; onSwitchType: (t: 'tenant' | 'admin') => void; isRTL: boolean;
+}) {
+  if (!isOpen) return null;
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-md" />
+      <div className="relative w-full max-w-md animate-[slmsFadeUp_0.3s_ease-out]" onClick={e => e.stopPropagation()}>
+        {/* Type switcher */}
+        <div className="flex mb-3 bg-slate-800/80 backdrop-blur-xl rounded-2xl p-1 border border-white/5">
+          <button onClick={() => onSwitchType('tenant')}
+            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold transition-all ${loginType === 'tenant' ? 'bg-blue-600 text-white shadow-lg' : 'text-white/50 hover:text-white/80'}`}>
+            <UsersIcon className="w-4 h-4" />{isRTL ? 'عملاء المنصة' : 'Platform Clients'}
           </button>
+          <button onClick={() => onSwitchType('admin')}
+            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold transition-all ${loginType === 'admin' ? 'bg-purple-600 text-white shadow-lg' : 'text-white/50 hover:text-white/80'}`}>
+            <ShieldCheckIcon className="w-4 h-4" />{isRTL ? 'إدارة المنصة' : 'Platform Admin'}
+          </button>
+        </div>
+        {/* Login card */}
+        <div className="bg-slate-900/95 backdrop-blur-xl rounded-3xl border border-white/10 shadow-2xl p-6 sm:p-8">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${loginType === 'admin' ? 'bg-purple-500/10 border border-purple-500/20' : 'bg-blue-500/10 border border-blue-500/20'}`}>
+                {loginType === 'admin' ? <ShieldCheckIcon className="w-6 h-6 text-purple-400" /> : <UsersIcon className="w-6 h-6 text-blue-400" />}
+              </div>
+              <div>
+                <h2 className="text-white font-bold text-lg">{loginType === 'admin' ? (isRTL ? 'إدارة المنصة' : 'Platform Admin') : (isRTL ? 'دخول الشركات' : 'Company Login')}</h2>
+                <p className="text-white/40 text-xs">{loginType === 'admin' ? (isRTL ? 'لوحة تحكم المنصة' : 'Platform management panel') : (isRTL ? 'أدخل بياناتك للوصول إلى النظام' : 'Enter your credentials to access the system')}</p>
+              </div>
+            </div>
+            <button onClick={onClose} className="p-2 rounded-xl hover:bg-white/5 text-white/40 hover:text-white transition-all"><XMarkIcon className="w-5 h-5" /></button>
+          </div>
+          {/* Helper Tips */}
+          <div className={`mb-5 p-3 rounded-xl text-xs leading-relaxed ${loginType === 'admin' ? 'bg-purple-500/5 border border-purple-500/10 text-purple-300/60' : 'bg-blue-500/5 border border-blue-500/10 text-blue-300/60'}`}>
+            <div className="flex items-start gap-2">
+              <LightBulbIcon className="w-4 h-4 flex-shrink-0 mt-0.5" />
+              <div>
+                {loginType === 'admin'
+                  ? <p>{isRTL ? 'أدخل بيانات مدير المنصة للوصول إلى لوحة التحكم. مثال: admin@example.com' : 'Enter platform admin credentials. Example: admin@example.com'}</p>
+                  : <p>{isRTL ? 'الخطوة 1: أدخل رمز الشركة (مثال: ACME-001). الخطوة 2: أدخل بريدك الإلكتروني وكلمة المرور' : 'Step 1: Enter company code (e.g., ACME-001). Step 2: Enter your email and password'}</p>
+                }
+              </div>
+            </div>
+          </div>
+          <MultiStageLoginForm mode={loginType === 'admin' ? 'admin' : 'tenant'} />
+          {loginType === 'tenant' && (
+            <div className="mt-5 pt-4 border-t border-white/5 flex items-center justify-center gap-4 text-xs">
+              <button onClick={() => { onClose(); document.getElementById('faq')?.scrollIntoView({ behavior: 'smooth' }); }}
+                className="text-white/40 hover:text-white/70 transition-colors flex items-center gap-1">
+                <QuestionMarkCircleIcon className="w-3.5 h-3.5" />{isRTL ? 'مساعدة' : 'Help'}
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>
   );
 }
 
-// ============================================================================
-// Main Login Page Component
-// ============================================================================
+/* ━━━ ACCOUNT REQUEST MODAL ━━━ */
+function AccountRequestModal({ isOpen, onClose, isRTL }: { isOpen: boolean; onClose: () => void; isRTL: boolean }) {
+  const [form, setForm] = useState({ company_name: '', company_name_ar: '', company_code: '', admin_name: '', admin_email: '', phone: '', notes: '' });
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const handleSubmit = async () => {
+    if (!form.company_name || !form.admin_name || !form.admin_email) return;
+    setSubmitting(true);
+    try {
+      const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
+      await fetch(`${API}/tenant-requests`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
+      setSubmitted(true);
+    } catch { /* silent */ }
+    setSubmitting(false);
+  };
+  if (!isOpen) return null;
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-md" />
+      <div className="relative w-full max-w-lg bg-slate-900/95 backdrop-blur-xl rounded-3xl border border-white/10 shadow-2xl p-6 sm:p-8 max-h-[90vh] overflow-y-auto animate-[slmsFadeUp_0.3s_ease-out]"
+        dir={isRTL ? 'rtl' : 'ltr'} onClick={e => e.stopPropagation()}>
+        {submitted ? (
+          <div className="text-center py-8">
+            <div className="w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mx-auto mb-4">
+              <CheckBadgeIcon className="w-8 h-8 text-emerald-400" />
+            </div>
+            <h3 className="text-xl font-bold text-white mb-2">{isRTL ? 'تم إرسال طلبك بنجاح!' : 'Request Submitted!'}</h3>
+            <p className="text-white/40 text-sm mb-6">{isRTL ? 'سيتم مراجعة طلبك والتواصل معك قريبًا.' : 'We will review your request and contact you soon.'}</p>
+            <button onClick={onClose} className="px-6 py-2.5 rounded-xl bg-emerald-600 text-white font-medium hover:bg-emerald-700 transition-colors">{isRTL ? 'حسنًا' : 'OK'}</button>
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-11 h-11 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
+                <UserPlusIcon className="w-6 h-6 text-blue-400" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-white">{isRTL ? 'طلب فتح حساب جديد' : 'New Account Request'}</h3>
+                <p className="text-white/40 text-xs">{isRTL ? 'أملأ النموذج وسنتواصل معك' : 'Fill the form and we will contact you'}</p>
+              </div>
+              <button onClick={onClose} className="ms-auto p-2 rounded-xl hover:bg-white/5 text-white/40 hover:text-white transition-all"><XMarkIcon className="w-5 h-5" /></button>
+            </div>
+            <div className="space-y-3">
+              {[
+                { key: 'company_name', label: isRTL ? 'اسم الشركة (English)' : 'Company Name', req: true },
+                { key: 'company_name_ar', label: isRTL ? 'اسم الشركة (عربي)' : 'Company Name (Arabic)' },
+                { key: 'company_code', label: isRTL ? 'رمز الشركة المقترح' : 'Suggested Code' },
+                { key: 'admin_name', label: isRTL ? 'اسم المسؤول' : 'Admin Name', req: true },
+                { key: 'admin_email', label: isRTL ? 'البريد الإلكتروني' : 'Email', type: 'email', req: true },
+                { key: 'phone', label: isRTL ? 'رقم الهاتف' : 'Phone' },
+              ].map(f => (
+                <div key={f.key}>
+                  <label className="block text-sm font-medium text-white/60 mb-1">{f.label} {f.req && <span className="text-red-400">*</span>}</label>
+                  <input type={f.type || 'text'} value={(form as any)[f.key]} onChange={e => setForm({ ...form, [f.key]: e.target.value })}
+                    dir={f.key.includes('_ar') ? 'rtl' : 'ltr'}
+                    className="w-full px-4 py-2.5 border border-white/10 rounded-xl bg-white/5 text-white text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/40 transition-all placeholder:text-white/20"
+                    placeholder={f.key === 'company_code' ? (isRTL ? 'مثال: ACME-001' : 'e.g., ACME-001') : ''} />
+                </div>
+              ))}
+              <div>
+                <label className="block text-sm font-medium text-white/60 mb-1">{isRTL ? 'ملاحظات' : 'Notes'}</label>
+                <textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} rows={2}
+                  className="w-full px-4 py-2.5 border border-white/10 rounded-xl bg-white/5 text-white text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/40 transition-all resize-none" />
+              </div>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button onClick={onClose} className="flex-1 px-4 py-2.5 rounded-xl border border-white/10 text-white/50 font-medium hover:bg-white/5 transition-colors text-sm">{isRTL ? 'إلغاء' : 'Cancel'}</button>
+              <button onClick={handleSubmit} disabled={submitting || !form.company_name || !form.admin_name || !form.admin_email}
+                className="flex-1 px-4 py-2.5 rounded-xl bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm">
+                {submitting ? (isRTL ? 'جاري الإرسال...' : 'Submitting...') : (isRTL ? 'إرسال الطلب' : 'Submit')}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
 
-export default function LoginPage() {
+/* ━━━ CTA SECTION ━━━ */
+function CTASection({ isRTL, onLogin, onAccountRequest }: { isRTL: boolean; onLogin: () => void; onAccountRequest: () => void }) {
+  return (
+    <section className="py-24 bg-gradient-to-br from-blue-950 via-slate-950 to-indigo-950 relative overflow-hidden">
+      <Particles />
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
+        <h2 className="text-3xl sm:text-4xl font-black text-white mb-4">{isRTL ? 'جاهز للبدء؟' : 'Ready to Get Started?'}</h2>
+        <p className="text-blue-200/50 max-w-xl mx-auto mb-8">
+          {isRTL ? 'انضم إلى مئات الشركات التي تثق بنظام SLMS لإدارة عملياتها اللوجستية بكفاءة واحترافية' : 'Join hundreds of companies that trust SLMS to manage their logistics operations efficiently and professionally'}
+        </p>
+        <div className="flex flex-wrap justify-center gap-4">
+          <button onClick={onLogin}
+            className="group flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold rounded-2xl shadow-xl shadow-blue-500/25 hover:shadow-blue-500/40 hover:scale-105 transition-all">
+            {isRTL ? 'تسجيل الدخول' : 'Sign In Now'}<UserCircleIcon className="w-5 h-5" />
+          </button>
+          <button onClick={onAccountRequest}
+            className="group flex items-center gap-2 px-8 py-4 bg-white/5 border border-white/10 text-white font-semibold rounded-2xl hover:bg-white/10 transition-all">
+            <UserPlusIcon className="w-5 h-5" />{isRTL ? 'طلب فتح حساب' : 'Request Account'}
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ * MAIN PAGE COMPONENT
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+export default function TenantLoginPage() {
   const router = useRouter();
-  const { login, refreshUser } = useAuth();
-  const { theme, toggleTheme } = useTheme();
+  const { isAuthenticated, user, loading: authLoading } = useAuth();
   const { locale, setLocale } = useLocale();
-  const { showToast } = useToast();
+  const { theme, toggleTheme } = useTheme();
   const isRTL = locale === 'ar';
 
-  // State
-  const [loginMode, setLoginMode] = useState<LoginMode>('tenant');
-  const [currentStep, setCurrentStep] = useState<LoginStep>('mode');
-  const [tenants, setTenants] = useState<Tenant[]>([]);
-  const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
-  const [tenantCode, setTenantCode] = useState('');
-  const [loadingTenants, setLoadingTenants] = useState(false);
-  
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [rememberMe, setRememberMe] = useState(false);
-  const [mfaCode, setMfaCode] = useState('');
-  const [requiresMFA, setRequiresMFA] = useState(false);
-  const [mfaToken, setMfaToken] = useState('');
-  const [mfaSetupRequired, setMfaSetupRequired] = useState(false);
-  const [useRecoveryCode, setUseRecoveryCode] = useState(false);
-  const [recoveryCode, setRecoveryCode] = useState('');
-  const [showQRScanner, setShowQRScanner] = useState(false);
-  
-  const [loading, setLoading] = useState(false);
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [showAccountRequest, setShowAccountRequest] = useState(false);
+  const [content, setContent] = useState<LoginPageContent>({});
+  const [settings, setSettings] = useState<LoginPageSettings | null>(null);
+  const [loginOpen, setLoginOpen] = useState(false);
+  const [loginType, setLoginType] = useState<'tenant' | 'admin'>('tenant');
+  const [accountRequestOpen, setAccountRequestOpen] = useState(false);
 
-  // Fetch tenants on mount (with deduplication to prevent StrictMode double-call)
-  const fetchedRef = useRef(false);
   useEffect(() => {
-    if (fetchedRef.current) return;
-    fetchedRef.current = true;
-    fetchTenants();
+    Promise.allSettled([loginPageService.getContent(), loginPageService.getSettings()])
+      .then(([c, s]) => {
+        if (c.status === 'fulfilled') setContent(c.value);
+        if (s.status === 'fulfilled') setSettings(s.value);
+      });
   }, []);
 
-  // Handle URL tenant parameter
   useEffect(() => {
-    const { tenant } = router.query;
-    if (tenant && typeof tenant === 'string') {
-      setTenantCode(tenant.toUpperCase());
-      setLoginMode('tenant');
-      lookupTenant(tenant.toUpperCase());
+    if (!authLoading && isAuthenticated && user) {
+      const redirectUrl = typeof router.query.redirect_url === 'string' ? router.query.redirect_url : null;
+      if (user.must_change_password) { router.replace('/auth/change-password'); return; }
+      const isPlatformUser = !user.tenant_id && (user.roles?.includes('super_admin') || user.roles?.includes('platform_admin') || (user as any).is_platform_admin);
+      if (isPlatformUser) { router.replace(redirectUrl || '/admin/platform'); return; }
+      if (user.tenant_id) { router.replace(redirectUrl || '/dashboard'); return; }
     }
-  }, [router.query]);
+  }, [isAuthenticated, user, authLoading, router]);
 
-  const fetchTenants = async () => {
-    setLoadingTenants(true);
-    try {
-      const res = await fetch('/api/tenants/public');
-      if (res.ok) {
-        const data = await res.json();
-        setTenants(data.data || []);
-      }
-    } catch (error) {
-      console.error('Error fetching tenants:', error);
-    } finally {
-      setLoadingTenants(false);
-    }
-  };
+  const openLogin = (type: 'tenant' | 'admin') => { setLoginType(type); setLoginOpen(true); };
 
-  const lookupTenant = async (code: string) => {
-    if (code.length < 4) {
-      setSelectedTenant(null);
-      return;
-    }
-    try {
-      const res = await fetch(`/api/tenants/public/lookup/${code}`);
-      if (res.ok) {
-        const result = await res.json();
-        setSelectedTenant(result.data);
-      } else {
-        setSelectedTenant(null);
-      }
-    } catch (error) {
-      console.error('Error looking up tenant:', error);
-      setSelectedTenant(null);
-    }
-  };
-
-  const handleTenantCodeChange = (code: string) => {
-    setTenantCode(code);
-    lookupTenant(code);
-  };
-
-  const handleTenantSelect = (tenant: Tenant) => {
-    setSelectedTenant(tenant);
-    setTenantCode(tenant.tenant_code);
-  };
-
-  const handleModeChange = (mode: LoginMode) => {
-    setLoginMode(mode);
-    setCurrentStep(mode === 'tenant' ? 'company' : 'credentials');
-    setErrors({});
-  };
-
-  const handleBack = () => {
-    if (currentStep === 'credentials') {
-      setCurrentStep(loginMode === 'tenant' ? 'company' : 'mode');
-    } else if (currentStep === 'company') {
-      setCurrentStep('mode');
-    } else if (currentStep === 'mfa') {
-      setCurrentStep('credentials');
-      setRequiresMFA(false);
-      setMfaToken('');
-      setMfaSetupRequired(false);
-      setUseRecoveryCode(false);
-      setRecoveryCode('');
-      setMfaCode('');
-    }
-  };
-
-  const handleContinue = () => {
-    if (currentStep === 'mode') {
-      setCurrentStep(loginMode === 'tenant' ? 'company' : 'credentials');
-    } else if (currentStep === 'company') {
-      if (!selectedTenant) {
-        setErrors({ tenant: isRTL ? 'يرجى اختيار شركة' : 'Please select a company' });
-        return;
-      }
-      setCurrentStep('credentials');
-    }
-  };
-
-  const validateForm = () => {
-    const newErrors: Record<string, string> = {};
-
-    if (!email.trim()) {
-      newErrors.email = isRTL ? 'البريد الإلكتروني مطلوب' : 'Email is required';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      newErrors.email = isRTL ? 'بريد إلكتروني غير صالح' : 'Invalid email format';
-    }
-
-    if (!password) {
-      newErrors.password = isRTL ? 'كلمة المرور مطلوبة' : 'Password is required';
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (currentStep !== 'credentials' && currentStep !== 'mfa') {
-      handleContinue();
-      return;
-    }
-
-    if (currentStep === 'credentials' && !validateForm()) return;
-
-    setLoading(true);
-    setErrors({});
-
-    try {
-      // MFA verification step
-      if (currentStep === 'mfa' && mfaToken) {
-        let mfaResult;
-        if (useRecoveryCode) {
-          mfaResult = await authService.verifyMFARecovery(mfaToken, recoveryCode.trim());
-        } else {
-          mfaResult = await authService.verifyMFA(mfaToken, mfaCode);
-        }
-
-        if (mfaResult.success && mfaResult.data) {
-          // Save tokens from MFA verification
-          authService.saveTokens(mfaResult.data.accessToken, mfaResult.data.refreshToken);
-
-          // Cache user from MFA response for immediate access
-          if (mfaResult.data.user && typeof window !== 'undefined') {
-            localStorage.setItem('user', JSON.stringify(mfaResult.data.user));
-          }
-
-          // Notify AuthorizationContext (re-fetches /api/me)
-          if (typeof window !== 'undefined') {
-            window.dispatchEvent(new Event('auth:login'));
-          }
-
-          // CRITICAL: Load user profile into AuthContext so usePermissions/useMenu work.
-          // Without this, AuthContext.user stays null after MFA login, causing empty sidebar.
-          try {
-            await refreshUser();
-          } catch (e) {
-            console.warn('Failed to refresh user profile after MFA:', e);
-          }
-
-          const userName = mfaResult.data.user?.full_name || mfaResult.data.user?.email?.split('@')[0] || '';
-          showToast(
-            isRTL ? `مرحباً ${userName}` : `Welcome back, ${userName}!`,
-            'success'
-          );
-
-          const loginCtx = mfaResult.data.login_context || 'platform';
-          if (loginCtx === 'platform') {
-            await router.replace('/admin/platform');
-          } else {
-            await router.replace('/tenant/dashboard');
-          }
-        }
-        return;
-      }
-
-      // Normal credentials step
-      const tenantId = loginMode === 'tenant' ? selectedTenant?.id : undefined;
-      const result = await login(email, password, tenantId);
-
-      // ---- MFA responses come back as normal return values (not thrown) ----
-      if (result.mfa_code === 'MFA_REQUIRED') {
-        setRequiresMFA(true);
-        setMfaToken(result.mfa_token || '');
-        setMfaSetupRequired(false);
-        setCurrentStep('mfa');
-        setLoading(false);
-        return;
-      }
-
-      if (result.mfa_code === 'MFA_SETUP_REQUIRED' || result.mfa_setup_required) {
-        // Store token for setup page
-        if (typeof window !== 'undefined') {
-          sessionStorage.setItem('mfa_setup_token', result.mfa_token || '');
-          sessionStorage.setItem('mfa_setup_email', email);
-        }
-        showToast(
-          isRTL ? 'يجب إعداد التحقق بخطوتين قبل المتابعة' : 'You must set up two-factor authentication before continuing',
-          'warning'
-        );
-        await router.push('/auth/mfa-setup');
-        setLoading(false);
-        return;
-      }
-
-      if (result.must_change_password) {
-        router.replace(result.redirect_to || '/auth/change-password');
-        return;
-      }
-
-      // Success
-      const userName = result.user?.full_name || result.user?.email?.split('@')[0] || '';
-      showToast(
-        isRTL ? `مرحباً ${userName}` : `Welcome back, ${userName}!`,
-        'success'
-      );
-
-      // Redirect based on login context (not user role)
-      const loginCtx = result.login_context || (tenantId ? 'tenant' : 'platform');
-
-      if (loginCtx === 'platform') {
-        await router.replace('/admin/platform');
-      } else {
-        await router.replace('/tenant/dashboard');
-      }
-    } catch (error: any) {
-      console.error('Login error:', error);
-      
-      let errorMessage = isRTL ? 'بيانات الدخول غير صحيحة' : 'Invalid credentials';
-
-      // Extract error code for non-MFA errors (MFA is handled above via return values)
-      const errCode = error?.code
-        || error?.response?.data?.error?.code
-        || error?.data?.error?.code
-        || '';
-
-      // Handle specific error codes
-      if (errCode === 'TENANT_ACCESS_DENIED') {
-        errorMessage = isRTL 
-          ? 'ليس لديك صلاحية الوصول إلى هذه الشركة. يرجى التواصل مع مدير المنصة.'
-          : 'You do not have access to this company. Contact your administrator.';
-      } else if (errCode === 'TENANT_LOGIN_REQUIRED') {
-        errorMessage = isRTL 
-          ? 'يرجى اختيار شركة لتسجيل الدخول'
-          : 'Please select a company to login';
-      } else if (error?.response?.data?.error?.message) {
-        errorMessage = error.response.data.error.message;
-      } else if (error?.message) {
-        errorMessage = error.message;
-      }
-      
-      // For MFA step errors, show in the MFA form
-      if (currentStep === 'mfa') {
-        setErrors({ mfa: isRTL ? 'رمز التحقق غير صحيح' : 'Invalid verification code' });
-      } else {
-        setErrors({ general: errorMessage });
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-950">
+        <div className="text-center">
+          <div className="inline-block w-14 h-14 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin mb-4" />
+          <p className="text-white/60 font-medium text-sm">{isRTL ? 'جاري التحميل...' : 'Loading...'}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>
       <Head>
-        <title>{isRTL ? 'تسجيل الدخول' : 'Login'} - SLMS</title>
-        <meta name="description" content="Secure enterprise login to SLMS" />
+        <title>{isRTL ? 'SLMS - نظام إدارة اللوجستيات الذكي' : 'SLMS - Smart Logistics Management System'}</title>
+        <meta name="description" content={isRTL ? 'منصة متكاملة لإدارة اللوجستيات وسلسلة التوريد' : 'Integrated logistics and supply chain management platform'} />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta httpEquiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+        <style>{`
+          @keyframes slmsFloat { 0% { transform: translateY(0) translateX(0); opacity: 0.3; } 50% { opacity: 0.7; } 100% { transform: translateY(-30px) translateX(15px); opacity: 0.15; } }
+          @keyframes slmsFadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+          @keyframes slmsScrollDot { 0%,100% { transform: translateY(0); opacity: 0.4; } 50% { transform: translateY(6px); opacity: 1; } }
+          html { scroll-behavior: smooth; }
+        `}</style>
       </Head>
 
-      <div 
-        className="min-h-screen login-gradient-bg flex items-center justify-center p-4 relative overflow-hidden"
-        dir={isRTL ? 'rtl' : 'ltr'}
-      >
-        {/* Particle Background */}
-        <ParticleBackground />
+      <div dir={isRTL ? 'rtl' : 'ltr'} className="bg-slate-950 text-white">
+        <Navbar isRTL={isRTL} locale={locale} setLocale={setLocale} theme={theme} toggleTheme={toggleTheme} onLogin={openLogin} />
+        <HeroSection slides={content.hero_slide || []} isRTL={isRTL} interval={settings?.auto_slide_interval || 5000} onLogin={() => openLogin('tenant')} />
 
-        {/* Top Controls */}
-        <div className="fixed top-6 right-6 flex items-center gap-3 z-50">
-          {/* Language Toggle */}
-          <button
-            onClick={() => setLocale(locale === 'en' ? 'ar' : 'en')}
-            className="p-3 rounded-xl bg-white/10 backdrop-blur-sm border border-white/10 hover:bg-white/20 transition-all duration-300"
-            title={locale === 'en' ? 'العربية' : 'English'}
-          >
-            <GlobeAltIcon className="w-5 h-5 text-white" />
-          </button>
-
-          {/* Theme Toggle */}
-          <button
-            onClick={toggleTheme}
-            className="p-3 rounded-xl bg-white/10 backdrop-blur-sm border border-white/10 hover:bg-white/20 transition-all duration-300"
-          >
-            {theme === 'dark' ? (
-              <SunIcon className="w-5 h-5 text-yellow-400" />
-            ) : (
-              <MoonIcon className="w-5 h-5 text-white" />
-            )}
-          </button>
-        </div>
-
-        {/* Main Card */}
-        <div className="w-full max-w-md relative z-10 animate-slide-up-fade" style={{ animationDuration: '0.6s' }}>
-          {/* Logo & Brand */}
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-20 h-20 rounded-3xl bg-gradient-to-br from-blue-500 to-indigo-600 mb-4 shadow-2xl transform hover:scale-105 transition-transform duration-300">
-              <SparklesIcon className="w-10 h-10 text-white" />
-            </div>
-            <h1 className="text-4xl font-bold text-white mb-2">SLMS</h1>
-            <p className="text-white/60">
-              {isRTL ? 'نظام إدارة اللوجستيات الذكية' : 'Smart Logistics Management System'}
-            </p>
-          </div>
-
-          {/* Glass Card */}
-          <div className="login-card-glass rounded-3xl p-8">
-            {/* Mode Selection Step */}
-            {currentStep === 'mode' && (
-              <div className="space-y-6 animate-fade-in">
-                <div className="text-center mb-6">
-                  <h2 className="text-2xl font-bold text-white mb-2">
-                    {isRTL ? 'مرحباً بك' : 'Welcome'}
-                  </h2>
-                  <p className="text-white/60">
-                    {isRTL ? 'اختر طريقة الدخول' : 'Select your login method'}
-                  </p>
-                </div>
-
-                <ModeSelector 
-                  mode={loginMode} 
-                  onChange={handleModeChange}
-                  isRTL={isRTL}
-                />
-
-                <div className="space-y-3 pt-4">
-                  {/* Tenant Login Option */}
-                  <button
-                    onClick={() => handleModeChange('tenant')}
-                    className={`w-full p-4 rounded-xl text-left transition-all duration-300 flex items-center gap-4 ${
-                      loginMode === 'tenant'
-                        ? 'bg-blue-500/20 border-2 border-blue-500/50'
-                        : 'bg-white/5 border-2 border-transparent hover:bg-white/10'
-                    }`}
-                  >
-                    <div className="w-12 h-12 rounded-xl bg-blue-500/20 flex items-center justify-center">
-                      <BuildingOffice2Icon className="w-6 h-6 text-blue-400" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-white font-medium">
-                        {isRTL ? 'دخول العملاء' : 'Tenant Login'}
-                      </p>
-                      <p className="text-white/50 text-sm">
-                        {isRTL ? 'للشركات والمؤسسات' : 'For companies and organizations'}
-                      </p>
-                    </div>
-                    {loginMode === 'tenant' && (
-                      <CheckCircleIcon className="w-6 h-6 text-blue-400" />
-                    )}
-                  </button>
-
-                  {/* Platform Login Option */}
-                  <button
-                    onClick={() => handleModeChange('platform')}
-                    className={`w-full p-4 rounded-xl text-left transition-all duration-300 flex items-center gap-4 ${
-                      loginMode === 'platform'
-                        ? 'bg-purple-500/20 border-2 border-purple-500/50'
-                        : 'bg-white/5 border-2 border-transparent hover:bg-white/10'
-                    }`}
-                  >
-                    <div className="w-12 h-12 rounded-xl bg-purple-500/20 flex items-center justify-center">
-                      <ShieldCheckIcon className="w-6 h-6 text-purple-400" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-white font-medium">
-                        {isRTL ? 'إدارة المنصة' : 'Platform Admin'}
-                      </p>
-                      <p className="text-white/50 text-sm">
-                        {isRTL ? 'للمشرفين والإداريين' : 'For supervisors and administrators'}
-                      </p>
-                    </div>
-                    {loginMode === 'platform' && (
-                      <CheckCircleIcon className="w-6 h-6 text-purple-400" />
-                    )}
-                  </button>
-                </div>
-
-                <button
-                  onClick={handleContinue}
-                  className="login-btn-premium w-full mt-6"
-                >
-                  {isRTL ? 'متابعة' : 'Continue'}
-                  <ArrowRightOnRectangleIcon className="w-5 h-5 inline-block ml-2 rtl:mr-2 rtl:ml-0" />
-                </button>
-              </div>
-            )}
-
-            {/* Company Selection Step */}
-            {currentStep === 'company' && (
-              <div className="animate-fade-in">
-                <button
-                  onClick={handleBack}
-                  className="flex items-center gap-2 text-white/60 hover:text-white mb-6 transition-colors"
-                >
-                  <ArrowLeftIcon className="w-4 h-4 rtl:rotate-180" />
-                  {isRTL ? 'رجوع' : 'Back'}
-                </button>
-
-                <StepIndicator 
-                  currentStep={currentStep} 
-                  mode={loginMode}
-                  isRTL={isRTL}
-                />
-
-                <CompanySearch
-                  tenants={tenants}
-                  selectedTenant={selectedTenant}
-                  tenantCode={tenantCode}
-                  onCodeChange={handleTenantCodeChange}
-                  onSelect={handleTenantSelect}
-                  loading={loadingTenants}
-                  isRTL={isRTL}
-                />
-
-                {errors.tenant && (
-                  <p className="mt-2 text-sm text-red-400 flex items-center gap-1">
-                    <ExclamationCircleIcon className="w-4 h-4" />
-                    {errors.tenant}
-                  </p>
-                )}
-
-                <button
-                  onClick={handleContinue}
-                  disabled={!selectedTenant}
-                  className="login-btn-premium w-full mt-6"
-                >
-                  {isRTL ? 'متابعة' : 'Continue'}
-                </button>
-              </div>
-            )}
-
-            {/* Credentials Step */}
-            {currentStep === 'credentials' && (
-              <div className="animate-fade-in">
-                <button
-                  onClick={handleBack}
-                  className="flex items-center gap-2 text-white/60 hover:text-white mb-6 transition-colors"
-                >
-                  <ArrowLeftIcon className="w-4 h-4 rtl:rotate-180" />
-                  {isRTL ? 'رجوع' : 'Back'}
-                </button>
-
-                <StepIndicator 
-                  currentStep={currentStep} 
-                  mode={loginMode}
-                  isRTL={isRTL}
-                />
-
-                <form onSubmit={handleSubmit}>
-                  <CredentialsForm
-                    email={email}
-                    password={password}
-                    rememberMe={rememberMe}
-                    onEmailChange={setEmail}
-                    onPasswordChange={setPassword}
-                    onRememberMeChange={setRememberMe}
-                    errors={errors}
-                    mode={loginMode}
-                    selectedTenant={selectedTenant}
-                    isRTL={isRTL}
-                  />
-
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="login-btn-premium w-full mt-6 flex items-center justify-center gap-2"
-                  >
-                    {loading ? (
-                      <>
-                        <svg className="animate-spin w-5 h-5" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                        </svg>
-                        {isRTL ? 'جاري الدخول...' : 'Signing in...'}
-                      </>
-                    ) : (
-                      <>
-                        <LockClosedIcon className="w-5 h-5" />
-                        {isRTL ? 'تسجيل الدخول' : 'Sign In'}
-                      </>
-                    )}
-                  </button>
-                </form>
-              </div>
-            )}
-
-            {/* MFA Step */}
-            {currentStep === 'mfa' && (
-              <div className="animate-fade-in">
-                <button
-                  onClick={handleBack}
-                  className="flex items-center gap-2 text-white/60 hover:text-white mb-6 transition-colors"
-                >
-                  <ArrowLeftIcon className="w-4 h-4 rtl:rotate-180" />
-                  {isRTL ? 'رجوع' : 'Back'}
-                </button>
-
-                <StepIndicator 
-                  currentStep={currentStep} 
-                  mode={loginMode}
-                  isRTL={isRTL}
-                />
-
-                <form onSubmit={handleSubmit}>
-                  <MFAForm
-                    code={mfaCode}
-                    onCodeChange={setMfaCode}
-                    error={errors.mfa}
-                    isRTL={isRTL}
-                    useRecoveryCode={useRecoveryCode}
-                    onToggleRecoveryCode={() => {
-                      setUseRecoveryCode(!useRecoveryCode);
-                      setMfaCode('');
-                      setRecoveryCode('');
-                      setErrors({});
-                    }}
-                    recoveryCode={recoveryCode}
-                    onRecoveryCodeChange={setRecoveryCode}
-                  />
-
-                  <button
-                    type="submit"
-                    disabled={loading || (useRecoveryCode ? recoveryCode.length < 8 : mfaCode.length !== 6)}
-                    className="login-btn-premium w-full mt-6"
-                  >
-                    {loading ? (
-                      <span className="flex items-center justify-center gap-2">
-                        <svg className="animate-spin w-5 h-5" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                        </svg>
-                        {isRTL ? 'جاري التحقق...' : 'Verifying...'}
-                      </span>
-                    ) : (
-                      isRTL ? 'تأكيد' : 'Verify'
-                    )}
-                  </button>
-                </form>
-              </div>
-            )}
-          </div>
-
-          {/* Request Account CTA */}
-          <div className="text-center mt-6">
-            <button
-              onClick={() => setShowAccountRequest(true)}
-              className="group inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-white/5 border border-white/10 text-white/70 hover:text-white hover:bg-white/10 hover:border-white/20 transition-all duration-300"
-            >
-              <span className="text-sm">
-                {isRTL ? 'ليس لديك حساب؟' : "Don't have an account?"}
-              </span>
-              <span className="text-sm font-semibold text-blue-400 group-hover:text-blue-300 transition-colors">
-                {isRTL ? 'اطلب إنشاء حساب' : 'Request one'}
-              </span>
-            </button>
-          </div>
-
-          {/* Security Badge */}
-          <div className="text-center mt-4">
-            <div className="security-badge inline-flex">
-              <LockClosedIcon className="w-4 h-4" />
-              <span>{isRTL ? 'اتصال آمن ومشفر' : 'Secure encrypted connection'}</span>
+        {settings?.show_announcements !== false && (content.announcement || []).length > 0 && (
+          <div className="bg-gradient-to-r from-amber-500/10 via-amber-400/5 to-amber-500/10 border-y border-amber-500/10">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center gap-3">
+              <MegaphoneIcon className="w-5 h-5 text-amber-400 flex-shrink-0" />
+              <p className="text-amber-200/80 text-sm font-medium truncate">
+                {isRTL ? content.announcement![0].title_ar || content.announcement![0].title : content.announcement![0].title || content.announcement![0].title_ar}
+                {' — '}
+                <span className="text-amber-300/50">{isRTL ? content.announcement![0].subtitle_ar || content.announcement![0].subtitle : content.announcement![0].subtitle || content.announcement![0].subtitle_ar}</span>
+              </p>
             </div>
           </div>
+        )}
 
-          {/* Footer */}
-          <div className="text-center mt-4">
-            <p className="text-white/40 text-sm">
-              © 2026 SLMS. {isRTL ? 'جميع الحقوق محفوظة' : 'All rights reserved'}
-            </p>
-          </div>
-        </div>
+        <AboutSection isRTL={isRTL} />
+        <ServicesSection isRTL={isRTL} />
+        <ProductsSection isRTL={isRTL} />
+        {settings?.show_features !== false && <FeaturesSection features={content.feature || []} isRTL={isRTL} />}
+        {(settings?.show_news !== false || settings?.show_announcements !== false) && <NewsSection news={content.news || []} announcements={content.announcement || []} isRTL={isRTL} />}
+        <FAQSection faqs={content.faq || []} isRTL={isRTL} />
+        <TermsBanner isRTL={isRTL} />
+        <CTASection isRTL={isRTL} onLogin={() => openLogin('tenant')} onAccountRequest={() => setAccountRequestOpen(true)} />
+        <Footer settings={settings} isRTL={isRTL} />
+
+        <ScrollTop />
+        <LoginModal isOpen={loginOpen} loginType={loginType} onClose={() => setLoginOpen(false)} onSwitchType={setLoginType} isRTL={isRTL} />
+        <AccountRequestModal isOpen={accountRequestOpen} onClose={() => setAccountRequestOpen(false)} isRTL={isRTL} />
       </div>
-
-      {/* Account Request Wizard */}
-      <AccountRequestWizard
-        isOpen={showAccountRequest}
-        onClose={() => setShowAccountRequest(false)}
-        isRTL={isRTL}
-      />
-
-      {/* Custom Keyframe Animation Style */}
-      <style jsx>{`
-        @keyframes slide-up-fade {
-          0% {
-            opacity: 0;
-            transform: translateY(30px);
-          }
-          100% {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-        .animate-slide-up-fade {
-          animation: slide-up-fade 0.6s ease-out forwards;
-        }
-      `}</style>
     </>
   );
 }

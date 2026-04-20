@@ -74,7 +74,7 @@ export default function Modal({
         className={clsx(
           'bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full',
           sizeClasses[size],
-          'animate-scale-in'
+          'animate-modal-in'
         )}
       >
         {/* Header */}

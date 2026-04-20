@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔧 تشخيص وإصلاح مشاكل API</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);
+        }
+        
+        .header {
+            text-align: center;
+            border-bottom: 3px solid #ee5a24;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .status-card {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 15px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .status-card.success { border-left: 5px solid #28a745; }
+        .status-card.error { border-left: 5px solid #dc3545; }
+        .status-card.warning { border-left: 5px solid #ffc107; }
+        .status-card.info { border-left: 5px solid #17a2b8; }
+        
+        .test-button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-left: 10px;
+        }
+        
+        .test-button:hover {
+            background: #0056b3;
+        }
+        
+        .test-button.retry {
+            background: #28a745;
+        }
+        
+        .test-button.fix {
+            background: #dc3545;
+        }
+        
+        .solution-box {
+            background: #e7f3ff;
+            border: 1px solid #b3d7ff;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        
+        .code-block {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            margin: 5px 0;
+            direction: ltr;
+            text-align: left;
+        }
+        
+        .log-area {
+            background: #1a202c;
+            color: #e2e8f0;
+            padding: 15px;
+            border-radius: 8px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            direction: ltr;
+            text-align: left;
+            margin: 10px 0;
+        }
+        
+        .refresh-all {
+            background: #17a2b8;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-size: 16px;
+            cursor: pointer;
+            display: block;
+            margin: 20px auto;
+        }
+        
+        .refresh-all:hover {
+            background: #138496;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔧 تشخيص وإصلاح مشاكل API</h1>
+            <p>حل مشاكل ERR_EMPTY_RESPONSE و Failed to fetch</p>
+        </div>
+
+        <div id="diagnostics">
+            <!-- سيتم ملء هذا القسم بـ JavaScript -->
+        </div>
+
+        <button class="refresh-all" onclick="runFullDiagnostic()">
+            🔄 تشغيل تشخيص شامل
+        </button>
+
+        <div class="solution-box">
+            <h3>💡 الحلول السريعة</h3>
+            <h4>1. إعادة تشغيل سريع:</h4>
+            <div class="code-block">quick_restart.bat</div>
+            
+            <h4>2. إصلاح شامل:</h4>
+            <div class="code-block">powershell -ExecutionPolicy Bypass .\fix_backend_api.ps1</div>
+            
+            <h4>3. إعادة بناء كاملة:</h4>
+            <div class="code-block">powershell -ExecutionPolicy Bypass .\restart_fresh.ps1</div>
+            
+            <h4>4. تطبيق migrations:</h4>
+            <div class="code-block">docker-compose exec backend npm run migrate</div>
+        </div>
+
+        <div class="log-area" id="logArea">
+            📝 سجل التشخيص سيظهر هنا...
+        </div>
+    </div>
+
+    <script>
+        const logArea = document.getElementById('logArea');
+        const diagnostics = document.getElementById('diagnostics');
+        
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const emoji = {
+                'success': '✅',
+                'error': '❌',
+                'warning': '⚠️',
+                'info': '📝'
+            };
+            
+            logArea.innerHTML += `${timestamp} ${emoji[type]} ${message}\n`;
+            logArea.scrollTop = logArea.scrollHeight;
+        }
+        
+        async function testEndpoint(url, name) {
+            log(`اختبار ${name}: ${url}`, 'info');
+            
+            try {
+                const response = await fetch(url, {
+                    method: 'GET',
+                    mode: 'cors',
+                    cache: 'no-cache'
+                });
+                
+                if (response.ok) {
+                    log(`${name} يعمل بنجاح (${response.status})`, 'success');
+                    return { status: 'success', code: response.status };
+                } else {
+                    log(`${name} يعيد خطأ ${response.status}`, 'warning');
+                    return { status: 'warning', code: response.status };
+                }
+            } catch (error) {
+                if (error.message.includes('fetch')) {
+                    log(`${name} - خطأ في الاتصال (ربما الخدمة متوقفة)`, 'error');
+                    return { status: 'error', message: 'خدمة متوقفة' };
+                } else {
+                    log(`${name} - خطأ: ${error.message}`, 'error');
+                    return { status: 'error', message: error.message };
+                }
+            }
+        }
+        
+        function createTestCard(name, url, result) {
+            const statusClass = result.status;
+            const statusText = {
+                'success': '✅ يعمل بنجاح',
+                'warning': '⚠️ مشكلة',
+                'error': '❌ لا يعمل'
+            };
+            
+            return `
+                <div class="status-card ${statusClass}">
+                    <div>
+                        <strong>${name}</strong><br>
+                        <small>${url}</small><br>
+                        <span>${statusText[result.status]} ${result.code || result.message || ''}</span>
+                    </div>
+                    <div>
+                        <button class="test-button" onclick="testSingle('${url}', '${name}')">
+                            🔄 إعادة اختبار
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+        
+        async function testSingle(url, name) {
+            const result = await testEndpoint(url, name);
+            // تحديث العرض...
+            runFullDiagnostic();
+        }
+        
+        async function runFullDiagnostic() {
+            log('بدء التشخيص الشامل...', 'info');
+            diagnostics.innerHTML = '<p>🔄 جاري التشخيص...</p>';
+            
+            const tests = [
+                { name: 'Backend Health', url: 'http://localhost:4000/api/health' },
+                { name: 'Frontend', url: 'http://localhost:3001' },
+                { name: 'الدول', url: 'http://localhost:4000/api/master/countries' },
+                { name: 'المدن', url: 'http://localhost:4000/api/master/cities' },
+                { name: 'حالات السجلات', url: 'http://localhost:4000/api/master/record-statuses' }
+            ];
+            
+            let html = '';
+            let allGood = true;
+            
+            for (const test of tests) {
+                const result = await testEndpoint(test.url, test.name);
+                html += createTestCard(test.name, test.url, result);
+                if (result.status === 'error') allGood = false;
+            }
+            
+            diagnostics.innerHTML = html;
+            
+            if (allGood) {
+                log('🎉 جميع الاختبارات نجحت! النظام يعمل بشكل صحيح', 'success');
+            } else {
+                log('⚠️ هناك مشاكل تحتاج إلى إصلاح', 'warning');
+            }
+        }
+        
+        // تشغيل التشخيص عند تحميل الصفحة
+        window.onload = function() {
+            setTimeout(runFullDiagnostic, 500);
+        };
+    </script>
+</body>
+</html>

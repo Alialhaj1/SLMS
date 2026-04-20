@@ -13,6 +13,7 @@ import { useLocale } from '../../../../contexts/LocaleContext';
 import Button from '../../../../components/ui/Button';
 import Input from '../../../../components/ui/Input';
 import Select from '../../../../components/ui/Select';
+import ExchangeRateField from '../../../../components/ui/ExchangeRateField';
 import { companyStore } from '../../../../lib/companyStore';
 
 interface PaymentMethod {
@@ -21,6 +22,11 @@ interface PaymentMethod {
   name: string;
   name_ar?: string;
   payment_type: string;
+  payment_behavior?: string;
+  requires_bank_account?: boolean;
+  requires_reference?: boolean;
+  requires_cheque_number?: boolean;
+  requires_due_date?: boolean;
   is_default: boolean;
 }
 
@@ -92,6 +98,7 @@ export default function EditVendorPaymentPage() {
     payment_date: '',
     payment_method: '',
     payment_method_type: '',
+    payment_behavior: '',
     bank_account_id: '',
     cash_box_id: '',
     reference_number: '',
@@ -100,6 +107,12 @@ export default function EditVendorPaymentPage() {
     exchange_rate: '1.000000',
     notes: ''
   });
+
+  // Derived currency code for ExchangeRateField
+  const selectedCurrencyCode = useMemo(
+    () => currencies.find(c => c.id === parseInt(formData.currency_id))?.code || null,
+    [formData.currency_id, currencies]
+  );
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -158,7 +171,7 @@ export default function EditVendorPaymentPage() {
 
       const [refRes, currRes] = await Promise.all([
         fetch('/api/procurement/payments/reference-data/all', { headers }),
-        fetch('/api/currencies', { headers })
+        fetch('/api/finance/currencies?is_active=true', { headers })
       ]);
 
       const refData = await refRes.json();
@@ -186,12 +199,17 @@ export default function EditVendorPaymentPage() {
     if (key === 'payment_method') {
       const method = paymentMethods.find(m => m.id === parseInt(value));
       if (method) {
+        const beh = method.payment_behavior || method.payment_type || '';
+        const needsBank = beh === 'bank' || beh === 'check' || beh === 'credit' || beh === 'digital' || beh === 'bg' || method.requires_bank_account;
+        const needsCash = beh === 'cash';
         setFormData(prev => ({ 
           ...prev, 
           [key]: value,
           payment_method_type: method.payment_type,
-          bank_account_id: '',
-          cash_box_id: ''
+          payment_behavior: beh,
+          bank_account_id: needsBank ? prev.bank_account_id : '',
+          cash_box_id: needsCash ? prev.cash_box_id : '',
+          reference_number: (beh === 'bank' || beh === 'sadad' || beh === 'digital' || method.requires_reference) ? prev.reference_number : '',
         }));
       }
     }
@@ -311,35 +329,37 @@ export default function EditVendorPaymentPage() {
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-              {isArabic ? 'تعديل الدفعة' : 'Edit Payment'}
-            </h1>
-            <p className="text-gray-600 dark:text-gray-400">
-              {payment.payment_number} - {payment.vendor_name}
-            </p>
+          <div className="flex items-center gap-4">
+            <button type="button" onClick={() => router.back()} className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition" title={isArabic ? 'رجوع' : 'Back'}>
+              <svg className="w-5 h-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+            </button>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+                {isArabic ? 'تعديل الدفعة' : 'Edit Payment'}
+              </h1>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                {payment.payment_number} • {payment.vendor_name}
+              </p>
+            </div>
           </div>
-          <Button variant="secondary" onClick={() => router.back()}>
-            {isArabic ? 'رجوع' : 'Back'}
-          </Button>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Vendor Info (Read-only) */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
+            <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">
               {isArabic ? 'معلومات المورد' : 'Vendor Information'}
             </h2>
-            <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-              <p className="text-gray-900 dark:text-white">
-                <strong>{isArabic ? 'المورد:' : 'Vendor:'}</strong> {payment.vendor_code} - {payment.vendor_name}
+            <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+              <p className="text-blue-900 dark:text-blue-300 font-medium">
+                {payment.vendor_code} • {payment.vendor_name}
               </p>
             </div>
           </div>
 
           {/* Payment Details */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
+            <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-4">
               {isArabic ? 'تفاصيل الدفع' : 'Payment Details'}
             </h2>
 
@@ -366,7 +386,7 @@ export default function EditVendorPaymentPage() {
                 ))}
               </Select>
 
-              {formData.payment_method_type === 'cash' && (
+              {formData.payment_method_type === 'cash' || formData.payment_behavior === 'cash' ? (
                 <Select
                   label={isArabic ? 'الصندوق' : 'Cash Box'}
                   value={formData.cash_box_id}
@@ -379,29 +399,39 @@ export default function EditVendorPaymentPage() {
                     </option>
                   ))}
                 </Select>
-              )}
+              ) : null}
 
-              {formData.payment_method_type === 'bank' && (
-                <Select
-                  label={isArabic ? 'الحساب البنكي' : 'Bank Account'}
-                  value={formData.bank_account_id}
-                  onChange={(e) => handleInputChange('bank_account_id', e.target.value)}
-                >
-                  <option value="">{isArabic ? 'اختر الحساب البنكي' : 'Select Bank Account'}</option>
-                  {bankAccounts.map(account => (
-                    <option key={account.id} value={account.id}>
-                      {account.bank_name} - {account.account_number} ({account.currency_code})
-                    </option>
-                  ))}
-                </Select>
-              )}
+              {(() => {
+                const beh = formData.payment_behavior || formData.payment_method_type;
+                const showBank = beh === 'bank' || beh === 'check' || beh === 'credit' || beh === 'digital' || beh === 'bg';
+                return showBank ? (
+                  <Select
+                    label={isArabic ? 'الحساب البنكي' : 'Bank Account'}
+                    value={formData.bank_account_id}
+                    onChange={(e) => handleInputChange('bank_account_id', e.target.value)}
+                  >
+                    <option value="">{isArabic ? 'اختر الحساب البنكي' : 'Select Bank Account'}</option>
+                    {bankAccounts.map(account => (
+                      <option key={account.id} value={account.id}>
+                        {account.bank_name} - {account.account_number} ({account.currency_code})
+                      </option>
+                    ))}
+                  </Select>
+                ) : null;
+              })()}
 
-              <Input
-                type="text"
-                label={isArabic ? 'رقم المرجع' : 'Reference Number'}
-                value={formData.reference_number}
-                onChange={(e) => handleInputChange('reference_number', e.target.value)}
-              />
+              {(() => {
+                const beh = formData.payment_behavior || formData.payment_method_type;
+                const showRef = beh === 'bank' || beh === 'sadad' || beh === 'digital';
+                return showRef ? (
+                  <Input
+                    type="text"
+                    label={isArabic ? 'رقم المرجع / الحوالة' : 'Reference / Transfer No.'}
+                    value={formData.reference_number}
+                    onChange={(e) => handleInputChange('reference_number', e.target.value)}
+                  />
+                ) : null;
+              })()}
             </div>
 
             {/* Amount Section */}
@@ -438,14 +468,12 @@ export default function EditVendorPaymentPage() {
                   required
                 />
 
-                <Input
-                  type="number"
-                  label={isArabic ? 'سعر الصرف' : 'Exchange Rate'}
-                  placeholder="1.000000"
-                  step="0.000001"
-                  min="0.000001"
+                <ExchangeRateField
+                  currencyCode={selectedCurrencyCode}
                   value={formData.exchange_rate}
-                  onChange={(e) => handleInputChange('exchange_rate', e.target.value)}
+                  onChange={(v) => handleInputChange('exchange_rate', v)}
+                  label={isArabic ? 'سعر الصرف' : 'Exchange Rate'}
+                  hideWhenBaseCurrency
                 />
               </div>
             </div>
@@ -480,6 +508,7 @@ export default function EditVendorPaymentPage() {
               type="submit"
               loading={submitting}
               disabled={submitting}
+              className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg shadow-blue-500/25"
             >
               {isArabic ? 'حفظ التغييرات' : 'Save Changes'}
             </Button>

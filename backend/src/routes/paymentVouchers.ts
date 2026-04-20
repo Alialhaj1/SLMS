@@ -3,12 +3,15 @@ import pool from '../db';
 import { authenticate } from '../middleware/auth';
 import { requireAnyPermission } from '../middleware/rbac';
 import { loadCompanyContext, requireCompany } from '../middleware/companyContext';
+import { loadBranchAccess, buildBranchFilter, resolveBranchId } from '../middleware/branchAccess';
 import { getPaginationParams, sendPaginated } from '../utils/response';
+import { ApprovalWorkflowEngine } from '../services/approvalWorkflowEngine';
 
 const router = Router();
 
 router.use(authenticate);
 router.use(loadCompanyContext);
+router.use(loadBranchAccess);
 
 type VoucherMethod = 'cash' | 'bank_transfer' | 'cheque';
 type VoucherStatus = 'draft' | 'posted' | 'void';
@@ -73,6 +76,14 @@ router.get(
       let paramIndex = 2;
 
       let where = ` WHERE pv.company_id = $1 AND pv.deleted_at IS NULL`;
+
+      // Branch access filter
+      const branchFilter = buildBranchFilter(req, 'pv', paramIndex);
+      if (branchFilter.clause !== '1=1') {
+        where += ` AND ${branchFilter.clause}`;
+        params.push(...branchFilter.params);
+        paramIndex = branchFilter.nextIndex;
+      }
 
       if (from_date) {
         where += ` AND pv.voucher_date >= $${paramIndex}`;
@@ -308,18 +319,34 @@ router.post(
       const totalDebitFc = isForeign ? amt : 0;
       const totalCreditFc = isForeign ? amt : 0;
 
-      // Numbering
-      const voucherNumberResult = await client.query(
-        `SELECT generate_document_number($1, 'payment_voucher', $2, NULL, NULL, $3::date) as number`,
-        [companyId, userId, voucher_date]
-      );
-      const voucherNumber = voucherNumberResult.rows[0]?.number || `PV-${Date.now()}`;
+      // Numbering — wrapped in SAVEPOINT to handle missing number_series gracefully
+      let voucherNumber: string;
+      try {
+        await client.query('SAVEPOINT gen_pv_number');
+        const voucherNumberResult = await client.query(
+          `SELECT generate_document_number($1, 'payment_voucher', $2, NULL, NULL, $3::date) as number`,
+          [companyId, userId, voucher_date]
+        );
+        voucherNumber = voucherNumberResult.rows[0]?.number || `PV-${Date.now()}`;
+        await client.query('RELEASE SAVEPOINT gen_pv_number');
+      } catch {
+        await client.query('ROLLBACK TO SAVEPOINT gen_pv_number');
+        voucherNumber = `PV-${Date.now()}`;
+      }
 
-      const journalEntryNumberResult = await client.query(
-        `SELECT generate_document_number($1, 'journal_entry', $2, NULL, NULL, $3::date) as number`,
-        [companyId, userId, voucher_date]
-      );
-      const journalEntryNumber = journalEntryNumberResult.rows[0]?.number || `JE-${Date.now()}`;
+      let journalEntryNumber: string;
+      try {
+        await client.query('SAVEPOINT gen_je_number');
+        const journalEntryNumberResult = await client.query(
+          `SELECT generate_document_number($1, 'journal_entry', $2, NULL, NULL, $3::date) as number`,
+          [companyId, userId, voucher_date]
+        );
+        journalEntryNumber = journalEntryNumberResult.rows[0]?.number || `JE-PV-${Date.now()}`;
+        await client.query('RELEASE SAVEPOINT gen_je_number');
+      } catch {
+        await client.query('ROLLBACK TO SAVEPOINT gen_je_number');
+        journalEntryNumber = `JE-PV-${Date.now()}`;
+      }
 
       const fiscalInfo = await client.query(
         `SELECT fy.id as fiscal_year_id, ap.id as period_id
@@ -333,9 +360,17 @@ router.post(
 
       const description = `Payment Voucher ${voucherNumber} - ${String(payee).trim()}`;
 
+      // Resolve branch for this document
+      const { branchId: resolvedBranchId, error: branchError } = resolveBranchId(req, 'write');
+      if (branchError) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ success: false, error: branchError });
+      }
+
+      const tenantId = (req as any).tenantId || (req as any).companyContext?.tenant_id || null;
       const header = await client.query(
         `INSERT INTO journal_entries (
-          company_id, entry_number, entry_date,
+          tenant_id, company_id, branch_id, entry_number, entry_date,
           fiscal_year_id, period_id,
           entry_type,
           source_document_type, source_document_number,
@@ -343,10 +378,12 @@ router.post(
           total_debit, total_credit, total_debit_fc, total_credit_fc,
           description, narration, reference,
           status, created_by, created_at
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,'draft',$18,NOW())
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,'draft',$20,NOW())
         RETURNING id, entry_number`,
         [
+          tenantId,
           companyId,
+          resolvedBranchId,
           journalEntryNumber,
           voucher_date,
           fiscalInfo.rows[0]?.fiscal_year_id,
@@ -397,7 +434,7 @@ router.post(
 
       const voucherRow = await client.query(
         `INSERT INTO payment_vouchers (
-          company_id, voucher_number, voucher_date,
+          company_id, branch_id, voucher_number, voucher_date,
           payee, payee_ar,
           method,
           cash_box_id, bank_account_id,
@@ -406,10 +443,11 @@ router.post(
           amount, reference,
           status, journal_entry_id,
           created_by, created_at
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'draft',$14,$15,NOW())
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,'draft',$15,$16,NOW())
         RETURNING id`,
         [
           companyId,
+          resolvedBranchId,
           voucherNumber,
           voucher_date,
           String(payee).trim(),
@@ -525,6 +563,78 @@ router.post(
       return res.status(500).json({ success: false, error: 'Failed to post payment voucher' });
     } finally {
       client.release();
+    }
+  }
+);
+
+// =============================================
+// POST /api/payment-vouchers/:id/submit-for-approval
+// =============================================
+router.post(
+  '/:id/submit-for-approval',
+  requireAnyPermission(['purchases:payment:create', 'accounting:journal:create']),
+  requireCompany,
+  async (req: Request, res: Response) => {
+    try {
+      const companyId = req.companyId as number;
+      const { id } = req.params;
+
+      const v = await pool.query(
+        `SELECT pv.*, pv.total_amount as amount
+         FROM payment_vouchers pv
+         WHERE pv.id = $1 AND pv.company_id = $2 AND pv.deleted_at IS NULL`,
+        [Number(id), companyId]
+      );
+
+      if (v.rows.length === 0) {
+        return res.status(404).json({ success: false, error: 'Payment voucher not found' });
+      }
+
+      const pv = v.rows[0];
+      if (pv.status !== 'draft') {
+        return res.status(400).json({ success: false, error: `Cannot submit voucher in status: ${pv.status}` });
+      }
+
+      const result = await ApprovalWorkflowEngine.submitDocument({
+        companyId,
+        tenantId: (req as any).tenantId,
+        documentType: 'payment_voucher',
+        referenceId: pv.id,
+        referenceTable: 'payment_vouchers',
+        documentNumber: pv.voucher_number,
+        title: pv.description || `Payment Voucher ${pv.voucher_number}`,
+        amount: parseFloat(pv.amount) || 0,
+        currency: 'SAR',
+        createdBy: req.user!.id,
+        branchId: pv.branch_id,
+        notes: req.body.notes,
+        priority: req.body.priority || 'normal',
+        watchers: req.body.watchers,
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent'),
+      });
+
+      if (!result.success) {
+        return res.status(422).json({ success: false, error: result.message });
+      }
+
+      await pool.query(
+        `UPDATE payment_vouchers 
+         SET status = 'pending_approval', approval_document_id = $1, updated_by = $2, updated_at = NOW()
+         WHERE id = $3`,
+        [result.approvalDocumentId, req.user!.id, id]
+      );
+
+      res.json({
+        success: true,
+        message: result.autoApproved
+          ? 'Payment voucher auto-approved and posted'
+          : 'Payment voucher submitted for approval',
+        data: { approvalDocumentId: result.approvalDocumentId, autoApproved: result.autoApproved },
+      });
+    } catch (error: any) {
+      console.error('Error submitting payment voucher for approval:', error);
+      res.status(500).json({ success: false, error: 'Failed to submit for approval' });
     }
   }
 );

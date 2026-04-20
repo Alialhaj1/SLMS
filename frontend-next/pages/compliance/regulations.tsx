@@ -395,14 +395,18 @@ export default function RegulationsPage() {
                       <td className="px-4 py-3 text-sm">{reg.next_review_date || '-'}</td>
                       <td className="px-4 py-3 text-center">
                         <div className="flex justify-center gap-1">
+                          {canManage && (
                           <button onClick={() => { setSelectedRegulation(reg); setIsModalOpen(true); }}
                             className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
                             <PencilIcon className="w-4 h-4 text-blue-600" />
                           </button>
+                          )}
+                          {canManage && (
                           <button onClick={() => { setSelectedRegulation(reg); setConfirmDelete(true); }}
                             className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
                             <TrashIcon className="w-4 h-4 text-red-600" />
                           </button>
+                          )}
                         </div>
                       </td>
                     </tr>

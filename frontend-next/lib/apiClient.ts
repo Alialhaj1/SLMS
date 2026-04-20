@@ -25,8 +25,10 @@ function generateRequestId(): string {
 
 // Normalize base URL: strip trailing slashes and a trailing '/api' 
 // apiClient will auto-prepend '/api' to all endpoints (unless already present)
-const rawBase = process.env.NEXT_PUBLIC_API_URL || '';
+const rawBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 const API_URL = rawBase.replace(/\/$/, '').replace(/\/api$/, '');
+
+export { API_URL };
 
 interface RequestOptions extends RequestInit {
   skipAuth?: boolean;
@@ -166,14 +168,6 @@ class APIClient {
   private showToast(message: string, type: 'success' | 'error' | 'warning' = 'error'): void {
     // TODO: Integrate with ToastContext
     console.log(`[${type.toUpperCase()}] ${message}`);
-    
-    // Temporary: Use browser alert
-    if (typeof window !== 'undefined' && type === 'error') {
-      // Only show critical errors
-      if (message.includes('permission')) {
-        alert(message);
-      }
-    }
   }
 
   /**
@@ -238,7 +232,7 @@ class APIClient {
       // Handle 403 (Forbidden - insufficient permissions or account disabled)
       if (response.status === 403) {
         const errorData = await response.json().catch(() => ({}));
-        const message = errorData?.error?.message || errorData?.message || 'You do not have permission to perform this action';
+        const message = errorData?.error?.message || errorData?.message || (typeof errorData?.error === 'string' ? errorData.error : null) || 'You do not have permission to perform this action';
         const errorCode = errorData?.error?.code || '';
 
         // Don't show toast for MFA-related 403s on login — they are expected flows

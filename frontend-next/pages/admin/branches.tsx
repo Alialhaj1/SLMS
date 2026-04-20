@@ -134,13 +134,13 @@ function BranchesPage() {
         const result = await res.json();
         setBranches(result.data || []);
       } else if (res.status === 401 || res.status === 403) {
-        showToast('Access denied', 'error');
+        showToast(t('adminBranches.accessDenied'), 'error');
       } else {
-        showToast('Failed to load branches', 'error');
+        showToast(t('adminBranches.saveFailed'), 'error');
       }
     } catch (error) {
       console.error('Failed to fetch branches:', error);
-      showToast('Failed to load branches', 'error');
+      showToast(t('adminBranches.saveFailed'), 'error');
     } finally {
       setLoading(false);
     }
@@ -149,13 +149,13 @@ function BranchesPage() {
   const validateForm = (): boolean => {
     const errors: Record<string, string> = {};
 
-    if (!formData.company_id) errors.company_id = 'Company is required';
-    if (!formData.code.trim()) errors.code = 'Branch code is required';
-    if (!formData.name.trim()) errors.name = 'Branch name is required';
+    if (!formData.company_id) errors.company_id = t('adminBranches.companyRequired');
+    if (!formData.code.trim()) errors.code = t('adminBranches.codeRequired');
+    if (!formData.name.trim()) errors.name = t('adminBranches.nameRequired');
 
     // Email validation
     if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      errors.email = 'Invalid email format';
+      errors.email = t('adminBranches.invalidEmail');
     }
 
     setFormErrors(errors);
@@ -214,16 +214,16 @@ function BranchesPage() {
       });
 
       if (res.ok) {
-        showToast(editingBranch ? 'Branch updated successfully' : 'Branch created successfully', 'success');
+        showToast(editingBranch ? t('adminBranches.branchUpdated') : t('adminBranches.branchCreated'), 'success');
         handleCloseModal();
         fetchBranches();
       } else {
         const error = await res.json();
-        showToast(error.error || 'Failed to save branch', 'error');
+        showToast(error.error || t('adminBranches.saveFailed'), 'error');
       }
     } catch (error) {
       console.error('Failed to save branch:', error);
-      showToast('Failed to save branch', 'error');
+      showToast(t('adminBranches.saveFailed'), 'error');
     } finally {
       setSubmitting(false);
     }
@@ -246,15 +246,15 @@ function BranchesPage() {
       });
 
       if (res.ok) {
-        showToast('Branch deleted successfully', 'success');
+        showToast(t('adminBranches.branchDeleted'), 'success');
         fetchBranches();
       } else {
         const error = await res.json();
-        showToast(error.error || 'Failed to delete branch', 'error');
+        showToast(error.error || t('adminBranches.deleteFailed'), 'error');
       }
     } catch (error) {
       console.error('Failed to delete branch:', error);
-      showToast('Failed to delete branch', 'error');
+      showToast(t('adminBranches.deleteFailed'), 'error');
     } finally {
       setDeleting(false);
       setDeleteConfirmOpen(false);
@@ -281,9 +281,9 @@ function BranchesPage() {
       <MainLayout>
         <div className="text-center py-12">
           <BuildingStorefrontIcon className="w-16 h-16 mx-auto text-gray-400 mb-4" />
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Access Denied</h2>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{t('adminBranches.accessDenied')}</h2>
           <p className="text-gray-600 dark:text-gray-400 mt-2">
-            You don't have permission to view branches.
+            {t('adminBranches.noPermission')}
           </p>
         </div>
       </MainLayout>
@@ -293,22 +293,22 @@ function BranchesPage() {
   return (
     <MainLayout>
       <Head>
-        <title>Branches Management - SLMS</title>
+        <title>{t('adminBranches.title')} - SLMS</title>
       </Head>
 
       <div className="space-y-6">
         {/* Page header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Branches</h1>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">{t('adminBranches.title')}</h1>
             <p className="text-gray-600 dark:text-gray-400 mt-1">
-              Manage company branches and locations
+              {t('adminBranches.subtitle')}
             </p>
           </div>
           {hasPermission('branches:create') && (
             <Button onClick={() => handleOpenModal()}>
               <PlusIcon className="w-5 h-5 mr-2" />
-              Add Branch
+              {t('adminBranches.addBranch')}
             </Button>
           )}
         </div>
@@ -321,7 +321,7 @@ function BranchesPage() {
                 <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <input
                   type="text"
-                  placeholder="Search by name, code, or company..."
+                  placeholder={t('adminBranches.searchPlaceholder')}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="input pl-10 w-full"
@@ -334,7 +334,7 @@ function BranchesPage() {
                 onChange={(e) => setCompanyFilter(e.target.value ? Number(e.target.value) : '')}
                 className="input w-full"
               >
-                <option value="">All Companies</option>
+                <option value="">{t('adminBranches.allCompanies')}</option>
                 {companies.map((company) => (
                   <option key={company.id} value={company.id}>
                     {company.name}
@@ -351,7 +351,7 @@ function BranchesPage() {
                 className="rounded border-gray-300 dark:border-gray-600"
               />
               <label htmlFor="activeOnly" className="text-sm text-gray-700 dark:text-gray-300">
-                Active only
+                {t('adminBranches.activeOnly')}
               </label>
             </div>
           </div>
@@ -362,14 +362,14 @@ function BranchesPage() {
           {loading ? (
             <div className="text-center py-12">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
-              <p className="text-gray-500 dark:text-gray-400 mt-4">Loading branches...</p>
+              <p className="text-gray-500 dark:text-gray-400 mt-4">{t('adminBranches.loading')}</p>
             </div>
           ) : filteredBranches.length === 0 ? (
             <div className="text-center py-12">
               <BuildingStorefrontIcon className="w-16 h-16 mx-auto text-gray-400 mb-4" />
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">No branches found</h3>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t('adminBranches.noBranches')}</h3>
               <p className="text-gray-600 dark:text-gray-400 mt-2">
-                {searchTerm || companyFilter ? 'Try adjusting your search criteria' : 'Get started by creating a new branch'}
+                {searchTerm || companyFilter ? t('adminBranches.adjustSearch') : t('adminBranches.createFirst')}
               </p>
             </div>
           ) : (
@@ -378,28 +378,28 @@ function BranchesPage() {
                 <thead className="bg-gray-50 dark:bg-gray-800">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Code
+                      {t('adminBranches.code')}
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Branch
+                      {t('adminBranches.branch')}
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Company
+                      {t('adminBranches.company')}
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Location
+                      {t('adminBranches.location')}
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Contact
+                      {t('adminBranches.contact')}
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Manager
+                      {t('adminBranches.manager')}
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Status
+                      {t('adminBranches.status')}
                     </th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Actions
+                      {t('adminBranches.actions')}
                     </th>
                   </tr>
                 </thead>
@@ -448,7 +448,7 @@ function BranchesPage() {
                               : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
                           }`}
                         >
-                          {branch.is_active ? 'Active' : 'Inactive'}
+                          {branch.is_active ? t('adminBranches.active') : t('adminBranches.inactive')}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
@@ -457,7 +457,7 @@ function BranchesPage() {
                             <button
                               onClick={() => handleOpenModal(branch)}
                               className="text-primary-600 hover:text-primary-900 dark:text-primary-400 dark:hover:text-primary-300"
-                              title="Edit"
+                              title={t('adminBranches.editBranch')}
                             >
                               <PencilIcon className="w-5 h-5" />
                             </button>
@@ -466,7 +466,7 @@ function BranchesPage() {
                             <button
                               onClick={() => handleDeleteClick(branch)}
                               className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
-                              title="Delete"
+                              title={t('adminBranches.delete')}
                             >
                               <TrashIcon className="w-5 h-5" />
                             </button>
@@ -486,14 +486,14 @@ function BranchesPage() {
       <Modal
         isOpen={modalOpen}
         onClose={handleCloseModal}
-        title={editingBranch ? 'Edit Branch' : 'Create Branch'}
+        title={editingBranch ? t('adminBranches.editBranch') : t('adminBranches.createBranch')}
         size="lg"
       >
         <div className="space-y-4">
           {/* Company Selection */}
           <div className="space-y-1">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-              Company <span className="text-red-500">*</span>
+              {t('adminBranches.company')} <span className="text-red-500">*</span>
             </label>
             <select
               value={formData.company_id}
@@ -501,7 +501,7 @@ function BranchesPage() {
               className="input"
               disabled={!!editingBranch}
             >
-              <option value="">Select a company</option>
+              <option value="">{t('adminBranches.selectCompany')}</option>
               {companies.map((company) => (
                 <option key={company.id} value={company.id}>
                   {company.name}
@@ -516,7 +516,7 @@ function BranchesPage() {
           {/* Basic Information */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Input
-              label="Branch Code"
+              label={t('adminBranches.branchCode')}
               required
               value={formData.code}
               onChange={(e) => setFormData({ ...formData, code: e.target.value })}
@@ -524,7 +524,7 @@ function BranchesPage() {
               disabled={!!editingBranch}
             />
             <Input
-              label="Branch Name"
+              label={t('adminBranches.branchName')}
               required
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
@@ -533,7 +533,7 @@ function BranchesPage() {
           </div>
 
           <Input
-            label="Branch Name (Arabic)"
+            label={t('adminBranches.branchNameAr')}
             value={formData.name_ar}
             onChange={(e) => setFormData({ ...formData, name_ar: e.target.value })}
           />
@@ -541,19 +541,19 @@ function BranchesPage() {
           {/* Location */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Input
-              label="Country"
+              label={t('adminBranches.country')}
               value={formData.country}
               onChange={(e) => setFormData({ ...formData, country: e.target.value })}
             />
             <Input
-              label="City"
+              label={t('adminBranches.city')}
               value={formData.city}
               onChange={(e) => setFormData({ ...formData, city: e.target.value })}
             />
           </div>
 
           <Input
-            label="Address"
+            label={t('adminBranches.address')}
             value={formData.address}
             onChange={(e) => setFormData({ ...formData, address: e.target.value })}
           />
@@ -561,13 +561,13 @@ function BranchesPage() {
           {/* Contact */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Input
-              label="Phone"
+              label={t('adminBranches.phone')}
               type="tel"
               value={formData.phone}
               onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
             />
             <Input
-              label="Email"
+              label={t('adminBranches.email')}
               type="email"
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
@@ -576,7 +576,7 @@ function BranchesPage() {
           </div>
 
           <Input
-            label="Manager Name"
+            label={t('adminBranches.managerName')}
             value={formData.manager_name}
             onChange={(e) => setFormData({ ...formData, manager_name: e.target.value })}
           />
@@ -592,7 +592,7 @@ function BranchesPage() {
                 className="rounded border-gray-300 dark:border-gray-600"
               />
               <label htmlFor="is_active" className="text-sm text-gray-700 dark:text-gray-300">
-                Active
+                {t('adminBranches.active')}
               </label>
             </div>
             <div className="flex items-center gap-2">
@@ -605,7 +605,7 @@ function BranchesPage() {
               />
               <label htmlFor="is_headquarters" className="text-sm text-gray-700 dark:text-gray-300 flex items-center gap-2">
                 <StarIcon className="w-4 h-4" />
-                Headquarters
+                {t('adminBranches.headquarters')}
               </label>
             </div>
           </div>
@@ -613,10 +613,10 @@ function BranchesPage() {
 
         <div className="flex justify-end gap-3 mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
           <Button variant="secondary" onClick={handleCloseModal} disabled={submitting}>
-            Cancel
+            {t('adminBranches.cancel')}
           </Button>
           <Button onClick={handleSubmit} loading={submitting}>
-            {editingBranch ? 'Update' : 'Create'}
+            {editingBranch ? t('adminBranches.update') : t('adminBranches.create')}
           </Button>
         </div>
       </Modal>
@@ -629,9 +629,9 @@ function BranchesPage() {
           setBranchToDelete(null);
         }}
         onConfirm={handleDeleteConfirm}
-        title="Delete Branch"
-        message={`Are you sure you want to delete "${branchToDelete?.name}"? This action cannot be undone.`}
-        confirmText="Delete"
+        title={t('adminBranches.deleteBranch')}
+        message={t('adminBranches.deleteConfirm', { name: branchToDelete?.name || '' })}
+        confirmText={t('adminBranches.delete')}
         variant="danger"
         loading={deleting}
       />

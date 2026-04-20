@@ -972,4 +972,114 @@ router.get('/login-trends', authenticate, async (req: Request, res: Response) =>
   }
 });
 
+// ============================================================================
+// CHARTS ENDPOINT
+// ============================================================================
+
+/**
+ * GET /api/dashboard/charts
+ * Chart data for DashboardCharts component:
+ *   monthlyShipments, financialTrends, shipmentTypes, locations
+ */
+router.get('/charts', authenticate, async (req: Request, res: Response) => {
+  try {
+    const { companyFilter, params } = getDashboardFilters(req);
+
+    // 1) Monthly shipments (last 6 months)
+    const monthlyShipments = await safeRowsQuery(
+      `SELECT
+         TO_CHAR(date_trunc('month', s.created_at), 'Mon') AS month,
+         COUNT(*) AS shipments
+       FROM shipments s
+       WHERE s.deleted_at IS NULL
+         AND s.created_at >= date_trunc('month', NOW()) - INTERVAL '5 months'
+         ${companyFilter.replace(/company_id/g, 's.company_id')}
+       GROUP BY date_trunc('month', s.created_at)
+       ORDER BY date_trunc('month', s.created_at)`,
+      params,
+      'charts-monthly-shipments'
+    );
+
+    // 2) Financial trends (last 6 months) - expenses table has no deleted_at
+    const financialTrends = await safeRowsQuery(
+      `SELECT
+         TO_CHAR(date_trunc('month', e.created_at), 'Mon') AS month,
+         COALESCE(SUM(e.amount), 0) AS expenses,
+         0 AS revenue
+       FROM expenses e
+       WHERE e.created_at >= date_trunc('month', NOW()) - INTERVAL '5 months'
+         ${companyFilter.replace(/company_id/g, 'e.company_id')}
+       GROUP BY date_trunc('month', e.created_at)
+       ORDER BY date_trunc('month', e.created_at)`,
+      params,
+      'charts-financial-trends'
+    );
+
+    // 3) Shipment types breakdown (join shipment_types for labels)
+    const typeColors: Record<string, string> = {
+      sea: '#3B82F6', air: '#10B981', land: '#F59E0B', rail: '#8B5CF6',
+      multimodal: '#EC4899', other: '#6B7280',
+    };
+    const rawTypes = await safeRowsQuery(
+      `SELECT
+         COALESCE(LOWER(st.mode), 'other') AS type,
+         COALESCE(st.name_en, 'Other') AS type_label,
+         COUNT(*) AS count
+       FROM shipments s
+       LEFT JOIN shipment_types st ON st.id = s.type_id
+       WHERE s.deleted_at IS NULL ${companyFilter.replace(/company_id/g, 's.company_id')}
+       GROUP BY st.mode, st.name_en
+       ORDER BY count DESC`,
+      params,
+      'charts-shipment-types'
+    );
+    const total = rawTypes.reduce((s: number, r: any) => s + parseInt(r.count), 0) || 1;
+    const shipmentTypes = rawTypes.map((r: any) => ({
+      type: r.type_label,
+      count: parseInt(r.count),
+      percentage: Math.round((parseInt(r.count) / total) * 100),
+      color: typeColors[r.type] || '#6B7280',
+    }));
+
+    // 4) Top locations (origin/destination are text fields)
+    const locations = await safeRowsQuery(
+      `SELECT
+         COALESCE(s.destination, s.origin, 'Unknown') AS city,
+         '' AS country,
+         COUNT(*) AS shipments
+       FROM shipments s
+       WHERE s.deleted_at IS NULL ${companyFilter.replace(/company_id/g, 's.company_id')}
+       GROUP BY city, country
+       ORDER BY shipments DESC
+       LIMIT 10`,
+      params,
+      'charts-locations'
+    );
+
+    return res.json({
+      monthlyShipments: monthlyShipments.map((r: any) => ({
+        month: r.month,
+        shipments: parseInt(r.shipments),
+        previousYear: 0,
+      })),
+      financialTrends: financialTrends.map((r: any) => ({
+        month: r.month,
+        expenses: parseFloat(r.expenses),
+        revenue: parseFloat(r.revenue),
+      })),
+      shipmentTypes,
+      locations: locations.map((r: any) => ({
+        city: r.city,
+        country: r.country,
+        shipments: parseInt(r.shipments),
+        lat: 0,
+        lng: 0,
+      })),
+    });
+  } catch (error: any) {
+    logger.error('Dashboard charts failed', error);
+    return sendError(res, 'SERVER_ERROR', 'Failed to fetch chart data', 500);
+  }
+});
+
 export default router;

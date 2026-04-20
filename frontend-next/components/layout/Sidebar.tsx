@@ -53,8 +53,8 @@ export default function Sidebar({ collapsed, onCollapse, mobile }: SidebarProps)
   const [showFavorites, setShowFavorites] = useState(false);
   const favoriteItems = getFavoriteItems(menu);
   
-  // العناصر المفتوحة (expanded) - نفتح أول عنصر افتراضياً
-  const [expandedMenus, setExpandedMenus] = useState<string[]>(['home']);
+  // العناصر المفتوحة (expanded) - نفتح الأقسام الرئيسية افتراضياً
+  const [expandedMenus, setExpandedMenus] = useState<string[]>(['home', 'financials', 'adminSecurity', 'myRequests']);
 
   // في وضع الـ collapsed: نثبت (pin) الـ flyout عند النقر بدلاً من hover فقط
   const [pinnedFlyoutKey, setPinnedFlyoutKey] = useState<string | null>(null);
@@ -195,15 +195,6 @@ export default function Sidebar({ collapsed, onCollapse, mobile }: SidebarProps)
         {!collapsed && (
           <h2 className="font-semibold text-lg">{t('common.name')}</h2>
         )}
-        {!mobile && (
-          <button
-            onClick={() => onCollapse(!collapsed)}
-            className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
-            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          >
-            <ChevronRightIcon className={clsx('w-5 h-5 transition-transform', !collapsed && 'rotate-180')} />
-          </button>
-        )}
       </div>
 
       {/* 🔍 Search Bar */}
@@ -285,8 +276,8 @@ export default function Sidebar({ collapsed, onCollapse, mobile }: SidebarProps)
               className={clsx(
                 'flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-sm',
                 isActive(item.path)
-                  ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-400 font-medium'
-                  : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                  ? 'bg-blue-600 dark:bg-blue-700 text-white font-medium'
+                  : 'text-gray-700 dark:text-gray-300 hover:bg-white/60 dark:hover:bg-white/10'
               )}
             >
               {item.icon && <item.icon className="w-4 h-4 flex-shrink-0" />}
@@ -326,6 +317,20 @@ export default function Sidebar({ collapsed, onCollapse, mobile }: SidebarProps)
             />
           ))}
         </nav>
+      )}
+
+      {/* Collapse toggle button at bottom (QA 13.01-02) */}
+      {!mobile && (
+        <div className="border-t border-gray-200 dark:border-gray-700 p-3">
+          <button
+            onClick={() => onCollapse(!collapsed)}
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 transition-colors text-sm"
+            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            <ChevronRightIcon className={clsx('w-5 h-5 transition-transform duration-300', !collapsed && 'rotate-180')} />
+            {!collapsed && <span>{t('common.collapse') || 'Collapse'}</span>}
+          </button>
+        </div>
       )}
     </aside>
   );
@@ -437,8 +442,8 @@ function SidebarNode({
           className={clsx(
             'flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200',
             isActive(item.path)
-              ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400 font-medium shadow-sm border-s-3 border-primary-500'
-              : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:translate-x-1 rtl:hover:-translate-x-1'
+              ? 'bg-blue-600 dark:bg-blue-700 text-white font-medium shadow-sm'
+              : 'text-gray-700 dark:text-gray-300 hover:bg-white/60 dark:hover:bg-white/10 hover:translate-x-1 rtl:hover:-translate-x-1'
           )}
           aria-label={item.label}
         >
@@ -447,11 +452,11 @@ function SidebarNode({
             <span
               className={clsx(
                 'w-2 h-2 rounded-full flex-shrink-0 transition-all duration-200',
-                isActive(item.path) ? 'bg-primary-500 scale-125' : 'bg-current'
+                isActive(item.path) ? 'bg-white scale-125' : 'bg-gray-400 dark:bg-gray-500'
               )}
             />
           )}
-          {!collapsed && <span className={clsx(depth === 0 ? '' : 'text-sm text-gray-600 dark:text-gray-400')}>{item.label}</span>}
+          {!collapsed && <span className={clsx(depth === 0 ? '' : (isActive(item.path) ? 'text-sm' : 'text-sm text-gray-600 dark:text-gray-400'))}>{item.label}</span>}
           {item.badgeCount && item.badgeCount > 0 && <Badge count={item.badgeCount} collapsed={collapsed} />}
         </Link>
 
@@ -573,7 +578,7 @@ function FlyoutItem({
         className={clsx(
           'block px-2 py-2 rounded-md text-sm transition-colors',
           isActive(item.path)
-            ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-400 font-medium'
+            ? 'bg-blue-600 dark:bg-blue-700 text-white font-medium'
             : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'
         )}
       >
@@ -617,11 +622,11 @@ function SearchResultItem({ item, isActive, isFavorite, onToggleFavorite, onClic
       className={clsx(
         'flex items-center gap-3 px-3 py-2 rounded-lg transition-colors mb-1',
         isActive(item.path)
-          ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-400 font-medium'
+          ? 'bg-blue-600 dark:bg-blue-700 text-white font-medium'
           : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
       )}
     >
-      {Icon && <Icon className="w-5 h-5 flex-shrink-0 text-gray-400" />}
+      {Icon && <Icon className="w-5 h-5 flex-shrink-0" />}
       <div className="flex-1 min-w-0">
         <div className="truncate">{item.label}</div>
         {item.parentLabel && (

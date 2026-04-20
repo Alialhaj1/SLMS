@@ -66,7 +66,16 @@ export function buildTenantFilter(
 ): { clause: string; params: any[]; nextIndex: number } {
   const tenantId = getIsolatedTenantId(req);
   if (tenantId === null || tenantId === undefined) {
-    // Platform user — no tenant restriction
+    // Platform user — restrict to platform-level (non-tenant) records only.
+    // This prevents platform admin from seeing tenant operational data
+    // in routes that use buildTenantFilter (e.g. companies list).
+    const user = (req as any).user;
+    const isPlatformAdmin = user && !user.tenant_id &&
+      (user.is_platform_admin || (user.roles && user.roles.includes('super_admin')));
+    if (isPlatformAdmin) {
+      return { clause: `${columnName} IS NULL`, params: [], nextIndex: paramIndex };
+    }
+    // No user / unauthenticated — no restriction (handled by auth middleware)
     return { clause: '1=1', params: [], nextIndex: paramIndex };
   }
   return {

@@ -3,6 +3,7 @@
  * Provides translation function with nested key support
  */
 
+import { useMemo } from 'react';
 import { useLocale } from '../contexts/LocaleContext';
 import enTranslations from '../locales/en.json';
 import arTranslations from '../locales/ar.json';
@@ -98,49 +99,54 @@ function interpolate(text: string, params?: TranslationParams): string {
 export function useTranslation() {
   const { locale } = useLocale();
 
-  function t(key: TranslationKey | string): string;
-  function t(key: TranslationKey | string, params: TranslationParams): string;
-  function t(key: TranslationKey | string, fallback: string): string;
-  function t(key: TranslationKey | string, params: TranslationParams, fallback: string): string;
-  function t(
-    key: TranslationKey | string,
-    arg2?: TranslationParams | string,
-    arg3?: string
-  ): string {
-    const normalizedKey = typeof key === 'string' ? normalizeTranslationKey(key) : key;
-    const params = typeof arg2 === 'string' ? undefined : arg2;
-    const explicitFallback = typeof arg2 === 'string' ? arg2 : arg3;
+  const t = useMemo(() => {
+    function tFn(key: TranslationKey | string): string;
+    function tFn(key: TranslationKey | string, params: TranslationParams): string;
+    function tFn(key: TranslationKey | string, fallback: string): string;
+    function tFn(key: TranslationKey | string, params: TranslationParams, fallback: string): string;
+    function tFn(
+      key: TranslationKey | string,
+      arg2?: TranslationParams | string,
+      arg3?: string
+    ): string {
+      const normalizedKey = typeof key === 'string' ? normalizeTranslationKey(key) : key;
+      const params = typeof arg2 === 'string' ? undefined : arg2;
+      const explicitFallback = typeof arg2 === 'string' ? arg2 : arg3;
 
-    const localized = getNestedValue(translations[locale], normalizedKey);
-    const localizedViaMasterNamespace =
-      localized === undefined &&
-      typeof normalizedKey === 'string' &&
-      !normalizedKey.startsWith('master.')
-        ? getNestedValue(translations[locale], `master.${normalizedKey}`)
-        : undefined;
-    const english = locale !== 'en' ? getNestedValue(translations.en, normalizedKey) : undefined;
+      const rawLocalized = getNestedValue(translations[locale], normalizedKey);
+      const localized = typeof rawLocalized === 'string' ? rawLocalized : undefined;
+      const rawMaster =
+        localized === undefined &&
+        typeof normalizedKey === 'string' &&
+        !normalizedKey.startsWith('master.')
+          ? getNestedValue(translations[locale], `master.${normalizedKey}`)
+          : undefined;
+      const localizedViaMasterNamespace = typeof rawMaster === 'string' ? rawMaster : undefined;
+      const rawEnglish = locale !== 'en' ? getNestedValue(translations.en, normalizedKey) : undefined;
+      const english = typeof rawEnglish === 'string' ? rawEnglish : undefined;
 
-    if (localized !== undefined) {
-      return interpolate(localized, params);
+      if (localized !== undefined) {
+        return interpolate(localized, params);
+      }
+
+      if (localizedViaMasterNamespace !== undefined) {
+        return interpolate(localizedViaMasterNamespace, params);
+      }
+
+      if (english !== undefined) {
+        console.warn(`Translation missing for key "${normalizedKey}" in locale "${locale}"`);
+        return interpolate(english, params);
+      }
+
+      if (explicitFallback) {
+        return interpolate(explicitFallback, params);
+      }
+
+      console.warn(`Translation missing for key "${normalizedKey}"`);
+      return normalizedKey;
     }
-
-    if (localizedViaMasterNamespace !== undefined) {
-      return interpolate(localizedViaMasterNamespace, params);
-    }
-
-    if (english !== undefined) {
-      console.warn(`Translation missing for key "${normalizedKey}" in locale "${locale}"`);
-      return interpolate(english, params);
-    }
-
-    if (explicitFallback) {
-      console.warn(`Translation missing for key "${normalizedKey}"; using explicit fallback`);
-      return interpolate(explicitFallback, params);
-    }
-
-    console.warn(`Translation missing for key "${normalizedKey}"`);
-    return normalizedKey;
-  }
+    return tFn as typeof tFn;
+  }, [locale]);
 
   return { t, locale };
 }

@@ -45,7 +45,7 @@ function CustomersPage() {
         { url: `${apiUrl}/api/master/companies?limit=500`,                  setter: setCompaniesRef,          fmt: (c: any) => ({ value: c.id, label: `${c.name} (${c.code})` }) },
         { url: `${apiUrl}/api/master/countries?limit=500&is_active=true`,   setter: setCountriesRef,          fmt: (c: any) => ({ value: c.id, label: `${c.flag || ''} ${c.name} (${c.code})`.trim() }) },
         { url: `${apiUrl}/api/master/cities?limit=1000&is_active=true`,     setter: setCitiesRef,             fmt: (c: any) => ({ value: c.id, label: `${c.name}${c.code ? ' (' + c.code + ')' : ''}` }) },
-        { url: `${apiUrl}/api/master/currencies?limit=500&is_active=true`,  setter: setCurrenciesRef,         fmt: (c: any) => ({ value: c.id, label: `${c.code} — ${c.name}` }) },
+        { url: `${apiUrl}/api/finance/currencies?is_active=true`,  setter: setCurrenciesRef,         fmt: (c: any) => ({ value: c.id, label: `${c.code} — ${c.name}` }) },
         { url: `${apiUrl}/api/master/languages?limit=500&is_active=true`,   setter: setLanguagesRef,          fmt: (c: any) => ({ value: c.id, label: `${c.name}${c.native_name ? ' / ' + c.native_name : ''}` }) },
         { url: `${apiUrl}/api/master/customer-types?limit=500`,             setter: setCustomerTypesRef,      fmt: (c: any) => ({ value: c.id, label: c.name }) },
         { url: `${apiUrl}/api/master/customer-categories?limit=500`,        setter: setCustomerCategoriesRef, fmt: (c: any) => ({ value: c.id, label: c.name }) },

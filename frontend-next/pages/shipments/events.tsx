@@ -78,7 +78,7 @@ export default function ShipmentEventsPage() {
     try {
       const token = localStorage.getItem('accessToken');
       const companyId = companyStore.getActiveCompanyId();
-      const baseUrl = (process.env.NEXT_PUBLIC_API_URL || '') + '/api';
+      const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api').replace(/\/api\/?$/, '') + '/api';
 
       const query = new URLSearchParams();
       if (search.trim()) query.append('search', search.trim());

@@ -2,7 +2,7 @@ import Head from 'next/head';
 import MainLayout from '../../components/layout/MainLayout';
 import PolicyCrudTable from '../../components/settings/PolicyCrudTable';
 import { useTranslation } from '../../hooks/useTranslation';
-import { withPermission } from '../../utils/withPermission';
+import { withPermission, withPlatformGuard } from '../../utils/withPermission';
 
 function SmsWhatsAppSettingsPage() {
   const { t } = useTranslation();
@@ -28,4 +28,4 @@ function SmsWhatsAppSettingsPage() {
   );
 }
 
-export default withPermission('system_policies:view', SmsWhatsAppSettingsPage);
+export default withPlatformGuard(withPermission('system_policies:view', SmsWhatsAppSettingsPage));

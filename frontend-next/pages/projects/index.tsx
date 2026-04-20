@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Projects Management Dashboard
  * ==============================
  * Comprehensive project management with hierarchy support,
@@ -236,7 +236,7 @@ const getProjectLevelConfig = (level: ProjectLevel) => {
 // API FUNCTIONS
 // =============================================
 
-const API_BASE = (process.env.NEXT_PUBLIC_API_URL || '') + '/api';
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api').replace(/\/api\/?$/, '') + '/api';
 
 async function fetchWithAuth(url: string, token: string, options: RequestInit = {}) {
   const res = await fetch(url, {
@@ -383,9 +383,10 @@ export default function ProjectsPage() {
   const [deleteProject, setDeleteProject] = useState<Project | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteConflict, setDeleteConflict] = useState<{
-    childrenCount?: number;
-    paymentsCount?: number;
+    dependencies?: { type: string; count: number; label: string; label_ar: string }[];
+    totalDependencies?: number;
   } | null>(null);
+  const [financialStatusFilter, setFinancialStatusFilter] = useState('all');
 
   // Fetch projects
   const fetchProjects = useCallback(async () => {
@@ -466,13 +467,9 @@ export default function ProjectsPage() {
       const token = localStorage.getItem('accessToken');
       if (!token) return;
       
-      // Build URL with unlink params if forceUnlink is true
       let url = `${API_BASE}/projects/${deleteProject.id}`;
-      if (forceUnlink && deleteConflict) {
-        const params = new URLSearchParams();
-        if (deleteConflict.childrenCount) params.append('unlinkChildren', 'true');
-        if (deleteConflict.paymentsCount) params.append('unlinkPayments', 'true');
-        url += `?${params.toString()}`;
+      if (forceUnlink) {
+        url += '?force=true';
       }
       
       const response = await fetch(url, {
@@ -483,11 +480,11 @@ export default function ProjectsPage() {
       const data = await response.json();
       
       if (!response.ok) {
-        // Check if it's a conflict error with children or payments
-        if (data.childrenCount || data.paymentsCount) {
+        // Check if it's a dependency conflict
+        if (data.dependencies && data.dependencies.length > 0) {
           setDeleteConflict({
-            childrenCount: data.childrenCount,
-            paymentsCount: data.paymentsCount
+            dependencies: data.dependencies,
+            totalDependencies: data.totalDependencies
           });
           return;
         }
@@ -598,6 +595,10 @@ export default function ProjectsPage() {
           </div>
 
           <div className="flex items-center gap-2">
+            <Button variant="secondary" onClick={() => router.push('/projects/reports')}>
+              <PresentationChartBarIcon className="h-4 w-4" />
+              {locale === 'ar' ? 'التقارير' : 'Reports'}
+            </Button>
             {canCreate && (
               <Button onClick={() => router.push('/projects/new')}>
                 <PlusIcon className="h-4 w-4" />
@@ -644,6 +645,7 @@ export default function ProjectsPage() {
           <StatCard
             title={locale === 'ar' ? 'المدفوع' : 'Total Paid'}
             value={stats ? formatCurrency(stats.total_paid || 0, locale) : '-'}
+            subtitle={stats?.projects_overdue ? `${stats.projects_overdue} ${locale === 'ar' ? 'متأخر' : 'overdue'}` : undefined}
             icon={ExclamationTriangleIcon}
             color="bg-amber-500"
             loading={!stats}
@@ -713,6 +715,21 @@ export default function ProjectsPage() {
               </select>
             </div>
 
+            {/* Financial Status Filter */}
+            <div className="w-full lg:w-44">
+              <select
+                value={financialStatusFilter}
+                onChange={(e) => setFinancialStatusFilter(e.target.value)}
+                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="all">{locale === 'ar' ? 'كل الحالات المالية' : 'All Financial'}</option>
+                <option value="open">{locale === 'ar' ? 'مفتوح' : 'Open'}</option>
+                <option value="in_review">{locale === 'ar' ? 'قيد المراجعة' : 'In Review'}</option>
+                <option value="approved">{locale === 'ar' ? 'معتمد' : 'Approved'}</option>
+                <option value="closed">{locale === 'ar' ? 'مغلق مالياً' : 'Closed'}</option>
+              </select>
+            </div>
+
             {/* View Toggle */}
             <div className="flex items-center gap-1 border border-slate-300 dark:border-slate-600 rounded-lg p-1">
               <button
@@ -776,6 +793,9 @@ export default function ProjectsPage() {
                     </th>
                     <th className="px-4 py-3 text-left font-semibold text-slate-600 dark:text-slate-300 hidden lg:table-cell">
                       {locale === 'ar' ? 'الميزانية' : 'Budget'}
+                    </th>
+                    <th className="px-4 py-3 text-center font-semibold text-slate-600 dark:text-slate-300 hidden xl:table-cell">
+                      {locale === 'ar' ? 'الحالة المالية' : 'Financial'}
                     </th>
                     <th className="px-4 py-3 text-center font-semibold text-slate-600 dark:text-slate-300">
                       {locale === 'ar' ? 'الحالة' : 'Status'}
@@ -889,6 +909,22 @@ export default function ProjectsPage() {
                                 </p>
                               )}
                             </div>
+                          </td>
+                          <td className="px-4 py-3 hidden xl:table-cell text-center">
+                            {(project as any).financial_status ? (
+                              <span className={clsx('text-xs px-2 py-0.5 rounded-full capitalize',
+                                (project as any).financial_status === 'closed' ? 'bg-gray-100 text-gray-800' :
+                                (project as any).financial_status === 'approved' ? 'bg-green-100 text-green-800' :
+                                (project as any).financial_status === 'in_review' ? 'bg-amber-100 text-amber-800' :
+                                'bg-blue-100 text-blue-800'
+                              )}>
+                                {(project as any).financial_status === 'open' ? (locale === 'ar' ? 'مفتوح' : 'Open') :
+                                 (project as any).financial_status === 'in_review' ? (locale === 'ar' ? 'مراجعة' : 'Review') :
+                                 (project as any).financial_status === 'approved' ? (locale === 'ar' ? 'معتمد' : 'Approved') :
+                                 (project as any).financial_status === 'closed' ? (locale === 'ar' ? 'مغلق' : 'Closed') :
+                                 (project as any).financial_status}
+                              </span>
+                            ) : <span className="text-slate-400">-</span>}
                           </td>
                           <td className="px-4 py-3 text-center">
                             <StatusBadge status={project.status} locale={locale} />
@@ -1064,18 +1100,18 @@ export default function ProjectsPage() {
           loading={deleting}
         />
 
-        {/* Delete Conflict Dialog - when project has children or payments */}
+        {/* Delete Conflict Dialog - when project has dependencies */}
         <ConfirmDialog
           isOpen={!!deleteProject && !!deleteConflict}
           onClose={() => { setDeleteProject(null); setDeleteConflict(null); }}
           onConfirm={() => handleDelete(true)}
-          title={locale === 'ar' ? 'تأكيد الحذف مع إلغاء الربط' : 'Confirm Delete with Unlinking'}
+          title={locale === 'ar' ? 'لا يمكن حذف المشروع' : 'Cannot Delete Project'}
           message={
             locale === 'ar'
-              ? `المشروع "${deleteProject?.name}" مرتبط بـ:${deleteConflict?.childrenCount ? `\n• ${deleteConflict.childrenCount} مشروع فرعي` : ''}${deleteConflict?.paymentsCount ? `\n• ${deleteConflict.paymentsCount} دفعة` : ''}\n\nهل تريد إلغاء الربط وحذف المشروع؟`
-              : `Project "${deleteProject?.name}" has:${deleteConflict?.childrenCount ? `\n• ${deleteConflict.childrenCount} child project(s)` : ''}${deleteConflict?.paymentsCount ? `\n• ${deleteConflict.paymentsCount} payment(s)` : ''}\n\nDo you want to unlink and delete the project?`
+              ? `المشروع "${deleteProject?.name}" مرتبط بالسجلات التالية:\n${(deleteConflict?.dependencies || []).map(d => `• ${d.count} ${d.label_ar}`).join('\n')}\n\nيجب إزالة أو فك ارتباط جميع السجلات قبل الحذف.`
+              : `Project "${deleteProject?.name}" has the following linked records:\n${(deleteConflict?.dependencies || []).map(d => `• ${d.count} ${d.label}`).join('\n')}\n\nPlease remove or unlink all records before deleting.`
           }
-          confirmText={locale === 'ar' ? 'إلغاء الربط والحذف' : 'Unlink & Delete'}
+          confirmText={locale === 'ar' ? 'فك الارتباط والحذف' : 'Force Unlink & Delete'}
           variant="danger"
           loading={deleting}
         />

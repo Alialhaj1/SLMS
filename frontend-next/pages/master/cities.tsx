@@ -40,7 +40,7 @@ function CitiesPage() {
       const apiUrl = (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/$/, '').replace(/\/api$/, '');
       const companyId = companyStore.getActiveCompanyId();
       
-      const res = await fetch(`${apiUrl}/api/master/countries?limit=500&status=active`, {
+      const res = await fetch(`${apiUrl}/api/master/countries?limit=500&is_active=true`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -109,17 +109,14 @@ function CitiesPage() {
             title: 'Classification / التصنيف',
             fields: [
               { label: 'Capital City', value: record.is_capital ? '⭐ Yes' : 'No', type: 'badge' as const },
-              { label: 'Major City', value: record.is_major_city ? '✓ Yes' : 'No', type: 'badge' as const },
-              { label: 'Has Port', value: record.has_port ? '⚓ Yes' : 'No', type: 'badge' as const },
-              { label: 'Has Customs Office', value: record.has_customs_office ? '🏛 Yes' : 'No', type: 'badge' as const },
-              { label: 'Population', value: formatNumber(record.population) },
+              { label: 'Port City', value: record.is_port_city ? '⚓ Yes' : 'No', type: 'badge' as const },
               { label: 'Sort Order', value: record.sort_order?.toString() || '—' },
             ],
           },
           {
             title: 'Status & Audit / الحالة والتدقيق',
             fields: [
-              { label: 'Status', value: record.status || (record.is_active ? 'active' : 'inactive'), type: 'badge' as const },
+              { label: 'Status', value: record.is_active ? 'active' : 'inactive', type: 'badge' as const },
               { label: 'Created', value: record.created_at, type: 'date' as const },
               { label: 'Updated', value: record.updated_at, type: 'date' as const },
             ],

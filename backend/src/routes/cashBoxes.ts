@@ -79,6 +79,118 @@ async function resolveGlAccountId(companyId: number, glAccountCode?: string): Pr
   return r.rows[0]?.id ?? null;
 }
 
+/**
+ * Find the Cash parent group account under which cash box sub-accounts live.
+ * Strategy: look for default_accounts CASH entry → find child group (is_group=true),
+ * or fallback to code patterns like '111101'.
+ */
+async function findCashParentGroup(companyId: number): Promise<{ id: number; code: string; level: number; account_type_id: number } | null> {
+  // Try default_accounts → CASH account → find child group
+  const da = await pool.query(
+    `SELECT da.account_id FROM default_accounts da WHERE da.company_id = $1 AND da.account_key = 'CASH' LIMIT 1`,
+    [companyId]
+  );
+  const cashAccountId = da.rows[0]?.account_id;
+  if (cashAccountId) {
+    // Find a child group under the cash account (e.g. 111101 Cash Boxes)
+    const grp = await pool.query(
+      `SELECT id, code, level, account_type_id FROM accounts WHERE company_id = $1 AND parent_id = $2 AND is_group = true AND deleted_at IS NULL ORDER BY code LIMIT 1`,
+      [companyId, cashAccountId]
+    );
+    if (grp.rows[0]) return grp.rows[0];
+    // No child group: use the cash account itself if it has children
+    const self = await pool.query(
+      `SELECT id, code, level, account_type_id FROM accounts WHERE company_id = $1 AND id = $2 AND deleted_at IS NULL`,
+      [companyId, cashAccountId]
+    );
+    if (self.rows[0]) return self.rows[0];
+  }
+  return null;
+}
+
+/**
+ * Auto-create a GL sub-account under the cash parent group for a new cash box.
+ */
+async function autoCreateCashGlAccount(
+  companyId: number,
+  name: string,
+  nameAr: string | null,
+  userId: number | null
+): Promise<{ id: number; code: string } | null> {
+  const parent = await findCashParentGroup(companyId);
+  if (!parent) return null;
+
+  // Generate next code: find max code among children, increment
+  const children = await pool.query(
+    `SELECT code FROM accounts WHERE company_id = $1 AND parent_id = $2 AND deleted_at IS NULL ORDER BY code DESC LIMIT 1`,
+    [companyId, parent.id]
+  );
+
+  let nextCode: string;
+  if (children.rows.length > 0) {
+    const lastCode = children.rows[0].code;
+    const numPart = parseInt(lastCode.replace(/\D/g, ''), 10);
+    nextCode = String(numPart + 1).padStart(lastCode.length, '0');
+  } else {
+    // First child: parent code + "0001"
+    nextCode = parent.code + '0001';
+  }
+
+  const inserted = await pool.query(
+    `INSERT INTO accounts (
+      company_id, parent_id, account_type_id, code, name, name_ar,
+      level, is_group, is_active, allow_posting, normal_balance,
+      created_by, updated_by, created_at, updated_at
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, false, true, true, 'debit', $8, $8, NOW(), NOW())
+    RETURNING id, code`,
+    [companyId, parent.id, parent.account_type_id, nextCode, name, nameAr, parent.level + 1, userId]
+  );
+
+  return inserted.rows[0] ?? null;
+}
+
+// =============================================
+// GET /api/cash-boxes/available-accounts - Available GL accounts for cash boxes
+// =============================================
+router.get(
+  '/available-accounts',
+  requireAnyPermission([
+    'finance:cash_boxes:view',
+    'finance:cash_boxes:create',
+    'finance:cash_boxes:edit',
+  ]),
+  requireCompany,
+  async (req: Request, res: Response) => {
+    try {
+      const companyId = req.companyId as number;
+      const parent = await findCashParentGroup(companyId);
+      if (!parent) {
+        return res.json({ success: true, data: [], parent_code: null });
+      }
+
+      // Get all posting accounts under the cash parent group
+      const result = await pool.query(
+        `SELECT a.id, a.code, a.name, a.name_ar,
+                CASE WHEN cb.id IS NOT NULL THEN true ELSE false END AS already_linked
+         FROM accounts a
+         LEFT JOIN cash_boxes cb ON cb.gl_account_id = a.id AND cb.company_id = $1 AND cb.deleted_at IS NULL
+         WHERE a.company_id = $1 AND a.parent_id = $2 AND a.allow_posting = true AND a.deleted_at IS NULL
+         ORDER BY a.code`,
+        [companyId, parent.id]
+      );
+
+      return res.json({
+        success: true,
+        data: result.rows,
+        parent_code: parent.code,
+      });
+    } catch (error) {
+      console.error('Error fetching available cash GL accounts:', error);
+      return res.status(500).json({ success: false, error: 'Failed to fetch available accounts' });
+    }
+  }
+);
+
 // =============================================
 // GET /api/cash-boxes - List cash boxes
 // =============================================
@@ -168,10 +280,6 @@ router.post(
       if (!name || !String(name).trim()) {
         return res.status(400).json({ success: false, error: 'name is required' });
       }
-      if (!gl_account_code || !String(gl_account_code).trim()) {
-        return res.status(400).json({ success: false, error: 'gl_account_code is required' });
-      }
-
       const cashCode = String(code).trim().toUpperCase();
       const exists = await pool.query(
         `SELECT 1 FROM cash_boxes WHERE company_id = $1 AND code = $2 AND deleted_at IS NULL LIMIT 1`,
@@ -181,9 +289,31 @@ router.post(
         return res.status(409).json({ success: false, error: 'Cash box code already exists' });
       }
 
-      const glId = await resolveGlAccountId(companyId, String(gl_account_code));
-      if (!glId) {
-        return res.status(400).json({ success: false, error: 'Invalid gl_account_code' });
+      let glId: number | null = null;
+      let autoCreatedGlCode: string | null = null;
+
+      if (gl_account_code && String(gl_account_code).trim() && String(gl_account_code).trim() !== 'auto') {
+        // User provided a specific GL account code — resolve it
+        glId = await resolveGlAccountId(companyId, String(gl_account_code));
+        if (!glId) {
+          return res.status(400).json({ success: false, error: 'Invalid gl_account_code' });
+        }
+      } else {
+        // Auto-create a new GL sub-account under the cash parent group
+        const created = await autoCreateCashGlAccount(
+          companyId,
+          String(name).trim(),
+          name_ar ? String(name_ar).trim() : null,
+          userId ?? null
+        );
+        if (!created) {
+          return res.status(400).json({
+            success: false,
+            error: 'Cannot auto-create GL account: no cash parent group found. Please set up a CASH default account first.',
+          });
+        }
+        glId = created.id;
+        autoCreatedGlCode = created.code;
       }
 
       const currencyId =

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 🛠️ Fix Menu Translations
  * =====================================================
  * Adds missing `menu.*` translation keys used by `MENU_REGISTRY`
@@ -28,7 +28,8 @@ function readJson(filePath: string): AnyObject {
 }
 
 function writeJson(filePath: string, obj: AnyObject): void {
-  fs.writeFileSync(filePath, JSON.stringify(obj, null, 2) + '\n', 'utf-8');
+  fs.writeFileSync(filePath, JSON.stringify(obj, null, 2) + '
+', 'utf-8');
 }
 
 function extractLabelKeys(items: any[]): string[] {

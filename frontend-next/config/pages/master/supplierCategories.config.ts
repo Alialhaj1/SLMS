@@ -10,9 +10,26 @@ export interface SupplierCategory {
   id: number;
   code?: string;
   name_en: string;
+  name?: string;
   name_ar?: string;
   description?: string;
+  description_ar?: string;
   is_active: boolean;
+  // Extended fields from API / detail panel
+  icon?: string;
+  color?: string;
+  supplier_type_name_en?: string;
+  abc_class?: string;
+  evaluation_required?: boolean;
+  evaluation_frequency_months?: number;
+  requires_contract?: boolean;
+  spending_limit?: number;
+  is_system?: boolean;
+  status?: string;
+  sort_order?: number;
+  created_at?: string;
+  updated_at?: string;
+  [key: string]: any;
 }
 
 export type { SupplierCategory as SupplierCategoryType };
@@ -21,7 +38,7 @@ export type { SupplierCategory as SupplierCategoryType };
 
 const columns: ColumnMeta<SupplierCategory>[] = [
   { key: 'code',        label: 'Code',        sortable: true,  width: 100 },
-  { key: 'name_en',     label: 'Name (EN)',   sortable: true               },
+  { key: 'name',        label: 'Name (EN)',   sortable: true               },
   { key: 'name_ar',     label: 'Name (AR)',   sortable: true               },
   { key: 'description', label: 'Description', sortable: false              },
   { key: 'is_active',   label: 'Active',      sortable: true,  width: 90, format: 'boolean', align: 'center' },
@@ -35,7 +52,7 @@ const formSections: PageSection[] = [
     label: 'Identity',
     fields: [
       { key: 'code',        label: 'Code',           type: 'code',     required: 'optional',    placeholder: 'Category code', autoUppercase: true, colSpan: 4 },
-      { key: 'name_en',     label: 'Name (English)',  type: 'text',     required: 'required',    placeholder: 'Supplier category name in English' },
+      { key: 'name',       label: 'Name (English)',  type: 'text',     required: 'required',    placeholder: 'Supplier category name in English' },
       { key: 'name_ar',     label: 'Name (Arabic)',   type: 'text',     required: 'recommended', placeholder: 'اسم فئة المورد بالعربية' },
       { key: 'description', label: 'Description',     type: 'textarea', required: 'optional',    placeholder: 'Brief description of this supplier category', colSpan: 'full' as any },
     ],
@@ -78,7 +95,7 @@ export const supplierCategoriesConfig: PageConfig<SupplierCategory> = {
   auditEnabled: true,
   exportEnabled: true,
   exportFilename: 'supplier_categories',
-  defaultSortField: 'name_en',
+  defaultSortField: 'name',
   defaultSortOrder: 'asc',
   defaultPageSize: 25,
   pageSizeOptions: [10, 25, 50, 100],

@@ -123,10 +123,10 @@ router.get(
       `);
 
       const baseUnitsQuery = await pool.query(`
-        SELECT id, code, name, name_en, name_ar, unit_type, symbol
+        SELECT id, code, name, name_ar, unit_type
         FROM units
         WHERE deleted_at IS NULL AND is_base_unit = true
-        ORDER BY unit_type, sort_order, name
+        ORDER BY unit_type, name
       `);
 
       res.json({
@@ -143,7 +143,7 @@ router.get(
           })),
           base_units: baseUnitsQuery.rows.map(r => ({
             value: r.id,
-            label: `${r.name_en || r.name} (${r.symbol || r.code})`,
+            label: `${r.name} (${r.code})`,
             code: r.code,
             unit_type: r.unit_type,
           })),
@@ -169,7 +169,7 @@ router.get(
         search, is_active, status, unit_type, unit_type_id,
         is_base_unit, is_purchase_unit, is_sales_unit, is_inventory_unit,
         base_unit_id,
-        sort_by = 'sort_order', sort_order = 'asc',
+        sort_by = 'name', sort_order = 'asc',
         page = '1', limit = '50',
       } = req.query as Record<string, string>;
 
@@ -204,17 +204,10 @@ router.get(
 
       selectParts.push("bu.code AS base_unit_code");
       selectParts.push("bu.name AS base_unit_name");
-      selectParts.push("bu.name_en AS base_unit_name_en");
-      selectParts.push("bu.symbol AS base_unit_symbol");
-
-      selectParts.push("ut.code AS unit_type_code");
-      selectParts.push("ut.name_en AS unit_type_name");
-      selectParts.push("ut.name_ar AS unit_type_name_ar");
 
       const baseWhere = `u.deleted_at IS NULL`;
       const fromClause = `FROM units u
-        LEFT JOIN units bu ON u.base_unit_id = bu.id
-        LEFT JOIN unit_types ut ON u.unit_type_id = ut.id`;
+        LEFT JOIN units bu ON u.base_unit_id = bu.id`;
 
       let query = `SELECT ${selectParts.join(', ')} ${fromClause} WHERE ${baseWhere}`;
       let countQuery = `SELECT COUNT(*) FROM units u WHERE ${baseWhere}`;
@@ -316,13 +309,14 @@ router.get(
       }
 
       const allowedSortColumns = [
-        'name', 'name_en', 'code', 'unit_type', 'conversion_factor',
-        'is_base_unit', 'status', 'sort_order', 'created_at', 'updated_at',
-        'symbol', 'decimal_places', 'unit_type_name',
+        'name', 'code', 'unit_type', 'conversion_factor',
+        'is_base_unit', 'is_active', 'created_at', 'updated_at',
+        'unit_type_name',
       ];
-      let safeSortBy = allowedSortColumns.includes(sort_by) ? sort_by : 'sort_order';
+      // Also allow any column that actually exists in the table
+      let safeSortBy = (allowedSortColumns.includes(sort_by) || cols.has(sort_by)) ? sort_by : 'name';
       if (safeSortBy === 'unit_type_name') {
-        safeSortBy = 'ut.name_en';
+        safeSortBy = 'u.unit_type';
       } else if (!safeSortBy.includes('.')) {
         safeSortBy = `u.${safeSortBy}`;
       }
@@ -382,12 +376,9 @@ router.get(
 
       const result = await pool.query(
         `SELECT u.*,
-           bu.code AS base_unit_code, bu.name AS base_unit_name,
-           bu.name_en AS base_unit_name_en, bu.symbol AS base_unit_symbol,
-           ut.code AS unit_type_code, ut.name_en AS unit_type_name, ut.name_ar AS unit_type_name_ar
+           bu.code AS base_unit_code, bu.name AS base_unit_name
          FROM units u
          LEFT JOIN units bu ON u.base_unit_id = bu.id
-         LEFT JOIN unit_types ut ON u.unit_type_id = ut.id
          WHERE u.id = $1 AND u.deleted_at IS NULL`,
         [id]
       );
@@ -737,10 +728,10 @@ router.patch(
 
       const result = await client.query(
         `UPDATE units 
-         SET status = $1, is_active = $2, updated_by = $3, updated_at = CURRENT_TIMESTAMP
-         WHERE id = $4 AND deleted_at IS NULL
+         SET is_active = $1, updated_by = $2, updated_at = CURRENT_TIMESTAMP
+         WHERE id = $3 AND deleted_at IS NULL
          RETURNING *`,
-        [newStatus, newStatus === 'active', userId, id]
+        [newStatus === 'active', userId, id]
       );
 
       await client.query('COMMIT');
@@ -887,10 +878,10 @@ router.post(
 
       const result = await client.query(
         `UPDATE units 
-         SET status = $1, is_active = $2, updated_by = $3, updated_at = CURRENT_TIMESTAMP
-         WHERE id = ANY($4) AND deleted_at IS NULL
+         SET is_active = $1, updated_by = $2, updated_at = CURRENT_TIMESTAMP
+         WHERE id = ANY($3) AND deleted_at IS NULL
          RETURNING id`,
-        [newStatus, newStatus === 'active', userId, ids]
+        [newStatus === 'active', userId, ids]
       );
 
       await client.query('COMMIT');

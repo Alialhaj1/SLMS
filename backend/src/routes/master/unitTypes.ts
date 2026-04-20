@@ -34,11 +34,7 @@ router.get(
       const result = await pool.query(`
         SELECT
           COUNT(*)::int                                                    AS total,
-          COUNT(*) FILTER (WHERE status = 'active')::int                   AS active,
-          COUNT(*) FILTER (WHERE allows_decimals = true)::int              AS allows_decimals,
-          COUNT(*) FILTER (WHERE allows_decimals = false)::int             AS no_decimals,
-          COUNT(*) FILTER (WHERE is_countable = true)::int                 AS countable,
-          COUNT(*) FILTER (WHERE is_countable = false)::int                AS non_countable,
+          COUNT(*) FILTER (WHERE is_active = true)::int                    AS active,
           COUNT(*) FILTER (WHERE is_system = true)::int                    AS system_count
         FROM unit_types
         WHERE deleted_at IS NULL
@@ -58,7 +54,7 @@ router.get(
   async (req: Request, res: Response) => {
     try {
       const {
-        search, status, allows_decimals, is_countable, is_system,
+        search, status, is_system,
         sort = 'sort_order', order = 'asc',
         page = '1', limit = '25',
       } = req.query as Record<string, string>;
@@ -78,18 +74,8 @@ router.get(
         idx++;
       }
       if (status) {
-        conditions.push(`status = $${idx}`);
-        params.push(status);
-        idx++;
-      }
-      if (allows_decimals !== undefined && allows_decimals !== '') {
-        conditions.push(`allows_decimals = $${idx}`);
-        params.push(allows_decimals === 'true');
-        idx++;
-      }
-      if (is_countable !== undefined && is_countable !== '') {
-        conditions.push(`is_countable = $${idx}`);
-        params.push(is_countable === 'true');
+        conditions.push(`is_active = $${idx}`);
+        params.push(status === 'active');
         idx++;
       }
       if (is_system !== undefined && is_system !== '') {
@@ -100,8 +86,7 @@ router.get(
 
       const allowedSort = [
         'id', 'code', 'name_en', 'name_ar', 'base_unit_code',
-        'allows_decimals', 'is_countable',
-        'is_system', 'sort_order', 'status', 'created_at',
+        'is_system', 'sort_order', 'is_active', 'created_at',
       ];
       const sortCol = allowedSort.includes(sort) ? sort : 'sort_order';
       const where = conditions.join(' AND ');
@@ -184,22 +169,18 @@ router.post(
       const result = await pool.query(
         `INSERT INTO unit_types
           (code, name_en, name_ar, description_en, description_ar,
-           icon, base_unit_code,
-           allows_decimals, is_countable,
-           is_system, sort_order, status,
-           created_by, company_id, is_global)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+           symbol, base_unit_code, conversion_factor,
+           is_system, sort_order, category)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
          RETURNING *`,
         [
           code.toLowerCase().trim(), name_en.trim(), name_ar.trim(),
           description_en || null, description_ar || null,
           icon || null, base_unit_code.trim(),
-          allows_decimals ?? true, is_countable ?? true,
+          req.body.conversion_factor ?? 1,
           is_system ?? false,
-          sort_order ?? 0, status || 'active',
-          (req as any).user?.id || null,
-          (req as any).companyId || null,
-          true,
+          sort_order ?? 0,
+          req.body.category || null,
         ]
       );
 
@@ -255,23 +236,21 @@ router.put(
           name_ar         = COALESCE($3, name_ar),
           description_en  = COALESCE($4, description_en),
           description_ar  = COALESCE($5, description_ar),
-          icon            = COALESCE($6, icon),
+          symbol          = COALESCE($6, symbol),
           base_unit_code  = COALESCE($7, base_unit_code),
-          allows_decimals = COALESCE($8, allows_decimals),
-          is_countable    = COALESCE($9, is_countable),
-          sort_order      = COALESCE($10, sort_order),
-          status          = COALESCE($11, status),
-          updated_by      = $12,
+          conversion_factor = COALESCE($8, conversion_factor),
+          sort_order      = COALESCE($9, sort_order),
+          category        = COALESCE($10, category),
           updated_at      = NOW()
-        WHERE id = $13 AND deleted_at IS NULL
+        WHERE id = $11 AND deleted_at IS NULL
         RETURNING *`,
         [
           newCode, name_en?.trim(), name_ar?.trim(),
           description_en, description_ar,
           icon, base_unit_code?.trim(),
-          allows_decimals, is_countable,
-          sort_order, status,
-          (req as any).user?.id || null,
+          req.body.conversion_factor,
+          sort_order,
+          req.body.category,
           id,
         ]
       );
@@ -303,8 +282,8 @@ router.delete(
       }
 
       await pool.query(
-        'UPDATE unit_types SET deleted_at = NOW(), updated_by = $1 WHERE id = $2',
-        [(req as any).user?.id || null, id]
+        'UPDATE unit_types SET deleted_at = NOW(), updated_at = NOW() WHERE id = $1',
+        [id]
       );
 
       res.json({ success: true, message: 'Unit type deleted' });
@@ -330,11 +309,11 @@ router.patch(
         return res.status(404).json({ error: 'Unit type not found' });
       }
 
-      const newStatus = existing.rows[0].status === 'active' ? 'inactive' : 'active';
+      const newActive = !existing.rows[0].is_active;
       const result = await pool.query(
-        `UPDATE unit_types SET status = $1, updated_by = $2, updated_at = NOW()
-         WHERE id = $3 RETURNING *`,
-        [newStatus, (req as any).user?.id || null, id]
+        `UPDATE unit_types SET is_active = $1, updated_at = NOW()
+         WHERE id = $2 RETURNING *`,
+        [newActive, id]
       );
 
       res.json({ success: true, data: result.rows[0] });

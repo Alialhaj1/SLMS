@@ -29,6 +29,10 @@ import {
   PencilIcon,
   LockClosedIcon,
   SparklesIcon,
+  ExclamationTriangleIcon,
+  PlusCircleIcon,
+  ArrowRightCircleIcon,
+  XMarkIcon,
 } from '@heroicons/react/24/outline';
 
 // =============================================
@@ -51,6 +55,9 @@ interface Project {
   project_level?: 'group' | 'master' | 'sub';
   vendor_id?: number;
   vendor_name?: string;
+  project_type_id?: number;
+  project_type_name?: string;
+  project_type_name_ar?: string;
 }
 
 interface CostCenter {
@@ -99,6 +106,9 @@ interface FormData {
   budget_miscellaneous: string;
   status: string;
   priority: string;
+  risk_level: string;
+  tags: string;
+  budget_allocated: string;
   is_active: boolean;
 }
 
@@ -126,6 +136,9 @@ const initialFormData: FormData = {
   budget_miscellaneous: '0',
   status: 'active',
   priority: 'medium',
+  risk_level: 'low',
+  tags: '',
+  budget_allocated: '0',
   is_active: true,
 };
 
@@ -133,7 +146,7 @@ const initialFormData: FormData = {
 // API
 // =============================================
 
-const API_BASE = (process.env.NEXT_PUBLIC_API_URL || '') + '/api';
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api').replace(/\/api\/?$/, '') + '/api';
 
 async function fetchWithAuth(url: string, token: string, options: RequestInit = {}) {
   const res = await fetch(url, {
@@ -259,6 +272,21 @@ export default function NewProjectPage() {
   const [codeEditing, setCodeEditing] = useState(false);
   const [generatingCode, setGeneratingCode] = useState(false);
 
+  // Vendor conflict dialog state
+  const [vendorConflict, setVendorConflict] = useState<{
+    show: boolean;
+    vendorId: string;
+    vendorName: string;
+    existingProjects: Array<{
+      id: number;
+      code: string;
+      name: string;
+      name_ar?: string;
+      sub_count: number;
+    }>;
+  }>({ show: false, vendorId: '', vendorName: '', existingProjects: [] });
+  const [checkingVendor, setCheckingVendor] = useState(false);
+
   // Reference data
   const [projectTypes, setProjectTypes] = useState<ProjectType[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -296,7 +324,7 @@ export default function NewProjectPage() {
         fetchWithAuth(`${API_BASE}/projects?limit=500`, token),
         fetchWithAuth(`${API_BASE}/cost-centers`, token).catch(() => ({ data: [] })),
         fetchWithAuth(`${API_BASE}/users`, token).catch(() => ({ data: [] })),
-        fetchWithAuth(`${API_BASE}/vendors`, token).catch(() => ({ data: [] })),
+        fetchWithAuth(`${API_BASE}/vendors?limit=1000`, token).catch(() => ({ data: [] })),
       ]);
 
       setProjectTypes(typesRes.data || []);
@@ -390,12 +418,84 @@ export default function NewProjectPage() {
 
   // Handle parent change
   const handleParentChange = (parentId: string) => {
+    // Auto-inherit project_type_id from parent if available
+    const parent = projects.find((p) => p.id === parseInt(parentId));
     setFormData((prev) => ({
       ...prev,
       parent_project_id: parentId,
+      vendor_id: '', // Reset vendor when group changes
       code: '', // Reset code for regeneration
+      // Auto-set project type from parent (group → master, master → sub)
+      project_type_id: parent?.project_type_id ? parent.project_type_id.toString() : prev.project_type_id,
     }));
     setCodeEditing(false);
+    // Reset vendor conflict
+    setVendorConflict({ show: false, vendorId: '', vendorName: '', existingProjects: [] });
+  };
+
+  // Handle vendor selection with conflict check
+  const handleVendorChange = async (vendorId: string) => {
+    if (!vendorId || !formData.parent_project_id) {
+      setFormData((prev) => ({ ...prev, vendor_id: vendorId }));
+      return;
+    }
+
+    // Set vendor immediately
+    setFormData((prev) => ({ ...prev, vendor_id: vendorId }));
+
+    // Check if this vendor already has master projects in the selected group
+    try {
+      setCheckingVendor(true);
+      const token = localStorage.getItem('accessToken');
+      if (!token) return;
+
+      const res = await fetchWithAuth(
+        `${API_BASE}/projects/check-vendor-in-group?group_id=${formData.parent_project_id}&vendor_id=${vendorId}`,
+        token
+      );
+
+      if (res.data?.has_existing && res.data.existing_projects.length > 0) {
+        const vendor = vendors.find((v) => v.id === parseInt(vendorId));
+        setVendorConflict({
+          show: true,
+          vendorId,
+          vendorName: locale === 'ar' ? (vendor?.name_ar || vendor?.name || '') : (vendor?.name || ''),
+          existingProjects: res.data.existing_projects,
+        });
+      } else {
+        setVendorConflict({ show: false, vendorId: '', vendorName: '', existingProjects: [] });
+      }
+    } catch (err) {
+      console.error('Failed to check vendor conflicts:', err);
+    } finally {
+      setCheckingVendor(false);
+    }
+  };
+
+  // Handle vendor conflict: continue creating new master
+  const handleConflictContinueNew = () => {
+    setVendorConflict((prev) => ({ ...prev, show: false }));
+    // Keep the vendor_id as-is, proceed with new master creation
+  };
+
+  // Handle vendor conflict: switch to sub-project under existing master
+  const handleConflictAddSub = (existingMasterId: number) => {
+    setVendorConflict({ show: false, vendorId: '', vendorName: '', existingProjects: [] });
+    // Switch to sub level with the existing master as parent
+    setFormData((prev) => ({
+      ...prev,
+      project_level: 'sub',
+      parent_project_id: existingMasterId.toString(),
+      vendor_id: '', // Sub inherits vendor from master
+      code: '', // Reset for regeneration
+    }));
+    setCodeEditing(false);
+  };
+
+  // Handle vendor conflict: cancel
+  const handleConflictCancel = () => {
+    setVendorConflict({ show: false, vendorId: '', vendorName: '', existingProjects: [] });
+    setFormData((prev) => ({ ...prev, vendor_id: '' }));
   };
 
   // Validate form
@@ -466,12 +566,15 @@ export default function NewProjectPage() {
         start_date: formData.start_date || null,
         end_date: formData.end_date || null,
         budget: parseFloat(formData.budget) || 0,
+        budget_allocated: parseFloat(formData.budget_allocated) || parseFloat(formData.budget) || 0,
         budget_materials: parseFloat(formData.budget_materials) || 0,
         budget_labor: parseFloat(formData.budget_labor) || 0,
         budget_services: parseFloat(formData.budget_services) || 0,
         budget_miscellaneous: parseFloat(formData.budget_miscellaneous) || 0,
         status: formData.status,
         priority: formData.priority,
+        risk_level: formData.risk_level || 'low',
+        tags: formData.tags ? formData.tags.split(',').map((t: string) => t.trim()).filter(Boolean) : [],
         is_active: formData.is_active,
       };
 
@@ -681,15 +784,136 @@ export default function NewProjectPage() {
                   searchText: `${v.code} ${v.name} ${v.name_ar || ''}`,
                 }))}
                 value={formData.vendor_id}
-                onChange={(val) => setFormData((prev) => ({ ...prev, vendor_id: val }))}
+                onChange={handleVendorChange}
                 placeholder={locale === 'ar' ? 'ابحث عن المورد...' : 'Search for vendor...'}
                 searchPlaceholder={locale === 'ar' ? 'ابحث بالاسم أو الكود...' : 'Search by name or code...'}
                 locale={locale}
                 name="vendor_id"
               />
+              {checkingVendor && (
+                <p className="text-sm text-indigo-500 mt-2 flex items-center gap-1">
+                  <SparklesIcon className="h-4 w-4 animate-spin" />
+                  {locale === 'ar' ? 'جاري التحقق من المورد...' : 'Checking vendor...'}
+                </p>
+              )}
               {errors.vendor_id && (
                 <p className="text-red-500 text-sm mt-2">{errors.vendor_id}</p>
               )}
+            </div>
+          )}
+
+          {/* Vendor Conflict Dialog */}
+          {vendorConflict.show && (
+            <div className="bg-amber-50 dark:bg-amber-900/20 rounded-xl border-2 border-amber-300 dark:border-amber-700 p-6 shadow-lg animate-in fade-in duration-300">
+              <div className="flex items-start gap-3 mb-4">
+                <div className="p-2 bg-amber-100 dark:bg-amber-900/40 rounded-lg flex-shrink-0">
+                  <ExclamationTriangleIcon className="h-6 w-6 text-amber-600 dark:text-amber-400" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-amber-800 dark:text-amber-200">
+                    {locale === 'ar' ? 'تنبيه: المورد لديه مشاريع سابقة' : 'Notice: Vendor Has Existing Projects'}
+                  </h3>
+                  <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
+                    {locale === 'ar'
+                      ? `المورد "${vendorConflict.vendorName}" لديه مشروع رئيسي سابق مرتبط في نفس المجموعة:`
+                      : `Vendor "${vendorConflict.vendorName}" already has master project(s) in this group:`}
+                  </p>
+                </div>
+              </div>
+
+              {/* Show existing projects */}
+              <div className="space-y-2 mb-5">
+                {vendorConflict.existingProjects.map((proj) => (
+                  <div
+                    key={proj.id}
+                    className="flex items-center justify-between bg-white dark:bg-slate-800 rounded-lg border border-amber-200 dark:border-amber-800 p-3"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="font-mono text-sm font-bold text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/40 px-2 py-0.5 rounded">
+                        #{proj.code}
+                      </span>
+                      <span className="text-slate-800 dark:text-slate-200 font-medium">
+                        {locale === 'ar' ? proj.name_ar || proj.name : proj.name}
+                      </span>
+                    </div>
+                    <span className="text-xs text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded-full">
+                      {proj.sub_count} {locale === 'ar' ? 'مشروع فرعي' : 'sub-projects'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              <p className="text-sm font-medium text-amber-800 dark:text-amber-200 mb-4">
+                {locale === 'ar'
+                  ? 'هل تود المتابعة وإضافة مشاريع جديدة لنفس المورد؟'
+                  : 'Would you like to continue adding projects for this vendor?'}
+              </p>
+
+              {/* Action buttons */}
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  onClick={handleConflictContinueNew}
+                  className="w-full flex items-center gap-3 p-3 rounded-lg border-2 border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-all text-start group"
+                >
+                  <div className="p-2 bg-emerald-100 dark:bg-emerald-900/40 rounded-lg group-hover:bg-emerald-200 dark:group-hover:bg-emerald-800/60 transition-colors flex-shrink-0">
+                    <PlusCircleIcon className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-emerald-800 dark:text-emerald-200">
+                      {locale === 'ar' ? 'إنشاء مشروع رئيسي جديد للمورد' : 'Create New Master Project'}
+                    </p>
+                    <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-0.5">
+                      {locale === 'ar'
+                        ? 'سيتم إنشاء مشروع رئيسي جديد منفصل لنفس المورد'
+                        : 'A new independent master project will be created for this vendor'}
+                    </p>
+                  </div>
+                </button>
+
+                {vendorConflict.existingProjects.map((proj) => (
+                  <button
+                    key={proj.id}
+                    type="button"
+                    onClick={() => handleConflictAddSub(proj.id)}
+                    className="w-full flex items-center gap-3 p-3 rounded-lg border-2 border-indigo-300 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-900/20 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-all text-start group"
+                  >
+                    <div className="p-2 bg-indigo-100 dark:bg-indigo-900/40 rounded-lg group-hover:bg-indigo-200 dark:group-hover:bg-indigo-800/60 transition-colors flex-shrink-0">
+                      <ArrowRightCircleIcon className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-indigo-800 dark:text-indigo-200">
+                        {locale === 'ar'
+                          ? `إضافة مشروع فرعي للمشروع الرئيسي #${proj.code}`
+                          : `Add Sub-Project to Master #${proj.code}`}
+                      </p>
+                      <p className="text-xs text-indigo-600 dark:text-indigo-400 mt-0.5">
+                        {locale === 'ar'
+                          ? `سيتم إضافة مشروع فرعي جديد تحت "${proj.name_ar || proj.name}"`
+                          : `A new sub-project will be added under "${proj.name}"`}
+                      </p>
+                    </div>
+                  </button>
+                ))}
+
+                <button
+                  type="button"
+                  onClick={handleConflictCancel}
+                  className="w-full flex items-center gap-3 p-3 rounded-lg border-2 border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all text-start group"
+                >
+                  <div className="p-2 bg-slate-200 dark:bg-slate-700 rounded-lg group-hover:bg-slate-300 dark:group-hover:bg-slate-600 transition-colors flex-shrink-0">
+                    <XMarkIcon className="h-5 w-5 text-slate-600 dark:text-slate-400" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-slate-700 dark:text-slate-300">
+                      {locale === 'ar' ? 'إلغاء' : 'Cancel'}
+                    </p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                      {locale === 'ar' ? 'إلغاء اختيار المورد والعودة' : 'Cancel vendor selection and go back'}
+                    </p>
+                  </div>
+                </button>
+              </div>
             </div>
           )}
 
@@ -953,6 +1177,31 @@ export default function NewProjectPage() {
                     </select>
                   </div>
                 </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                      {locale === 'ar' ? 'مستوى المخاطر' : 'Risk Level'}
+                    </label>
+                    <select
+                      name="risk_level"
+                      value={formData.risk_level}
+                      onChange={handleChange}
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500"
+                    >
+                      <option value="low">{locale === 'ar' ? 'منخفض' : 'Low'}</option>
+                      <option value="medium">{locale === 'ar' ? 'متوسط' : 'Medium'}</option>
+                      <option value="high">{locale === 'ar' ? 'عالي' : 'High'}</option>
+                      <option value="critical">{locale === 'ar' ? 'حرج' : 'Critical'}</option>
+                    </select>
+                  </div>
+                  <Input
+                    label={locale === 'ar' ? 'العلامات (مفصولة بفاصلة)' : 'Tags (comma-separated)'}
+                    name="tags"
+                    value={formData.tags}
+                    onChange={handleChange}
+                    placeholder={locale === 'ar' ? 'استيراد, أغذية, عاجل' : 'import, food, urgent'}
+                  />
+                </div>
               </div>
 
               {/* Budget - only for sub projects */}
@@ -961,7 +1210,16 @@ export default function NewProjectPage() {
                   <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4 border-b border-slate-200 dark:border-slate-700 pb-2">
                     {locale === 'ar' ? 'الميزانية' : 'Budget'}
                   </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <Input
+                      label={locale === 'ar' ? 'الميزانية المعتمدة' : 'Budget Allocated'}
+                      name="budget_allocated"
+                      type="number"
+                      value={formData.budget_allocated}
+                      onChange={handleChange}
+                      min="0"
+                      step="0.01"
+                    />
                     <Input
                       label={locale === 'ar' ? 'الإجمالي' : 'Total'}
                       name="budget"

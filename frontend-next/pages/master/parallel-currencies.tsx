@@ -7,6 +7,7 @@ import Modal from '../../components/ui/Modal';
 import { useToast } from '../../contexts/ToastContext';
 import { useTranslation } from '../../hooks/useTranslation';
 import { usePermissions } from '../../hooks/usePermissions';
+import { useCurrencies } from '../../hooks/useReferenceData';
 import { MenuPermissions } from '../../config/menu.permissions';
 import {
   CurrencyDollarIcon,
@@ -39,6 +40,7 @@ const mockParallelCurrencies: ParallelCurrency[] = [
 export default function ParallelCurrenciesPage() {
   const { locale } = useTranslation();
   const { showToast } = useToast();
+  const { currencies: currencyList } = useCurrencies();
   const { hasAnyPermission } = usePermissions();
 
   const canView = hasAnyPermission([MenuPermissions.Master.View, MenuPermissions.MasterData.ParallelCurrencies.View]);
@@ -173,9 +175,9 @@ export default function ParallelCurrenciesPage() {
             <div className="flex items-center gap-3">
               <select value={selectedBase} onChange={(e) => setSelectedBase(e.target.value as any)} className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
                 <option value="all">{locale === 'ar' ? 'كل عملات الأساس' : 'All base currencies'}</option>
-                <option value="SAR">SAR</option>
-                <option value="USD">USD</option>
-                <option value="EUR">EUR</option>
+                {currencyList.map(c => (
+                  <option key={c.code} value={c.code}>{c.code}</option>
+                ))}
               </select>
               <select value={selectedStatus} onChange={(e) => setSelectedStatus(e.target.value as any)} className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
                 <option value="all">{locale === 'ar' ? 'كل الحالات' : 'All status'}</option>
@@ -268,17 +270,17 @@ export default function ParallelCurrenciesPage() {
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{locale === 'ar' ? 'عملة الأساس' : 'Base currency'}</label>
               <select value={formData.baseCurrency} onChange={(e) => setFormData({ ...formData, baseCurrency: e.target.value as any })} className="input">
-                <option value="SAR">SAR</option>
-                <option value="USD">USD</option>
-                <option value="EUR">EUR</option>
+                {currencyList.map(c => (
+                  <option key={c.code} value={c.code}>{c.code}</option>
+                ))}
               </select>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{locale === 'ar' ? 'العملة الموازية' : 'Parallel currency'}</label>
               <select value={formData.parallelCurrency} onChange={(e) => setFormData({ ...formData, parallelCurrency: e.target.value as any })} className="input">
-                <option value="SAR">SAR</option>
-                <option value="USD">USD</option>
-                <option value="EUR">EUR</option>
+                {currencyList.map(c => (
+                  <option key={c.code} value={c.code}>{c.code}</option>
+                ))}
               </select>
             </div>
             <Input label={locale === 'ar' ? 'السعر' : 'Rate'} value={formData.rate} onChange={(e) => setFormData({ ...formData, rate: e.target.value })} inputMode="decimal" placeholder="0.000000" />

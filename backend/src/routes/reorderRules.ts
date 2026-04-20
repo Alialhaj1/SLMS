@@ -41,22 +41,21 @@ const RULE_SELECT = `
     i.name_ar           AS item_name_ar,
     rr.warehouse_id,
     w.code              AS warehouse_code,
-    COALESCE(w.name_en, w.name) AS warehouse_name,
+    COALESCE(w.name, w.name) AS warehouse_name,
     w.name_ar           AS warehouse_name_ar,
     rr.preferred_supplier_id,
-    COALESCE(v.name_en, v.name) AS supplier_name,
+    COALESCE(v.name, v.name) AS supplier_name,
     v.name_ar           AS supplier_name_ar,
     v.code              AS supplier_code,
     rr.reorder_level    AS reorder_point,
     rr.reorder_qty,
     rr.min_qty,
     rr.max_qty,
-    COALESCE(rr.safety_stock, 0) AS safety_stock,
+    0 AS safety_stock,
     rr.lead_time_days,
     rr.auto_create_purchase_order,
-    COALESCE(rr.po_approval_required, true) AS po_approval_required,
+    true AS po_approval_required,
     rr.is_active,
-    rr.last_triggered_at,
     rr.created_by,
     uc.email            AS created_by_name,
     rr.updated_by,
@@ -163,14 +162,14 @@ router.get(
           [companyId]
         ),
         pool.query(
-          `SELECT id, code, COALESCE(name_en, name) AS name_en, name_ar
+          `SELECT id, code, name AS name_en, name_ar
            FROM warehouses
            WHERE company_id = $1 AND deleted_at IS NULL
            ORDER BY code`,
           [companyId]
         ),
         pool.query(
-          `SELECT id, code, COALESCE(name_en, name) AS name_en, name_ar
+          `SELECT id, code, name AS name_en, name_ar
            FROM vendors
            WHERE company_id = $1 AND deleted_at IS NULL
            ORDER BY code`,
@@ -254,9 +253,9 @@ router.get(
           COALESCE(i.name_en, i.name, '') ILIKE $${paramCount}
           OR COALESCE(i.name_ar, '') ILIKE $${paramCount}
           OR COALESCE(i.code, '') ILIKE $${paramCount}
-          OR COALESCE(w.name_en, w.name, '') ILIKE $${paramCount}
+          OR COALESCE(w.name, '') ILIKE $${paramCount}
           OR COALESCE(w.code, '') ILIKE $${paramCount}
-          OR COALESCE(v.name_en, v.name, '') ILIKE $${paramCount}
+          OR COALESCE(v.name, '') ILIKE $${paramCount}
         )`;
         params.push(`%${search}%`);
       }
@@ -272,7 +271,7 @@ router.get(
         reorder_qty: 'rr.reorder_qty',
         min_qty: 'rr.min_qty',
         max_qty: 'rr.max_qty',
-        safety_stock: 'rr.safety_stock',
+        safety_stock: 'rr.min_qty',
         lead_time_days: 'rr.lead_time_days',
         is_active: 'rr.is_active',
         created_at: 'rr.created_at',
@@ -467,19 +466,19 @@ router.post(
       const result = await pool.query(
         `INSERT INTO reorder_rules (
           company_id, item_id, warehouse_id, preferred_supplier_id,
-          reorder_level, reorder_qty, min_qty, max_qty, safety_stock,
-          lead_time_days, auto_create_purchase_order, po_approval_required,
+          reorder_level, reorder_qty, min_qty, max_qty,
+          lead_time_days, auto_create_purchase_order,
           is_active, created_by, updated_by
         ) VALUES (
           $1, $2, $3, $4,
-          $5, $6, $7, $8, $9,
-          $10, $11, $12,
-          $13, $14, $14
+          $5, $6, $7, $8,
+          $9, $10,
+          $11, $12, $12
         ) RETURNING *`,
         [
           companyId, item_id, warehouse_id || null, preferred_supplier_id || null,
-          finalReorderPoint, reorder_qty, finalMinQty, finalMaxQty, safety_stock || 0,
-          lead_time_days ?? null, !!finalAutoCreate, !!po_approval_required,
+          finalReorderPoint, reorder_qty, finalMinQty, finalMaxQty,
+          lead_time_days ?? null, !!finalAutoCreate,
           typeof is_active === 'boolean' ? is_active : true, userId,
         ]
       );
@@ -606,14 +605,12 @@ router.put(
            reorder_qty                 = COALESCE($4, reorder_qty),
            min_qty                     = COALESCE($5, min_qty),
            max_qty                     = COALESCE($6, max_qty),
-           safety_stock                = COALESCE($7, safety_stock),
-           lead_time_days              = COALESCE($8, lead_time_days),
-           auto_create_purchase_order  = COALESCE($9, auto_create_purchase_order),
-           po_approval_required        = COALESCE($10, po_approval_required),
-           is_active                   = COALESCE($11, is_active),
-           updated_by                  = $12,
+           lead_time_days              = COALESCE($7, lead_time_days),
+           auto_create_purchase_order  = COALESCE($8, auto_create_purchase_order),
+           is_active                   = COALESCE($9, is_active),
+           updated_by                  = $10,
            updated_at                  = CURRENT_TIMESTAMP
-         WHERE id = $13 AND company_id = $14 AND deleted_at IS NULL
+         WHERE id = $11 AND company_id = $12 AND deleted_at IS NULL
          RETURNING *`,
         [
           warehouse_id !== undefined ? (warehouse_id || null) : null,
@@ -622,10 +619,8 @@ router.put(
           reorder_qty ?? null,
           finalMinQty ?? null,
           finalMaxQty ?? null,
-          safety_stock !== undefined ? safety_stock : null,
           lead_time_days !== undefined ? lead_time_days : null,
           typeof finalAutoCreate === 'boolean' ? finalAutoCreate : null,
-          typeof po_approval_required === 'boolean' ? po_approval_required : null,
           typeof is_active === 'boolean' ? is_active : null,
           userId,
           id,

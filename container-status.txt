@@ -1,0 +1,5 @@
+slms-backend-1	Up About a minute
+slms-backup-1	Up 22 minutes
+slms-postgres-1	Up 18 minutes
+slms-rabbitmq-1	Up 18 minutes
+slms-redis-1	Up 18 minutes

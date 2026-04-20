@@ -9,6 +9,7 @@ import { PermissionResolver } from './permissionResolver';
 
 export interface CreateRoleData {
   name: string;
+  display_name?: string;
   description?: string;
   permissions: string[];
   company_id?: number;
@@ -19,6 +20,7 @@ export interface UpdateRoleData {
   name?: string;
   description?: string;
   permissions?: string[];
+  module_gates?: string[];
 }
 
 export class RoleService {
@@ -36,8 +38,8 @@ export class RoleService {
    */
   static async getById(roleId: number) {
     const result = await pool.query(
-      `SELECT r.id, r.name, r.description, r.permissions, r.company_id,
-              r.created_at, r.updated_at, r.deleted_at,
+      `SELECT r.id, r.name, r.description, r.permissions, r.company_id, r.tenant_id,
+              r.module_gates, r.created_at, r.updated_at, r.deleted_at,
               c.name as company_name,
               jsonb_array_length(r.permissions) as permission_count,
               COUNT(DISTINCT u.id) as user_count
@@ -69,8 +71,8 @@ export class RoleService {
 
     let query = `
       SELECT 
-        r.id, r.name, r.description, r.permissions, r.company_id,
-        r.tenant_id,
+        r.id, r.name, r.display_name, r.description, r.permissions, r.company_id,
+        r.tenant_id, r.is_system, r.role_type,
         r.created_at, r.updated_at, r.deleted_at,
         c.name as company_name,
         t.name as tenant_name,
@@ -116,7 +118,11 @@ export class RoleService {
       params.push(tenantId);
       paramIndex++;
       // Platform roles must NEVER appear for tenant users
-      conditions.push('r.is_platform_role IS NOT TRUE');
+      conditions.push("r.role_type != 'platform'");
+    } else {
+      // Platform admin (tenantId is null): only see system roles (tenant_id IS NULL)
+      // Do NOT show tenant-specific custom roles
+      conditions.push(`r.tenant_id IS NULL`);
     }
 
     if (conditions.length > 0) {
@@ -176,7 +182,10 @@ export class RoleService {
       params.push(tenantId);
       paramIndex++;
       // Platform roles must NEVER appear for tenant users
-      conditions.push('r.is_platform_role IS NOT TRUE');
+      conditions.push("r.role_type != 'platform'");
+    } else {
+      // Platform admin: only count system roles (tenant_id IS NULL)
+      conditions.push(`r.tenant_id IS NULL`);
     }
 
     if (conditions.length > 0) {
@@ -191,7 +200,7 @@ export class RoleService {
    * Create new role
    */
   static async create(data: CreateRoleData, createdBy: number) {
-    const { name, description, permissions, company_id, tenant_id } = data;
+    const { name, display_name, description, permissions, company_id, tenant_id } = data;
     const client = await pool.connect();
 
     try {
@@ -214,10 +223,10 @@ export class RoleService {
 
       // Create role
       const result = await client.query(
-        `INSERT INTO roles (name, description, permissions, company_id, tenant_id)
-         VALUES ($1, $2, $3::jsonb, $4, $5)
-         RETURNING id, name, description, permissions, company_id, tenant_id, created_at`,
-        [name, description || null, JSON.stringify(permissions), company_id || null, tenant_id || null]
+        `INSERT INTO roles (name, display_name, description, permissions, company_id, tenant_id)
+         VALUES ($1, $2, $3, $4::jsonb, $5, $6)
+         RETURNING id, name, display_name, description, permissions, company_id, tenant_id, created_at`,
+        [name, display_name || null, description || null, JSON.stringify(permissions), company_id || null, tenant_id || null]
       );
 
       const role = result.rows[0];
@@ -247,7 +256,7 @@ export class RoleService {
    * Update role
    */
   static async update(roleId: number, data: UpdateRoleData, updatedBy: number) {
-    const { name, description, permissions } = data;
+    const { name, description, permissions, module_gates } = data;
     const client = await pool.connect();
 
     try {
@@ -269,10 +278,11 @@ export class RoleService {
          SET name = COALESCE($1, name),
              description = COALESCE($2, description),
              permissions = COALESCE($3::jsonb, permissions),
+             module_gates = COALESCE($5::text[], module_gates),
              updated_at = NOW()
          WHERE id = $4
-         RETURNING id, name, description, permissions, company_id, updated_at`,
-        [name, description, permissions ? JSON.stringify(permissions) : null, roleId]
+         RETURNING id, name, description, permissions, company_id, module_gates, updated_at`,
+        [name, description, permissions ? JSON.stringify(permissions) : null, roleId, module_gates || null]
       );
 
       const role = result.rows[0];

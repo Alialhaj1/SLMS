@@ -22,10 +22,35 @@
  */
 
 import { Router, Request, Response } from 'express';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
 import pool from '../db';
 import { authenticate } from '../middleware/auth';
 import { requirePermission, requireAnyPermission } from '../middleware/rbac';
 import { loadCompanyContext } from '../middleware/companyContext';
+
+// Multer config for LC document uploads
+const lcUploadDir = path.join(process.cwd(), 'uploads', 'lc-documents');
+if (!fs.existsSync(lcUploadDir)) fs.mkdirSync(lcUploadDir, { recursive: true });
+const lcStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, lcUploadDir),
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    const safeName = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}${ext}`;
+    cb(null, safeName);
+  },
+});
+const lcUpload = multer({
+  storage: lcStorage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+  fileFilter: (_req, file, cb) => {
+    const allowed = ['.pdf', '.jpg', '.jpeg', '.png', '.tiff', '.tif', '.doc', '.docx'];
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (allowed.includes(ext)) cb(null, true);
+    else cb(new Error('File type not allowed'));
+  },
+});
 
 const router = Router();
 
@@ -35,7 +60,7 @@ router.use(authenticate, loadCompanyContext);
 // =====================================================
 // GET LC TYPES
 // =====================================================
-router.get('/types', async (req: Request, res: Response) => {
+router.get('/types', requirePermission('letters_of_credit:view'), async (req: Request, res: Response) => {
   try {
     const companyId = (req as any).companyContext?.companyId;
     
@@ -59,7 +84,7 @@ router.get('/types', async (req: Request, res: Response) => {
 // =====================================================
 // CREATE LC TYPE
 // =====================================================
-router.post('/types', async (req: Request, res: Response) => {
+router.post('/types', requirePermission('letters_of_credit:create'), async (req: Request, res: Response) => {
   try {
     const companyId = (req as any).companyContext?.companyId;
     const userId = (req as any).user?.id;
@@ -108,7 +133,7 @@ router.post('/types', async (req: Request, res: Response) => {
 // =====================================================
 // UPDATE LC TYPE
 // =====================================================
-router.put('/types/:id', async (req: Request, res: Response) => {
+router.put('/types/:id', requirePermission('letters_of_credit:edit'), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const companyId = (req as any).companyContext?.companyId;
@@ -161,7 +186,7 @@ router.put('/types/:id', async (req: Request, res: Response) => {
 // =====================================================
 // DELETE LC TYPE
 // =====================================================
-router.delete('/types/:id', async (req: Request, res: Response) => {
+router.delete('/types/:id', requirePermission('letters_of_credit:delete'), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const companyId = (req as any).companyContext?.companyId;
@@ -202,7 +227,7 @@ router.delete('/types/:id', async (req: Request, res: Response) => {
 // =====================================================
 // GET LC STATUSES
 // =====================================================
-router.get('/statuses', async (req: Request, res: Response) => {
+router.get('/statuses', requirePermission('letters_of_credit:view'), async (req: Request, res: Response) => {
   try {
     const companyId = (req as any).companyContext?.companyId;
     
@@ -224,7 +249,7 @@ router.get('/statuses', async (req: Request, res: Response) => {
 // =====================================================
 // GET DASHBOARD STATS
 // =====================================================
-router.get('/dashboard', async (req: Request, res: Response) => {
+router.get('/dashboard', requirePermission('letters_of_credit:view'), async (req: Request, res: Response) => {
   try {
     const companyId = (req as any).companyContext?.companyId;
     
@@ -293,7 +318,7 @@ router.get('/dashboard', async (req: Request, res: Response) => {
 // =====================================================
 // GET AVAILABLE PROJECTS FOR VENDOR (no existing LC)
 // =====================================================
-router.get('/available-projects/:vendorId', async (req: Request, res: Response) => {
+router.get('/available-projects/:vendorId', requirePermission('letters_of_credit:view'), async (req: Request, res: Response) => {
   try {
     const companyId = (req as any).companyContext?.companyId;
     const { vendorId } = req.params;
@@ -451,7 +476,7 @@ router.get('/', requirePermission('letters_of_credit:view'), async (req: Request
 // =====================================================
 // GET LC ALERTS (Simple endpoint for frontend)
 // =====================================================
-router.get('/alerts', async (req: Request, res: Response) => {
+router.get('/alerts', requirePermission('letters_of_credit:view'), async (req: Request, res: Response) => {
   try {
     const companyId = (req as any).companyContext?.companyId;
     
@@ -533,7 +558,7 @@ router.get('/alerts/all', requirePermission('lc_alerts:view'), async (req: Reque
 // =====================================================
 // MARK ALERT AS READ
 // =====================================================
-router.put('/alerts/:alertId/read', async (req: Request, res: Response) => {
+router.put('/alerts/:alertId/read', requirePermission('letters_of_credit:view'), async (req: Request, res: Response) => {
   try {
     const { alertId } = req.params;
     const userId = (req as any).user?.id;
@@ -552,7 +577,7 @@ router.put('/alerts/:alertId/read', async (req: Request, res: Response) => {
 // =====================================================
 // MARK ALERT AS RESOLVED
 // =====================================================
-router.put('/alerts/:alertId/resolve', async (req: Request, res: Response) => {
+router.put('/alerts/:alertId/resolve', requirePermission('letters_of_credit:edit'), async (req: Request, res: Response) => {
   try {
     const { alertId } = req.params;
     const userId = (req as any).user?.id;
@@ -571,6 +596,127 @@ router.put('/alerts/:alertId/resolve', async (req: Request, res: Response) => {
     res.json({ success: true, message: 'Alert resolved' });
   } catch (error: any) {
     console.error('Error resolving alert:', error);
+    res.status(500).json({ success: false, error: { message: error.message } });
+  }
+});
+
+// =====================================================
+// REPORTS SUMMARY — GET /reports/summary
+// (Must be before /:id routes to avoid path collision)
+// =====================================================
+router.get('/reports/summary', requirePermission('letters_of_credit:view'), async (req: Request, res: Response) => {
+  try {
+    const companyId = (req as any).companyContext?.companyId;
+    const { from_date, to_date } = req.query;
+
+    const rows = await pool.query(`
+      SELECT
+        s.name AS status_name, s.name_ar AS status_name_ar, s.code AS status_code, s.color,
+        COUNT(lc.id) AS count,
+        COALESCE(SUM(lc.original_amount), 0) AS total_original,
+        COALESCE(SUM(lc.current_amount), 0) AS total_current,
+        COALESCE(SUM(lc.utilized_amount), 0) AS total_utilized,
+        COALESCE(SUM(lc.available_amount), 0) AS total_available,
+        COALESCE(SUM(lc.total_fees), 0) AS total_fees
+      FROM letters_of_credit lc
+      JOIN lc_statuses s ON s.id = lc.status_id
+      WHERE lc.company_id = $1 AND lc.deleted_at IS NULL
+        AND ($2::date IS NULL OR lc.issue_date >= $2::date)
+        AND ($3::date IS NULL OR lc.issue_date <= $3::date)
+      GROUP BY s.id, s.name, s.name_ar, s.code, s.color
+      ORDER BY s.display_order
+    `, [companyId, from_date || null, to_date || null]);
+
+    const currencyBreakdown = await pool.query(`
+      SELECT
+        c.code AS currency_code, c.symbol AS currency_symbol,
+        COUNT(lc.id) AS count,
+        COALESCE(SUM(lc.current_amount), 0) AS total_amount,
+        COALESCE(SUM(lc.utilized_amount), 0) AS total_utilized,
+        COALESCE(SUM(lc.available_amount), 0) AS total_available
+      FROM letters_of_credit lc
+      JOIN currencies c ON c.id = lc.currency_id
+      WHERE lc.company_id = $1 AND lc.deleted_at IS NULL
+        AND ($2::date IS NULL OR lc.issue_date >= $2::date)
+        AND ($3::date IS NULL OR lc.issue_date <= $3::date)
+      GROUP BY c.id, c.code, c.symbol
+      ORDER BY total_amount DESC
+    `, [companyId, from_date || null, to_date || null]);
+
+    const bankBreakdown = await pool.query(`
+      SELECT
+        COALESCE(b.name, lc.issuing_bank_name, 'Unknown') AS bank_name,
+        COUNT(lc.id) AS count,
+        COALESCE(SUM(lc.current_amount), 0) AS total_amount
+      FROM letters_of_credit lc
+      LEFT JOIN bank_accounts ba ON ba.id = lc.issuing_bank_id
+      LEFT JOIN banks b ON b.id = ba.bank_id
+      WHERE lc.company_id = $1 AND lc.deleted_at IS NULL
+        AND ($2::date IS NULL OR lc.issue_date >= $2::date)
+        AND ($3::date IS NULL OR lc.issue_date <= $3::date)
+      GROUP BY COALESCE(b.name, lc.issuing_bank_name, 'Unknown')
+      ORDER BY total_amount DESC
+    `, [companyId, from_date || null, to_date || null]);
+
+    const expiryAging = await pool.query(`
+      SELECT aging_category, count, total_amount FROM (
+        SELECT
+          CASE
+            WHEN lc.expiry_date < CURRENT_DATE THEN 'expired'
+            WHEN lc.expiry_date <= CURRENT_DATE + INTERVAL '7 days' THEN 'within_7_days'
+            WHEN lc.expiry_date <= CURRENT_DATE + INTERVAL '30 days' THEN 'within_30_days'
+            WHEN lc.expiry_date <= CURRENT_DATE + INTERVAL '60 days' THEN 'within_60_days'
+            ELSE 'over_60_days'
+          END AS aging_category,
+          COUNT(*) AS count,
+          COALESCE(SUM(lc.current_amount), 0) AS total_amount
+        FROM letters_of_credit lc
+        JOIN lc_statuses st ON st.id = lc.status_id
+        WHERE lc.company_id = $1 AND lc.deleted_at IS NULL
+          AND st.code NOT IN ('CLOSED', 'CANCELLED', 'EXPIRED')
+        GROUP BY 1
+      ) sub
+      ORDER BY
+        CASE aging_category
+          WHEN 'expired' THEN 1 WHEN 'within_7_days' THEN 2
+          WHEN 'within_30_days' THEN 3 WHEN 'within_60_days' THEN 4 ELSE 5
+        END
+    `, [companyId]);
+
+    const monthlyTrend = await pool.query(`
+      SELECT TO_CHAR(lc.issue_date, 'YYYY-MM') AS month, COUNT(*) AS count,
+             COALESCE(SUM(lc.original_amount), 0) AS total_amount
+      FROM letters_of_credit lc
+      WHERE lc.company_id = $1 AND lc.deleted_at IS NULL
+        AND lc.issue_date >= CURRENT_DATE - INTERVAL '6 months'
+      GROUP BY TO_CHAR(lc.issue_date, 'YYYY-MM') ORDER BY month
+    `, [companyId]);
+
+    const feesSummary = await pool.query(`
+      SELECT COALESCE(SUM(opening_commission), 0) AS total_opening_commission,
+             COALESCE(SUM(amendment_fees), 0) AS total_amendment_fees,
+             COALESCE(SUM(swift_charges), 0) AS total_swift_charges,
+             COALESCE(SUM(other_charges), 0) AS total_other_charges,
+             COALESCE(SUM(total_fees), 0) AS grand_total_fees
+      FROM letters_of_credit
+      WHERE company_id = $1 AND deleted_at IS NULL
+        AND ($2::date IS NULL OR issue_date >= $2::date)
+        AND ($3::date IS NULL OR issue_date <= $3::date)
+    `, [companyId, from_date || null, to_date || null]);
+
+    res.json({
+      success: true,
+      data: {
+        by_status: rows.rows,
+        by_currency: currencyBreakdown.rows,
+        by_bank: bankBreakdown.rows,
+        expiry_aging: expiryAging.rows,
+        monthly_trend: monthlyTrend.rows,
+        fees_summary: feesSummary.rows[0],
+      }
+    });
+  } catch (error: any) {
+    console.error('Error fetching LC reports:', error);
     res.status(500).json({ success: false, error: { message: error.message } });
   }
 });
@@ -714,6 +860,13 @@ router.post('/', requirePermission('letters_of_credit:create'), async (req: Requ
     // Calculate amount in base currency
     const amountInBaseCurrency = Number(original_amount) * Number(exchange_rate);
     
+    // Validate issuing_bank_id against bank_accounts (FK target)
+    let validIssuingBankId: number | null = null;
+    if (issuing_bank_id) {
+      const bankCheck = await client.query('SELECT id FROM bank_accounts WHERE id = $1 AND company_id = $2', [issuing_bank_id, companyId]);
+      if (bankCheck.rows.length > 0) validIssuingBankId = bankCheck.rows[0].id;
+    }
+    
     // Get default status if not provided
     let finalStatusId = status_id;
     if (!finalStatusId) {
@@ -766,7 +919,7 @@ router.post('/', requirePermission('letters_of_credit:create'), async (req: Requ
     `, [
       companyId, lc_number, lc_type_id, finalStatusId,
       beneficiary_vendor_id, beneficiary_name, beneficiary_name_ar, beneficiary_address, beneficiary_country_id,
-      issuing_bank_id, issuing_bank_name, issuing_bank_swift, issuing_bank_address,
+      validIssuingBankId, issuing_bank_name, issuing_bank_swift, issuing_bank_address,
       advising_bank_name, advising_bank_swift, advising_bank_country_id,
       confirming_bank_name, confirming_bank_swift, is_confirmed || false,
       currency_id, original_amount, original_amount, tolerance_percent || 0,
@@ -902,12 +1055,26 @@ router.put('/:id', requirePermission('letters_of_credit:edit'), async (req: Requ
       required_documents,
       expense_account_id, liability_account_id, margin_account_id, margin_percent, margin_amount,
       days_before_expiry_alert, days_before_shipment_alert,
-      special_conditions, internal_notes
+      special_conditions, internal_notes,
+      sync_linked, original_amount, tolerance_percent,
+      opening_commission, amendment_fees, swift_charges, other_charges
     } = req.body;
     
     // Convert empty strings to null for dates
     const cleanExpiryDate = expiry_date && expiry_date.trim() !== '' ? expiry_date : null;
     const cleanShipmentDate = latest_shipment_date && latest_shipment_date.trim() !== '' ? latest_shipment_date : null;
+    
+    // Compute amounts
+    const numOriginal = original_amount != null ? Number(original_amount) : null;
+    const numExchange = Number(exchange_rate) || 1;
+    const totalFeesCalc = (Number(opening_commission) || 0) + (Number(amendment_fees) || 0) + (Number(swift_charges) || 0) + (Number(other_charges) || 0);
+    
+    // Validate issuing_bank_id against bank_accounts (FK target)
+    let validIssuingBankId: number | null = null;
+    if (issuing_bank_id) {
+      const bankCheck = await pool.query('SELECT id FROM bank_accounts WHERE id = $1 AND company_id = $2', [issuing_bank_id, companyId]);
+      if (bankCheck.rows.length > 0) validIssuingBankId = bankCheck.rows[0].id;
+    }
     
     const result = await pool.query(`
       UPDATE letters_of_credit SET
@@ -960,6 +1127,14 @@ router.put('/:id', requirePermission('letters_of_credit:edit'), async (req: Requ
         days_before_shipment_alert = COALESCE($47, days_before_shipment_alert),
         special_conditions = $48,
         internal_notes = $49,
+        original_amount = COALESCE($52, original_amount),
+        current_amount = COALESCE($52, current_amount),
+        tolerance_percent = COALESCE($53, tolerance_percent),
+        opening_commission = COALESCE($54, opening_commission),
+        amendment_fees = COALESCE($55, amendment_fees),
+        swift_charges = COALESCE($56, swift_charges),
+        other_charges = COALESCE($57, other_charges),
+        amount_in_base_currency = COALESCE($58, amount_in_base_currency),
         updated_by = $50,
         updated_at = NOW()
       WHERE id = $51
@@ -967,7 +1142,7 @@ router.put('/:id', requirePermission('letters_of_credit:edit'), async (req: Requ
     `, [
       lc_number || null, lc_type_id || null, status_id || null,
       beneficiary_vendor_id || null, beneficiary_name || null, beneficiary_name_ar || null, beneficiary_address || null, beneficiary_country_id || null,
-      issuing_bank_id || null, issuing_bank_name || null, issuing_bank_swift || null, issuing_bank_address || null,
+      validIssuingBankId, issuing_bank_name || null, issuing_bank_swift || null, issuing_bank_address || null,
       advising_bank_name || null, advising_bank_swift || null, advising_bank_country_id || null,
       confirming_bank_name || null, confirming_bank_swift || null, is_confirmed,
       currency_id || null, exchange_rate || null,
@@ -980,7 +1155,11 @@ router.put('/:id', requirePermission('letters_of_credit:edit'), async (req: Requ
       expense_account_id || null, liability_account_id || null, margin_account_id || null, margin_percent || null, margin_amount || null,
       days_before_expiry_alert || null, days_before_shipment_alert || null,
       special_conditions || null, internal_notes || null,
-      userId, id
+      userId, id,
+      numOriginal, tolerance_percent != null ? Number(tolerance_percent) : null,
+      opening_commission != null ? Number(opening_commission) : null, amendment_fees != null ? Number(amendment_fees) : null,
+      swift_charges != null ? Number(swift_charges) : null, other_charges != null ? Number(other_charges) : null,
+      numOriginal ? numOriginal * numExchange : null
     ]);
     
     const updatedLC = result.rows[0];
@@ -1063,9 +1242,190 @@ router.put('/:id', requirePermission('letters_of_credit:edit'), async (req: Requ
       }
     }
     
-    res.json({ success: true, data: updatedLC });
+    // ====================================
+    // Cross-entity sync (if requested)
+    // ====================================
+    const syncResults: { entity: string; id: number; fields: string[] }[] = [];
+    
+    if (sync_linked) {
+      const old = existing.rows[0];
+      
+      // Sync to linked Purchase Order
+      if (updatedLC.purchase_order_id) {
+        const syncFields: string[] = [];
+        const poUpdates: string[] = [];
+        const poParams: any[] = [];
+        let pi = 1;
+        
+        if (beneficiary_vendor_id && Number(beneficiary_vendor_id) !== old.beneficiary_vendor_id) {
+          poUpdates.push(`vendor_id = $${pi++}`); poParams.push(Number(beneficiary_vendor_id));
+          syncFields.push('vendor_id');
+        }
+        if (currency_id && Number(currency_id) !== old.currency_id) {
+          poUpdates.push(`currency_id = $${pi++}`); poParams.push(Number(currency_id));
+          syncFields.push('currency_id');
+        }
+        if (exchange_rate && Number(exchange_rate) !== Number(old.exchange_rate)) {
+          poUpdates.push(`exchange_rate = $${pi++}`); poParams.push(Number(exchange_rate));
+          syncFields.push('exchange_rate');
+        }
+        if (project_id && Number(project_id) !== old.project_id) {
+          poUpdates.push(`project_id = $${pi++}`); poParams.push(Number(project_id));
+          syncFields.push('project_id');
+        }
+        if (port_of_loading_id && Number(port_of_loading_id) !== old.port_of_loading_id) {
+          poUpdates.push(`port_of_loading_id = $${pi++}`); poParams.push(Number(port_of_loading_id));
+          syncFields.push('port_of_loading_id');
+        }
+        if (port_of_discharge_id && Number(port_of_discharge_id) !== old.port_of_discharge_id) {
+          poUpdates.push(`port_of_discharge_id = $${pi++}`); poParams.push(Number(port_of_discharge_id));
+          syncFields.push('port_of_discharge_id');
+        }
+        
+        if (poUpdates.length > 0) {
+          poUpdates.push(`updated_by = $${pi++}`); poParams.push(userId);
+          poUpdates.push(`updated_at = NOW()`);
+          poParams.push(updatedLC.purchase_order_id); poParams.push(companyId);
+          await pool.query(
+            `UPDATE purchase_orders SET ${poUpdates.join(', ')} WHERE id = $${pi++} AND company_id = $${pi++} AND deleted_at IS NULL`,
+            poParams
+          );
+          syncResults.push({ entity: 'purchase_order', id: updatedLC.purchase_order_id, fields: syncFields });
+        }
+      }
+      
+      // Sync to linked Shipment
+      if (updatedLC.shipment_id) {
+        const syncFields: string[] = [];
+        const shUpdates: string[] = [];
+        const shParams: any[] = [];
+        let si = 1;
+        
+        if (beneficiary_vendor_id && Number(beneficiary_vendor_id) !== old.beneficiary_vendor_id) {
+          shUpdates.push(`vendor_id = $${si++}`); shParams.push(Number(beneficiary_vendor_id));
+          syncFields.push('vendor_id');
+        }
+        if (project_id && Number(project_id) !== old.project_id) {
+          shUpdates.push(`project_id = $${si++}`); shParams.push(Number(project_id));
+          syncFields.push('project_id');
+        }
+        if (port_of_loading_id && Number(port_of_loading_id) !== old.port_of_loading_id) {
+          shUpdates.push(`port_of_loading_id = $${si++}`); shParams.push(Number(port_of_loading_id));
+          syncFields.push('port_of_loading_id');
+        }
+        if (port_of_discharge_id && Number(port_of_discharge_id) !== old.port_of_discharge_id) {
+          shUpdates.push(`port_of_discharge_id = $${si++}`); shParams.push(Number(port_of_discharge_id));
+          syncFields.push('port_of_discharge_id');
+        }
+        // Update lc_number on the shipment
+        if (lc_number && lc_number !== old.lc_number) {
+          shUpdates.push(`lc_number = $${si++}`); shParams.push(lc_number);
+          syncFields.push('lc_number');
+        }
+        
+        if (shUpdates.length > 0) {
+          shUpdates.push(`updated_by = $${si++}`); shParams.push(userId);
+          shUpdates.push(`updated_at = NOW()`);
+          shParams.push(updatedLC.shipment_id); shParams.push(companyId);
+          await pool.query(
+            `UPDATE logistics_shipments SET ${shUpdates.join(', ')} WHERE id = $${si++} AND company_id = $${si++} AND deleted_at IS NULL`,
+            shParams
+          );
+          syncResults.push({ entity: 'shipment', id: updatedLC.shipment_id, fields: syncFields });
+        }
+      }
+    }
+    
+    res.json({ success: true, data: updatedLC, sync: syncResults.length > 0 ? syncResults : undefined });
   } catch (error: any) {
     console.error('Error updating LC:', error);
+    res.status(500).json({ success: false, error: { message: error.message } });
+  }
+});
+
+// =====================================================
+// SYNC PREVIEW — POST /:id/sync-preview
+// Returns list of fields that would be synced to linked entities
+// =====================================================
+router.post('/:id/sync-preview', requirePermission('letters_of_credit:edit'), async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const companyId = (req as any).companyContext?.companyId;
+    const changes = req.body; // incoming form data
+
+    const existing = await pool.query(
+      'SELECT * FROM letters_of_credit WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL', [id, companyId]
+    );
+    if (existing.rows.length === 0) {
+      return res.status(404).json({ success: false, error: { message: 'LC not found' } });
+    }
+    const old = existing.rows[0];
+    const preview: { entity: string; entity_ar: string; id: number; number?: string; fields: { field: string; field_ar: string; old_value: any; new_value: any }[] }[] = [];
+
+    const FIELD_LABELS: Record<string, { en: string; ar: string }> = {
+      vendor_id: { en: 'Vendor', ar: 'المورد' },
+      currency_id: { en: 'Currency', ar: 'العملة' },
+      exchange_rate: { en: 'Exchange Rate', ar: 'سعر الصرف' },
+      project_id: { en: 'Project', ar: 'المشروع' },
+      port_of_loading_id: { en: 'Port of Loading', ar: 'ميناء التحميل' },
+      port_of_discharge_id: { en: 'Port of Discharge', ar: 'ميناء التفريغ' },
+      lc_number: { en: 'LC Number', ar: 'رقم الاعتماد' },
+    };
+
+    // Check PO sync
+    if (old.purchase_order_id) {
+      const poRes = await pool.query('SELECT id, po_number, vendor_id, currency_id, exchange_rate, project_id, port_of_loading_id, port_of_discharge_id FROM purchase_orders WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL', [old.purchase_order_id, companyId]);
+      if (poRes.rows.length > 0) {
+        const po = poRes.rows[0];
+        const fields: any[] = [];
+        const checkSync = (lcField: string, poField: string, fieldKey: string) => {
+          const newVal = changes[lcField] != null ? Number(changes[lcField]) || null : null;
+          if (newVal && newVal !== Number(old[lcField]) && newVal !== Number(po[poField])) {
+            fields.push({ field: fieldKey, field_ar: FIELD_LABELS[fieldKey]?.ar || fieldKey, old_value: po[poField], new_value: newVal });
+          }
+        };
+        checkSync('beneficiary_vendor_id', 'vendor_id', 'vendor_id');
+        checkSync('currency_id', 'currency_id', 'currency_id');
+        checkSync('project_id', 'project_id', 'project_id');
+        checkSync('port_of_loading_id', 'port_of_loading_id', 'port_of_loading_id');
+        checkSync('port_of_discharge_id', 'port_of_discharge_id', 'port_of_discharge_id');
+        if (changes.exchange_rate && Number(changes.exchange_rate) !== Number(old.exchange_rate) && Number(changes.exchange_rate) !== Number(po.exchange_rate)) {
+          fields.push({ field: 'exchange_rate', field_ar: 'سعر الصرف', old_value: po.exchange_rate, new_value: Number(changes.exchange_rate) });
+        }
+        if (fields.length > 0) {
+          preview.push({ entity: 'purchase_order', entity_ar: 'أمر الشراء', id: po.id, number: po.po_number, fields });
+        }
+      }
+    }
+
+    // Check Shipment sync
+    if (old.shipment_id) {
+      const shRes = await pool.query('SELECT id, shipment_number, vendor_id, project_id, port_of_loading_id, port_of_discharge_id, lc_number FROM logistics_shipments WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL', [old.shipment_id, companyId]);
+      if (shRes.rows.length > 0) {
+        const sh = shRes.rows[0];
+        const fields: any[] = [];
+        const checkSync = (lcField: string, shField: string, fieldKey: string) => {
+          const newVal = changes[lcField] != null ? Number(changes[lcField]) || null : null;
+          if (newVal && newVal !== Number(old[lcField]) && newVal !== Number(sh[shField])) {
+            fields.push({ field: fieldKey, field_ar: FIELD_LABELS[fieldKey]?.ar || fieldKey, old_value: sh[shField], new_value: newVal });
+          }
+        };
+        checkSync('beneficiary_vendor_id', 'vendor_id', 'vendor_id');
+        checkSync('project_id', 'project_id', 'project_id');
+        checkSync('port_of_loading_id', 'port_of_loading_id', 'port_of_loading_id');
+        checkSync('port_of_discharge_id', 'port_of_discharge_id', 'port_of_discharge_id');
+        if (changes.lc_number && changes.lc_number !== old.lc_number && changes.lc_number !== sh.lc_number) {
+          fields.push({ field: 'lc_number', field_ar: 'رقم الاعتماد', old_value: sh.lc_number, new_value: changes.lc_number });
+        }
+        if (fields.length > 0) {
+          preview.push({ entity: 'shipment', entity_ar: 'الشحنة', id: sh.id, number: sh.shipment_number, fields });
+        }
+      }
+    }
+
+    res.json({ success: true, data: { has_changes: preview.length > 0, preview } });
+  } catch (error: any) {
+    console.error('Error checking sync preview:', error);
     res.status(500).json({ success: false, error: { message: error.message } });
   }
 });
@@ -1229,6 +1589,407 @@ router.post('/:id/amend', requirePermission('letters_of_credit:amend'), async (r
   } catch (error: any) {
     await client.query('ROLLBACK');
     console.error('Error creating amendment:', error);
+    res.status(500).json({ success: false, error: { message: error.message } });
+  } finally {
+    client.release();
+  }
+});
+
+// =====================================================
+// STATUS CHANGE — PUT /:id/status
+// =====================================================
+router.put('/:id/status', requirePermission('letters_of_credit:edit'), async (req: Request, res: Response) => {
+  const client = await pool.connect();
+  try {
+    const { id } = req.params;
+    const userId = (req as any).user?.id;
+    const companyId = (req as any).companyContext?.companyId;
+    const { new_status, notes } = req.body;
+
+    if (!new_status) {
+      return res.status(400).json({ success: false, error: { message: 'new_status is required' } });
+    }
+
+    // Get current LC with status code
+    const lcResult = await client.query(`
+      SELECT lc.*, st.code as status_code
+      FROM letters_of_credit lc
+      LEFT JOIN lc_statuses st ON st.id = lc.status_id
+      WHERE lc.id = $1 AND lc.company_id = $2 AND lc.deleted_at IS NULL
+    `, [id, companyId]);
+
+    if (lcResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: { message: 'الاعتماد غير موجود' } });
+    }
+
+    const lc = lcResult.rows[0];
+
+    // Allowed transitions matrix
+    const TRANSITIONS: Record<string, string[]> = {
+      DRAFT:               ['REQUESTED', 'CANCELLED'],
+      REQUESTED:           ['ISSUED', 'CANCELLED'],
+      ISSUED:              ['ADVISED', 'CONFIRMED', 'AMENDED', 'CANCELLED', 'EXPIRED'],
+      ADVISED:             ['DOCUMENTS_PRESENTED', 'AMENDED', 'CANCELLED', 'EXPIRED'],
+      CONFIRMED:           ['DOCUMENTS_PRESENTED', 'AMENDED', 'CANCELLED', 'EXPIRED'],
+      AMENDED:             ['DOCUMENTS_PRESENTED', 'CANCELLED', 'EXPIRED'],
+      DOCUMENTS_PRESENTED: ['PAID', 'DISCREPANT'],
+      DISCREPANT:          ['PAID', 'CANCELLED'],
+      PAID:                ['CLOSED'],
+      CLOSED:              [],
+      CANCELLED:           [],
+      EXPIRED:             [],
+    };
+
+    const currentStatus = lc.status_code || 'DRAFT';
+    const allowed = TRANSITIONS[currentStatus] || [];
+    if (!allowed.includes(new_status)) {
+      return res.status(422).json({
+        success: false,
+        error: { message: `لا يمكن الانتقال من ${currentStatus} إلى ${new_status}` },
+        allowed_transitions: allowed
+      });
+    }
+
+    // Get new status_id from code
+    const statusRow = await client.query(
+      'SELECT id FROM lc_statuses WHERE code = $1 AND company_id = $2 AND deleted_at IS NULL',
+      [new_status, companyId]
+    );
+
+    if (statusRow.rows.length === 0) {
+      return res.status(422).json({ success: false, error: { message: `Status code ${new_status} not found` } });
+    }
+
+    await client.query('BEGIN');
+
+    await client.query(`
+      UPDATE letters_of_credit 
+      SET status_id = $1, internal_notes = COALESCE($2, internal_notes), updated_by = $3, updated_at = NOW()
+      WHERE id = $4 AND company_id = $5
+    `, [statusRow.rows[0].id, notes, userId, id, companyId]);
+
+    // Create alert for important status changes
+    if (['DOCUMENTS_PRESENTED', 'DISCREPANT', 'PAID', 'EXPIRED'].includes(new_status)) {
+      await client.query(`
+        INSERT INTO lc_alerts
+        (company_id, lc_id, alert_type, alert_date, trigger_date, title, title_ar, message, priority)
+        VALUES ($1, $2, 'status_change', NOW(), NOW(), $3, $4, $5, 'high')
+      `, [
+        companyId, id,
+        `LC ${lc.lc_number} status changed to ${new_status}`,
+        `تغيرت حالة اعتماد ${lc.lc_number} إلى ${new_status}`,
+        `Letter of Credit ${lc.lc_number} status changed from ${currentStatus} to ${new_status}` + (notes ? ` - ${notes}` : '')
+      ]);
+    }
+
+    // If PAID → update vendor_payment
+    if (new_status === 'PAID') {
+      await client.query(
+        `UPDATE vendor_payments SET status = 'paid', updated_at = NOW(), updated_by = $1
+         WHERE lc_id = $2 AND company_id = $3 AND deleted_at IS NULL`,
+        [userId, id, companyId]
+      );
+    }
+
+    await client.query('COMMIT');
+    res.json({ success: true, new_status, message: 'تم تغيير الحالة بنجاح' });
+  } catch (error: any) {
+    await client.query('ROLLBACK');
+    console.error('Error changing LC status:', error);
+    res.status(500).json({ success: false, error: { message: error.message } });
+  } finally {
+    client.release();
+  }
+});
+
+// =====================================================
+// GET LC DOCUMENTS — GET /:id/documents
+// =====================================================
+router.get('/:id/documents', requirePermission('letters_of_credit:view'), async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const companyId = (req as any).companyContext?.companyId;
+
+    const docs = await pool.query(`
+      SELECT d.*, u.name AS uploaded_by_name, u.name_ar AS uploaded_by_name_ar
+      FROM lc_documents d
+      LEFT JOIN users u ON u.id = d.created_by
+      WHERE d.lc_id = $1 AND d.company_id = $2 AND d.deleted_at IS NULL
+      ORDER BY d.created_at DESC
+    `, [id, companyId]);
+
+    res.json({ success: true, data: docs.rows });
+  } catch (error: any) {
+    console.error('Error fetching LC documents:', error);
+    res.status(500).json({ success: false, error: { message: error.message } });
+  }
+});
+
+// =====================================================
+// ADD LC DOCUMENT — POST /:id/documents
+// =====================================================
+router.post('/:id/documents', requirePermission('letters_of_credit:edit'), lcUpload.single('file'), async (req: Request, res: Response) => {
+  const client = await pool.connect();
+  try {
+    const { id } = req.params;
+    const companyId = (req as any).companyContext?.companyId;
+    const userId = (req as any).user?.id;
+    const { document_type, document_name, document_name_ar, document_number, document_date, presentation_date, notes } = req.body;
+
+    // Verify LC exists
+    const lcCheck = await client.query(
+      'SELECT id, lc_number, status_id FROM letters_of_credit WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL',
+      [id, companyId]
+    );
+    if (lcCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: { message: 'LC not found' } });
+    }
+
+    if (!document_type || !document_name) {
+      return res.status(400).json({ success: false, error: { message: 'document_type and document_name are required' } });
+    }
+
+    await client.query('BEGIN');
+
+    const result = await client.query(`
+      INSERT INTO lc_documents
+      (company_id, lc_id, document_type, document_name, document_name_ar, document_number,
+       document_date, presentation_date, status, file_path, file_name, file_size, mime_type, notes, created_by)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending', $9, $10, $11, $12, $13, $14)
+      RETURNING *
+    `, [
+      companyId, id, document_type, document_name, document_name_ar || null,
+      document_number || null, document_date || null, presentation_date || null,
+      req.file?.path || null, req.file?.originalname || null, req.file?.size || null,
+      req.file?.mimetype || null, notes || null, userId
+    ]);
+
+    // Auto-transition to DOCUMENTS_PRESENTED if in ADVISED or CONFIRMED
+    const lcStatusResult = await client.query(`
+      SELECT st.code FROM letters_of_credit lc
+      JOIN lc_statuses st ON st.id = lc.status_id
+      WHERE lc.id = $1
+    `, [id]);
+    const currentCode = lcStatusResult.rows[0]?.code;
+    if (currentCode === 'ADVISED' || currentCode === 'CONFIRMED') {
+      const dpStatus = await client.query(
+        `SELECT id FROM lc_statuses WHERE code = 'DOCUMENTS_PRESENTED' AND company_id = $1 LIMIT 1`,
+        [companyId]
+      );
+      if (dpStatus.rows.length > 0) {
+        await client.query(
+          `UPDATE letters_of_credit SET status_id = $1, updated_at = NOW() WHERE id = $2`,
+          [dpStatus.rows[0].id, id]
+        );
+      }
+    }
+
+    await client.query('COMMIT');
+    res.status(201).json({ success: true, data: result.rows[0] });
+  } catch (error: any) {
+    await client.query('ROLLBACK');
+    console.error('Error adding LC document:', error);
+    res.status(500).json({ success: false, error: { message: error.message } });
+  } finally {
+    client.release();
+  }
+});
+
+// =====================================================
+// UPDATE LC DOCUMENT STATUS — PUT /:id/documents/:docId
+// =====================================================
+router.put('/:id/documents/:docId', requirePermission('letters_of_credit:edit'), async (req: Request, res: Response) => {
+  const client = await pool.connect();
+  try {
+    const { id, docId } = req.params;
+    const companyId = (req as any).companyContext?.companyId;
+    const userId = (req as any).user?.id;
+    const { status, discrepancy_details } = req.body;
+
+    const validStatuses = ['pending', 'received', 'accepted', 'discrepant', 'rejected'];
+    if (!validStatuses.includes(status)) {
+      return res.status(422).json({ success: false, error: { message: 'حالة غير صالحة. الحالات المسموحة: ' + validStatuses.join(', ') } });
+    }
+
+    await client.query('BEGIN');
+
+    const result = await client.query(`
+      UPDATE lc_documents 
+      SET status = $1, discrepancy_details = $2, updated_at = NOW()
+      WHERE id = $3 AND lc_id = $4 AND company_id = $5 AND deleted_at IS NULL
+      RETURNING *
+    `, [status, discrepancy_details || null, docId, id, companyId]);
+
+    if (result.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, error: { message: 'Document not found' } });
+    }
+
+    // If discrepant → move LC to DISCREPANT
+    if (status === 'discrepant') {
+      const discStatus = await client.query(
+        `SELECT id FROM lc_statuses WHERE code = 'DISCREPANT' AND company_id = $1 LIMIT 1`,
+        [companyId]
+      );
+      if (discStatus.rows.length > 0) {
+        await client.query(
+          `UPDATE letters_of_credit SET status_id = $1, updated_by = $2, updated_at = NOW()
+           WHERE id = $3 AND company_id = $4`,
+          [discStatus.rows[0].id, userId, id, companyId]
+        );
+
+        // Create alert
+        const lcInfo = await client.query('SELECT lc_number FROM letters_of_credit WHERE id = $1', [id]);
+        await client.query(`
+          INSERT INTO lc_alerts (company_id, lc_id, alert_type, alert_date, trigger_date, title, title_ar, message, priority)
+          VALUES ($1, $2, 'document_discrepancy', NOW(), NOW(), $3, $4, $5, 'critical')
+        `, [
+          companyId, id,
+          `Document discrepancy in LC ${lcInfo.rows[0]?.lc_number}`,
+          `تباين في مستندات الاعتماد ${lcInfo.rows[0]?.lc_number}`,
+          discrepancy_details || 'Document has discrepancies'
+        ]);
+      }
+    }
+
+    await client.query('COMMIT');
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error: any) {
+    await client.query('ROLLBACK');
+    console.error('Error updating LC document status:', error);
+    res.status(500).json({ success: false, error: { message: error.message } });
+  } finally {
+    client.release();
+  }
+});
+
+// =====================================================
+// GET LC PAYMENTS — GET /:id/payments
+// =====================================================
+router.get('/:id/payments', requirePermission('letters_of_credit:view'), async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const companyId = (req as any).companyContext?.companyId;
+
+    const payments = await pool.query(`
+      SELECT p.*, c.code AS currency_code, c.symbol AS currency_symbol, c.name AS currency_name,
+             u.name AS created_by_name
+      FROM lc_payments p
+      LEFT JOIN currencies c ON c.id = p.currency_id
+      LEFT JOIN users u ON u.id = p.created_by
+      WHERE p.lc_id = $1 AND p.company_id = $2 AND p.deleted_at IS NULL
+      ORDER BY p.payment_date DESC
+    `, [id, companyId]);
+
+    res.json({ success: true, data: payments.rows });
+  } catch (error: any) {
+    console.error('Error fetching LC payments:', error);
+    res.status(500).json({ success: false, error: { message: error.message } });
+  }
+});
+
+// =====================================================
+// ADD LC PAYMENT — POST /:id/payments
+// =====================================================
+router.post('/:id/payments', requirePermission('letters_of_credit:edit'), async (req: Request, res: Response) => {
+  const client = await pool.connect();
+  try {
+    const { id } = req.params;
+    const companyId = (req as any).companyContext?.companyId;
+    const userId = (req as any).user?.id;
+    const { payment_date, amount, currency_id, payment_type, bank_reference, value_date, exchange_rate, notes } = req.body;
+
+    // Validate
+    if (!payment_date || !amount || !payment_type) {
+      return res.status(400).json({ success: false, error: { message: 'payment_date, amount, and payment_type are required' } });
+    }
+
+    // Get LC
+    const lcResult = await client.query(`
+      SELECT lc.*, st.code as status_code
+      FROM letters_of_credit lc
+      LEFT JOIN lc_statuses st ON st.id = lc.status_id
+      WHERE lc.id = $1 AND lc.company_id = $2 AND lc.deleted_at IS NULL
+    `, [id, companyId]);
+
+    if (lcResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: { message: 'LC not found' } });
+    }
+
+    const lc = lcResult.rows[0];
+    const availableAmount = Number(lc.current_amount) - Number(lc.utilized_amount);
+
+    if (Number(amount) > availableAmount) {
+      return res.status(422).json({
+        success: false,
+        error: { message: 'المبلغ يتجاوز المبلغ المتاح' },
+        available: availableAmount
+      });
+    }
+
+    await client.query('BEGIN');
+
+    // Generate payment number
+    const payNum = `PAY-LC-${String(Date.now()).slice(-8)}`;
+    const amountInBase = Number(amount) * (Number(exchange_rate) || 1);
+
+    const payResult = await client.query(`
+      INSERT INTO lc_payments
+      (company_id, lc_id, payment_number, payment_date, amount, currency_id,
+       payment_type, bank_reference, value_date, exchange_rate, amount_in_base_currency,
+       status, notes, created_by)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'processed', $12, $13)
+      RETURNING *
+    `, [
+      companyId, id, payNum, payment_date, amount, currency_id || lc.currency_id,
+      payment_type, bank_reference || null, value_date || null,
+      exchange_rate || lc.exchange_rate || 1, amountInBase,
+      notes || null, userId
+    ]);
+
+    // Update utilized_amount
+    await client.query(
+      `UPDATE letters_of_credit SET utilized_amount = utilized_amount + $1, updated_by = $2, updated_at = NOW() WHERE id = $3`,
+      [amount, userId, id]
+    );
+
+    // Create journal entry if accounting info exists
+    if (lc.liability_account_id && lc.expense_account_id) {
+      const jeResult = await client.query(`
+        INSERT INTO journal_entries (company_id, ref_type, ref_id, description, amount, created_by)
+        VALUES ($1, 'lc_payment', $2, $3, $4, $5) RETURNING id
+      `, [companyId, payResult.rows[0].id, `دفعة اعتماد مستندي ${lc.lc_number}`, amount, userId]);
+
+      await client.query(
+        `UPDATE lc_payments SET journal_entry_id = $1 WHERE id = $2`,
+        [jeResult.rows[0].id, payResult.rows[0].id]
+      );
+    }
+
+    // Check if fully utilized → move to PAID
+    const updatedLc = await client.query(
+      'SELECT current_amount, utilized_amount FROM letters_of_credit WHERE id = $1',
+      [id]
+    );
+    const newAvailable = Number(updatedLc.rows[0].current_amount) - Number(updatedLc.rows[0].utilized_amount);
+    if (newAvailable <= 0) {
+      const paidStatus = await client.query(
+        `SELECT id FROM lc_statuses WHERE code = 'PAID' AND company_id = $1 LIMIT 1`,
+        [companyId]
+      );
+      if (paidStatus.rows.length > 0) {
+        await client.query(
+          `UPDATE letters_of_credit SET status_id = $1, updated_at = NOW() WHERE id = $2`,
+          [paidStatus.rows[0].id, id]
+        );
+      }
+    }
+
+    await client.query('COMMIT');
+    res.status(201).json({ success: true, data: payResult.rows[0] });
+  } catch (error: any) {
+    await client.query('ROLLBACK');
+    console.error('Error adding LC payment:', error);
     res.status(500).json({ success: false, error: { message: error.message } });
   } finally {
     client.release();

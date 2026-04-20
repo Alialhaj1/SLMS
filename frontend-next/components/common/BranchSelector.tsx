@@ -35,8 +35,14 @@ export default function BranchSelector() {
     return unsubscribe;
   }, []);
 
-  // Load branches when company changes
+  // Load branches when company changes (only if authenticated)
   useEffect(() => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
+    if (!token) {
+      setLoading(false);
+      return;
+    }
+
     const companyId = companyStore.getActiveCompanyId();
     if (companyId) {
       loadBranches(companyId);
@@ -58,15 +64,26 @@ export default function BranchSelector() {
   const loadBranches = async (companyId: number) => {
     try {
       setLoading(true);
+      // Use /api/me/branches to get only branches the user has access to
       const response = await apiClient.get<{ success: boolean; data: Branch[] }>(
-        `/api/branches?company_id=${companyId}`
+        `/api/me/branches?company_id=${companyId}`
       );
       const branchList = response.data || [];
       setBranches(branchList);
 
-      // Auto-select if only one branch or if no branch selected
+      // Auto-select home branch or first branch if none selected
       if (branchList.length > 0 && !activeBranchId) {
-        branchStore.setActiveBranch(branchList[0].id);
+        const homeBranch = branchList.find((b: any) => b.is_home_branch);
+        branchStore.setActiveBranch(homeBranch ? homeBranch.id : branchList[0].id);
+      }
+      // If current branch is no longer accessible, reset to first
+      if (activeBranchId && !branchList.find(b => b.id === activeBranchId)) {
+        if (branchList.length > 0) {
+          const homeBranch = branchList.find((b: any) => b.is_home_branch);
+          branchStore.setActiveBranch(homeBranch ? homeBranch.id : branchList[0].id);
+        } else {
+          branchStore.clear();
+        }
       }
     } catch (error) {
       console.error('Failed to load branches:', error);

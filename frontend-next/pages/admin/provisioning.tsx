@@ -42,14 +42,15 @@ export default function ProvisioningPage() {
   const fetchTasks = async () => {
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch('http://localhost:4000/api/provisioning', {
+      const res = await fetch('http://localhost:4000/api/admin/provisioning', {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error('Failed to fetch');
       const data = await res.json();
-      setTasks(data.data || []);
+      const arr = Array.isArray(data.data) ? data.data : Array.isArray(data) ? data : [];
+      setTasks(arr);
     } catch {
-      if (loading) showToast('error', 'Failed to load provisioning tasks');
+      if (loading) showToast('error', t('adminProvisioning.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -72,30 +73,30 @@ export default function ProvisioningPage() {
   return (
     <MainLayout>
       <Head>
-        <title>Tenant Provisioning - SLMS</title>
+        <title>{t('adminProvisioning.title')} - SLMS</title>
       </Head>
 
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Tenant Provisioning</h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Monitor tenant setup pipeline and progress</p>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('adminProvisioning.title')}</h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('adminProvisioning.subtitle')}</p>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-xs text-gray-500 dark:text-gray-400">Auto-refreshes every 15s</span>
+            <span className="text-xs text-gray-500 dark:text-gray-400">{t('adminProvisioning.autoRefresh')}</span>
             <button onClick={fetchTasks} className="inline-flex items-center px-3 py-1.5 bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-600 text-sm transition-colors">
               <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-              Refresh
+              {t('adminProvisioning.refresh')}
             </button>
           </div>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {[
-            { label: 'Queued', count: tasks.filter((t) => t.status === 'queued').length, color: 'text-gray-600 dark:text-gray-400' },
-            { label: 'In Progress', count: tasks.filter((t) => t.status === 'in_progress').length, color: 'text-blue-600 dark:text-blue-400' },
-            { label: 'Completed', count: tasks.filter((t) => t.status === 'completed').length, color: 'text-green-600 dark:text-green-400' },
-            { label: 'Failed', count: tasks.filter((t) => t.status === 'failed').length, color: 'text-red-600 dark:text-red-400' },
+            { label: t('adminProvisioning.queued'), count: tasks.filter((t) => t.status === 'queued').length, color: 'text-gray-600 dark:text-gray-400' },
+            { label: t('adminProvisioning.inProgress'), count: tasks.filter((t) => t.status === 'in_progress').length, color: 'text-blue-600 dark:text-blue-400' },
+            { label: t('adminProvisioning.completed'), count: tasks.filter((t) => t.status === 'completed').length, color: 'text-green-600 dark:text-green-400' },
+            { label: t('adminProvisioning.failed'), count: tasks.filter((t) => t.status === 'failed').length, color: 'text-red-600 dark:text-red-400' },
           ].map((s) => (
             <div key={s.label} className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4 text-center">
               <p className={`text-2xl font-bold ${s.color}`}>{s.count}</p>
@@ -110,8 +111,8 @@ export default function ProvisioningPage() {
           ) : tasks.length === 0 ? (
             <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-12 text-center">
               <svg className="w-12 h-12 mx-auto mb-3 text-gray-300 dark:text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
-              <p className="font-medium text-gray-500 dark:text-gray-400">No provisioning tasks</p>
-              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">New tenant setups will appear here</p>
+              <p className="font-medium text-gray-500 dark:text-gray-400">{t('adminProvisioning.noTasks')}</p>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{t('adminProvisioning.newTenantsHere')}</p>
             </div>
           ) : (
             tasks.map((task) => (

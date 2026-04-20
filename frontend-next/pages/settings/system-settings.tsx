@@ -2,7 +2,7 @@
 import MainLayout from '../../components/layout/MainLayout';
 import PolicyCrudTable from '../../components/settings/PolicyCrudTable';
 import { useTranslation } from '../../hooks/useTranslation';
-import { withPermission } from '../../utils/withPermission';
+import { withPermission, withPlatformGuard } from '../../utils/withPermission';
 
 function SystemSettingsPage() {
   const { t } = useTranslation();
@@ -28,5 +28,5 @@ function SystemSettingsPage() {
   );
 }
 
-export default withPermission('system_policies:view', SystemSettingsPage);
+export default withPlatformGuard(withPermission('system_policies:view', SystemSettingsPage));
 

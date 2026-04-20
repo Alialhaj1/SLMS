@@ -115,6 +115,7 @@ const formSections: PageSection[] = [
 
 const actions: ActionMeta[] = [
   { key: 'create', label: 'Create New', icon: 'PlusIcon',          variant: 'primary',   permission: 'master:items:create', position: ['toolbar'] },
+  { key: 'import', label: 'Import',     icon: 'ArrowUpTrayIcon',   variant: 'secondary', permission: 'master:items:create', position: ['toolbar'], tooltip: 'Import from Excel/CSV' },
   { key: 'edit',   label: 'Edit',       icon: 'PencilSquareIcon',  variant: 'secondary', permission: 'master:items:edit',   position: ['row'] },
   { key: 'delete', label: 'Delete',     icon: 'TrashIcon',         variant: 'danger',    permission: 'master:items:delete', position: ['row', 'bulk'], requireConfirmation: true, isDangerous: true },
   { key: 'export', label: 'Export',     icon: 'ArrowDownTrayIcon', variant: 'secondary', permission: 'master:items:view',   position: ['toolbar'] },
@@ -146,3 +147,5 @@ export const itemGroupsConfig: PageConfig<ItemGroup> = {
   pageSizeOptions: [10, 25, 50, 100],
   bulkOperationsEnabled: true,
 };
+
+export const itemGroupConfig = itemGroupsConfig;

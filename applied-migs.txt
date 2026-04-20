@@ -1,0 +1,20 @@
+                   name                   
+------------------------------------------
+ 400_legacy_table_tenant_isolation.sql
+ 401_enable_row_level_security.sql
+ 402_subscription_plans_enhancement.sql
+ 403_authentication_enhancement.sql
+ 404_schema_per_tenant_infrastructure.sql
+ 405_rbac_v2_modules_and_hierarchy.sql
+ 406_platform_layer.sql
+ 407_tenant_dashboard_layer.sql
+ 408_master_data_strategy.sql
+ 409_branch_management.sql
+ 410_users_and_roles.sql
+ 411_database_schema_alignment.sql
+ 412_security_hardening.sql
+ 413_global_platform_additions.sql
+ 414_development_roadmap.sql
+ 415_qa_standards.sql
+(16 rows)
+

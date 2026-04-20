@@ -92,7 +92,7 @@ router.get('/policies', authenticate, async (req: Request, res: Response) => {
     }
 
     const result = await pool.query(
-      `SELECT policy_key as key, policy_value as value, scope, is_active
+      `SELECT policy_key as key, policy_value as value, is_active
        FROM system_policies
        WHERE is_active = true AND deleted_at IS NULL
        ORDER BY policy_key`

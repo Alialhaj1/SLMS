@@ -75,16 +75,20 @@ router.get(
       let paramIndex = 1;
 
       // TENANT ISOLATION: Filter companies by tenant_id
-      const tenantFilter = buildTenantFilter(req as any, 'c');
-      if (tenantFilter) {
-        query += tenantFilter;
+      const tenantFilter = buildTenantFilter(req as any, 'c.tenant_id', paramIndex);
+      if (tenantFilter.clause !== '1=1') {
+        query += ` AND ${tenantFilter.clause}`;
+        params.push(...tenantFilter.params);
+        paramIndex = tenantFilter.nextIndex;
       }
 
       // COMPANY SCOPE: Filter by user's assigned companies
       // When scope=assigned (or for all tenant users by default), only show assigned companies
-      const companyScope = buildCompanyScopeFilter(req as any, 'c', 'id');
-      if (companyScope) {
-        query += companyScope;
+      const companyScope = buildCompanyScopeFilter(req as any, 'c.id', paramIndex);
+      if (companyScope.clause !== '1=1') {
+        query += ` AND ${companyScope.clause}`;
+        params.push(...companyScope.params);
+        paramIndex = companyScope.nextIndex;
       }
 
       // Exclude soft-deleted by default
@@ -117,13 +121,19 @@ router.get(
       let countParamIndex = 1;
 
       // TENANT ISOLATION: Apply same tenant filter to count
-      if (tenantFilter) {
-        countQuery += tenantFilter;
+      const countTenantFilter = buildTenantFilter(req as any, 'c.tenant_id', countParamIndex);
+      if (countTenantFilter.clause !== '1=1') {
+        countQuery += ` AND ${countTenantFilter.clause}`;
+        countParams.push(...countTenantFilter.params);
+        countParamIndex = countTenantFilter.nextIndex;
       }
 
       // COMPANY SCOPE: Apply same company scope filter to count
-      if (companyScope) {
-        countQuery += companyScope;
+      const countCompanyScope = buildCompanyScopeFilter(req as any, 'c.id', countParamIndex);
+      if (countCompanyScope.clause !== '1=1') {
+        countQuery += ` AND ${countCompanyScope.clause}`;
+        countParams.push(...countCompanyScope.params);
+        countParamIndex = countCompanyScope.nextIndex;
       }
 
       if (include_deleted !== 'true') {
@@ -178,9 +188,21 @@ router.get(
       }
 
       // TENANT ISOLATION: Include tenant filter on single record fetch
-      const tenantFilter = buildTenantFilter(req as any, 'c');
+      const tenantFilter = buildTenantFilter(req as any, 'c.tenant_id', 2);
+      let nextIdx = tenantFilter.nextIndex;
       // COMPANY SCOPE: Include company scope filter
-      const companyScope = buildCompanyScopeFilter(req as any, 'c', 'id');
+      const companyScope = buildCompanyScopeFilter(req as any, 'c.id', nextIdx);
+
+      let whereExtra = '';
+      const queryParams: any[] = [numericId];
+      if (tenantFilter.clause !== '1=1') {
+        whereExtra += ` AND ${tenantFilter.clause}`;
+        queryParams.push(...tenantFilter.params);
+      }
+      if (companyScope.clause !== '1=1') {
+        whereExtra += ` AND ${companyScope.clause}`;
+        queryParams.push(...companyScope.params);
+      }
 
       const result = await pool.query(
         `SELECT c.*, 
@@ -189,8 +211,8 @@ router.get(
          FROM companies c
          LEFT JOIN users u1 ON c.created_by = u1.id
          LEFT JOIN users u2 ON c.updated_by = u2.id
-         WHERE c.id = $1 AND c.deleted_at IS NULL${tenantFilter || ''}${companyScope || ''}`,
-        [numericId]
+         WHERE c.id = $1 AND c.deleted_at IS NULL${whereExtra}`,
+        queryParams
       );
 
       if (result.rows.length === 0) {
@@ -332,13 +354,24 @@ router.put(
       const validatedData = updateCompanySchema.parse(req.body);
 
       // TENANT ISOLATION: Verify company belongs to user's tenant
-      const tenantFilter = buildTenantFilter(req as any, 'c');
-      const companyScope = buildCompanyScopeFilter(req as any, 'c', 'id');
+      const tenantFilter = buildTenantFilter(req as any, 'c.tenant_id', 2);
+      const companyScope = buildCompanyScopeFilter(req as any, 'c.id', tenantFilter.nextIndex);
+
+      let updateWhereExtra = '';
+      const updateCheckParams: any[] = [numericId];
+      if (tenantFilter.clause !== '1=1') {
+        updateWhereExtra += ` AND ${tenantFilter.clause}`;
+        updateCheckParams.push(...tenantFilter.params);
+      }
+      if (companyScope.clause !== '1=1') {
+        updateWhereExtra += ` AND ${companyScope.clause}`;
+        updateCheckParams.push(...companyScope.params);
+      }
 
       // Check if company exists AND belongs to user's tenant
       const existingCompany = await pool.query(
-        `SELECT c.* FROM companies c WHERE c.id = $1 AND c.deleted_at IS NULL${tenantFilter || ''}${companyScope || ''}`,
-        [numericId]
+        `SELECT c.* FROM companies c WHERE c.id = $1 AND c.deleted_at IS NULL${updateWhereExtra}`,
+        updateCheckParams
       );
 
       if (existingCompany.rows.length === 0) {
@@ -410,13 +443,24 @@ router.delete(
       await captureBeforeState(req as any, 'companies', numericId);
 
       // TENANT ISOLATION: Verify company before delete
-      const tenantFilter = buildTenantFilter(req as any, 'c');
-      const companyScope = buildCompanyScopeFilter(req as any, 'c', 'id');
+      const tenantFilter = buildTenantFilter(req as any, 'c.tenant_id', 2);
+      const companyScope = buildCompanyScopeFilter(req as any, 'c.id', tenantFilter.nextIndex);
+
+      let deleteWhereExtra = '';
+      const deleteCheckParams: any[] = [numericId];
+      if (tenantFilter.clause !== '1=1') {
+        deleteWhereExtra += ` AND ${tenantFilter.clause}`;
+        deleteCheckParams.push(...tenantFilter.params);
+      }
+      if (companyScope.clause !== '1=1') {
+        deleteWhereExtra += ` AND ${companyScope.clause}`;
+        deleteCheckParams.push(...companyScope.params);
+      }
 
       // Check if company exists AND belongs to user's tenant
       const existingCompany = await pool.query(
-        `SELECT c.* FROM companies c WHERE c.id = $1 AND c.deleted_at IS NULL${tenantFilter || ''}${companyScope || ''}`,
-        [numericId]
+        `SELECT c.* FROM companies c WHERE c.id = $1 AND c.deleted_at IS NULL${deleteWhereExtra}`,
+        deleteCheckParams
       );
 
       if (existingCompany.rows.length === 0) {

@@ -9,7 +9,7 @@ import type { PageConfig, ColumnMeta, ActionMeta, PageSection } from '@/lib/gove
 export interface SupplierStatus {
   id: number;
   code?: string;
-  name_en: string;
+  name: string;
   name_ar?: string;
   color?: string;
   sort_order?: number;
@@ -22,7 +22,7 @@ export type { SupplierStatus as SupplierStatusType };
 
 const columns: ColumnMeta<SupplierStatus>[] = [
   { key: 'code',       label: 'Code',       sortable: true,  width: 100 },
-  { key: 'name_en',    label: 'Name (EN)',  sortable: true               },
+  { key: 'name',       label: 'Name (EN)',  sortable: true               },
   { key: 'name_ar',    label: 'Name (AR)',  sortable: true               },
   { key: 'color',      label: 'Color',      sortable: false, width: 100, format: 'color' },
   { key: 'sort_order', label: 'Order',      sortable: true,  width: 80,  align: 'center' },
@@ -37,7 +37,7 @@ const formSections: PageSection[] = [
     label: 'Identity',
     fields: [
       { key: 'code',    label: 'Code',           type: 'code', required: 'optional',    placeholder: 'Status code', autoUppercase: true, colSpan: 4 },
-      { key: 'name_en', label: 'Name (English)',  type: 'text', required: 'required',    placeholder: 'Supplier status name in English' },
+      { key: 'name',    label: 'Name (English)',  type: 'text', required: 'required',    placeholder: 'Supplier status name in English' },
       { key: 'name_ar', label: 'Name (Arabic)',   type: 'text', required: 'recommended', placeholder: 'اسم حالة المورد بالعربية' },
     ],
   },
@@ -93,3 +93,5 @@ export const supplierStatusesConfig: PageConfig<SupplierStatus> = {
   pageSizeOptions: [10, 25, 50, 100],
   bulkOperationsEnabled: true,
 };
+
+export const supplierStatusConfig = supplierStatusesConfig;

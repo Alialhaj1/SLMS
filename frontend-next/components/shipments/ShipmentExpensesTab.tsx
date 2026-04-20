@@ -150,7 +150,7 @@ export default function ShipmentExpensesTab({
   const fetchCurrencies = async () => {
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`/api/master/currencies`, {
+      const res = await fetch(`/api/finance/currencies?is_active=true`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }

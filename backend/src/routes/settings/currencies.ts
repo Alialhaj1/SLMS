@@ -125,7 +125,10 @@ router.use(authenticate);
 router.use(loadCompanyContext);
 router.use(requireCompany);
 
-router.get('/', requirePermission('settings:currency:view'), async (req, res) => {
+// GET is open to any authenticated user with company context – currencies are
+// basic reference data already scoped to the company.  Write endpoints below
+// still require explicit settings:currency:* permissions.
+router.get('/', async (req, res) => {
   const companyId = req.companyId as number;
   await ensureCompanyCurrencies(companyId, req.user?.id ?? null);
 

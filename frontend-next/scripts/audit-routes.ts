@@ -191,7 +191,8 @@ async function main() {
     ...(result.missingPagesForMenu.length
       ? result.missingPagesForMenu.map(
           (m) =>
-            `- ${m.path} (key=${m.key}, labelKey=${m.labelKey}, permission=${m.permission || 'NONE'})\n  - candidates: ${m.expectedCandidates.join(', ')}`
+            `- ${m.path} (key=${m.key}, labelKey=${m.labelKey}, permission=${m.permission || 'NONE'})
+  - candidates: ${m.expectedCandidates.join(', ')}`
         )
       : ['- None']),
     ``,

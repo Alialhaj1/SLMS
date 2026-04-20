@@ -6,6 +6,7 @@ import Input from '../../components/ui/Input';
 import Modal from '../../components/ui/Modal';
 import { useTranslation } from '../../hooks/useTranslation';
 import { useToast } from '../../contexts/ToastContext';
+import { useCurrencies } from '../../hooks/useReferenceData';
 import {
   DocumentCheckIcon,
   PlusIcon,
@@ -47,6 +48,7 @@ const mockLcs: LetterOfCredit[] = [
 export default function LetterOfCreditPage() {
   const { locale } = useTranslation();
   const { showToast } = useToast();
+  const { currencies: currencyList } = useCurrencies();
 
   const [lcs] = useState<LetterOfCredit[]>(mockLcs);
   const [selectedStatus, setSelectedStatus] = useState<'all' | LcStatus>('all');
@@ -283,9 +285,9 @@ export default function LetterOfCreditPage() {
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{locale === 'ar' ? 'العملة' : 'Currency'}</label>
               <select value={formData.currency} onChange={(e) => setFormData({ ...formData, currency: e.target.value as any })} className="input">
-                <option value="USD">USD</option>
-                <option value="SAR">SAR</option>
-                <option value="EUR">EUR</option>
+                {currencyList.map(c => (
+                  <option key={c.code} value={c.code}>{c.code}</option>
+                ))}
               </select>
             </div>
             <Input label={locale === 'ar' ? 'تاريخ الإصدار' : 'Issue Date'} value={formData.issueDate} onChange={(e) => setFormData({ ...formData, issueDate: e.target.value })} placeholder="YYYY-MM-DD" />

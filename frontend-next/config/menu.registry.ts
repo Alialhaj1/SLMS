@@ -72,7 +72,8 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
     key: 'dashboard',
     icon: 'HomeIcon',
     labelKey: 'menu.dashboard',
-    path: '/tenant/dashboard',
+    path: '/dashboard',
+    permission: MenuPermissions.Dashboard.View,
     tenantOnly: true,
   },
 
@@ -118,36 +119,42 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
         icon: 'ArrowTrendingUpIcon',
         labelKey: 'menu.generalLedger.accruedRevenue',
         path: '/accounting/accrued-revenue',
+        permission: MenuPermissions.Accounting.AccruedRevenue.View,
       },
       {
         key: 'generalLedger.openingBalances',
         icon: 'DocumentTextIcon',
         labelKey: 'menu.generalLedger.openingBalances',
         path: '/accounting/opening-balances',
+        permission: MenuPermissions.Accounting.OpeningBalances.View,
       },
       {
         key: 'generalLedger.fiscalYears',
         icon: 'CalendarDaysIcon',
         labelKey: 'menu.generalLedger.fiscalYears',
         path: '/accounting/fiscal-years',
+        permission: MenuPermissions.Accounting.Periods.View,
       },
       {
         key: 'generalLedger.trialBalance',
         icon: 'ScaleIcon',
         labelKey: 'menu.generalLedger.trialBalance',
         path: '/accounting/reports/trial-balance',
+        permission: MenuPermissions.Accounting.Reports.TrialBalance.View,
       },
       {
         key: 'generalLedger.incomeStatement',
         icon: 'ChartBarIcon',
         labelKey: 'menu.generalLedger.incomeStatement',
         path: '/accounting/reports/income-statement',
+        permission: MenuPermissions.Accounting.Reports.IncomeStatement.View,
       },
       {
         key: 'generalLedger.generalLedgerReport',
         icon: 'DocumentMagnifyingGlassIcon',
         labelKey: 'menu.generalLedger.generalLedgerReport',
         path: '/accounting/reports/general-ledger',
+        permission: MenuPermissions.Accounting.Reports.GeneralLedger.View,
       },
       // التقارير المالية
       {
@@ -176,6 +183,7 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
         icon: 'BuildingOffice2Icon',
         labelKey: 'menu.generalLedger.fixedAssets',
         path: '/assets/fixed-assets',
+        permission: MenuPermissions.Assets.View,
       },
       // Additional Accounting Pages
       {
@@ -183,102 +191,119 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
         icon: 'ArrowsRightLeftIcon',
         labelKey: 'menu.generalLedger.bankMatching',
         path: '/accounting/bank-matching',
+        permission: MenuPermissions.Accounting.BankMatching.View,
       },
       {
         key: 'generalLedger.bankReconciliation',
         icon: 'CheckCircleIcon',
         labelKey: 'menu.generalLedger.bankReconciliation',
         path: '/accounting/bank-reconciliation',
+        permission: MenuPermissions.Accounting.BankReconciliation.View,
       },
       {
         key: 'generalLedger.budgets',
         icon: 'CalculatorIcon',
         labelKey: 'menu.generalLedger.budgets',
         path: '/accounting/budgets',
+        permission: MenuPermissions.Accounting.Budgets.View,
       },
       {
         key: 'generalLedger.cashDeposit',
         icon: 'BanknotesIcon',
         labelKey: 'menu.generalLedger.cashDeposit',
         path: '/accounting/cash-deposit',
+        permission: MenuPermissions.Accounting.CashDeposit.View,
       },
       {
         key: 'generalLedger.cashInventory',
         icon: 'CurrencyDollarIcon',
         labelKey: 'menu.generalLedger.cashInventory',
         path: '/accounting/cash-inventory',
+        permission: MenuPermissions.Accounting.CashInventory.View,
       },
       {
         key: 'generalLedger.cashLedger',
         icon: 'ClipboardDocumentListIcon',
         labelKey: 'menu.generalLedger.cashLedger',
         path: '/accounting/cash-ledger',
+        permission: MenuPermissions.Accounting.CashLedger.View,
       },
       {
         key: 'generalLedger.chequesDue',
         icon: 'DocumentCheckIcon',
         labelKey: 'menu.generalLedger.chequesDue',
         path: '/accounting/cheques-due',
+        permission: MenuPermissions.Accounting.ChequesDue.View,
       },
       {
         key: 'generalLedger.creditNotes',
         icon: 'DocumentMinusIcon',
         labelKey: 'menu.generalLedger.creditNotes',
         path: '/accounting/credit-notes',
+        permission: MenuPermissions.Accounting.CreditNotes.View,
       },
       {
         key: 'generalLedger.customersLedger',
         icon: 'UsersIcon',
         labelKey: 'menu.generalLedger.customersLedger',
         path: '/accounting/customers-ledger',
+        permission: MenuPermissions.Accounting.CustomersLedger.View,
       },
       {
         key: 'generalLedger.debitNotes',
         icon: 'DocumentPlusIcon',
         labelKey: 'menu.generalLedger.debitNotes',
         path: '/accounting/debit-notes',
+        permission: MenuPermissions.Accounting.DebitNotes.View,
       },
       {
         key: 'generalLedger.deferredRevenue',
         icon: 'ClockIcon',
         labelKey: 'menu.generalLedger.deferredRevenue',
         path: '/accounting/deferred-revenue',
+        permission: MenuPermissions.Accounting.DeferredRevenue.View,
       },
       {
         key: 'generalLedger.financialYears',
         icon: 'CalendarIcon',
         labelKey: 'menu.generalLedger.financialYears',
         path: '/accounting/financial-years',
+        permission: MenuPermissions.Accounting.FinancialYears.View,
       },
       {
         key: 'generalLedger.inventoryLedger',
         icon: 'CubeIcon',
         labelKey: 'menu.generalLedger.inventoryLedger',
         path: '/accounting/inventory-ledger',
+        permission: MenuPermissions.Accounting.InventoryLedger.View,
       },
       {
         key: 'generalLedger.paymentVoucher',
         icon: 'ReceiptRefundIcon',
         labelKey: 'menu.generalLedger.paymentVoucher',
         path: '/accounting/payment-voucher',
+        permission: MenuPermissions.Accounting.PaymentVoucher.View,
       },
       {
         key: 'generalLedger.prepaidExpenses',
         icon: 'ArrowPathIcon',
         labelKey: 'menu.generalLedger.prepaidExpenses',
         path: '/accounting/prepaid-expenses',
+        permission: MenuPermissions.Accounting.PrepaidExpenses.View,
       },
       {
         key: 'generalLedger.receiptVoucher',
         icon: 'ReceiptPercentIcon',
         labelKey: 'menu.generalLedger.receiptVoucher',
         path: '/accounting/receipt-vouchers',
+        permission: MenuPermissions.Accounting.ReceiptVoucher.View,
       },
       {
         key: 'generalLedger.suppliersLedger',
         icon: 'TruckIcon',
         labelKey: 'menu.generalLedger.suppliersLedger',
         path: '/accounting/suppliers-ledger',
+        permission: MenuPermissions.Accounting.SuppliersLedger.View,
       },
     ],
   },
@@ -304,12 +329,14 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
         icon: 'ArrowsRightLeftIcon',
         labelKey: 'menu.financeAccounting.exchangeRates',
         path: '/master/exchange-rates',
+        permission: MenuPermissions.MasterData.ExchangeRates.View,
       },
       {
         key: 'financeAccounting.paymentMethods',
         icon: 'CreditCardIcon',
         labelKey: 'menu.financeAccounting.paymentMethods',
         path: '/master/payment-methods',
+        permission: MenuPermissions.MasterData.PaymentMethods.View,
       },
       {
         key: 'financeAccounting.paymentTerms',
@@ -337,54 +364,63 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
         icon: 'TicketIcon',
         labelKey: 'menu.financeAccounting.voucherTypes',
         path: '/master/voucher-types',
+        permission: MenuPermissions.MasterData.VoucherTypes.View,
       },
       {
         key: 'financeAccounting.noticeTypes',
         icon: 'BellIcon',
         labelKey: 'menu.financeAccounting.noticeTypes',
         path: '/master/notice-types',
+        permission: MenuPermissions.MasterData.NoticeTypes.View,
       },
       {
         key: 'financeAccounting.journalTypes',
         icon: 'DocumentTextIcon',
         labelKey: 'menu.financeAccounting.journalTypes',
         path: '/master/journal-types',
+        permission: MenuPermissions.MasterData.JournalTypes.View,
       },
       {
         key: 'financeAccounting.receiptTypes',
         icon: 'ArrowDownTrayIcon',
         labelKey: 'menu.financeAccounting.receiptTypes',
         path: '/master/receipt-types',
+        permission: MenuPermissions.MasterData.ReceiptTypes.View,
       },
       {
         key: 'financeAccounting.paymentTypes',
         icon: 'ArrowUpTrayIcon',
         labelKey: 'menu.financeAccounting.paymentTypes',
         path: '/master/payment-types',
+        permission: MenuPermissions.MasterData.PaymentTypes.View,
       },
       {
         key: 'financeAccounting.parallelCurrencies',
         icon: 'BanknotesIcon',
         labelKey: 'menu.financeAccounting.parallelCurrencies',
         path: '/master/parallel-currencies',
+        permission: MenuPermissions.MasterData.ParallelCurrencies.View,
       },
       {
         key: 'financeAccounting.transactionDefaults',
         icon: 'Cog6ToothIcon',
         labelKey: 'menu.financeAccounting.transactionDefaults',
         path: '/master/transaction-defaults',
+        permission: MenuPermissions.MasterData.TransactionDefaults.View,
       },
       {
         key: 'financeAccounting.prepaidPolicies',
         icon: 'ClockIcon',
         labelKey: 'menu.financeAccounting.prepaidPolicies',
         path: '/master/prepaid-policies',
+        permission: MenuPermissions.MasterData.PrepaidPolicies.View,
       },
       {
         key: 'financeAccounting.deferredPolicies',
         icon: 'ClockIcon',
         labelKey: 'menu.financeAccounting.deferredPolicies',
         path: '/master/deferred-policies',
+        permission: MenuPermissions.MasterData.DeferredPolicies.View,
       },
       {
         key: 'financeAccounting.bankReconciliationSettings',
@@ -398,6 +434,7 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
         icon: 'ChartPieIcon',
         labelKey: 'menu.financeAccounting.expenseDistribution',
         path: '/master/expense-distribution',
+        permission: MenuPermissions.MasterData.ExpenseDistribution.View,
       },
       // Additional Finance Items
       {
@@ -405,49 +442,71 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
         icon: 'BuildingOffice2Icon',
         labelKey: 'menu.financeAccounting.costCenters',
         path: '/master/cost-centers',
+        permission: MenuPermissions.MasterData.CostCenters.View,
       },
       {
         key: 'financeAccounting.profitCenters',
         icon: 'ChartBarIcon',
         labelKey: 'menu.financeAccounting.profitCenters',
         path: '/master/profit-centers',
+        permission: MenuPermissions.MasterData.ProfitCenters.View,
       },
       {
         key: 'financeAccounting.fiscalPeriods',
         icon: 'CalendarDaysIcon',
         labelKey: 'menu.financeAccounting.fiscalPeriods',
         path: '/master/fiscal-periods',
+        permission: MenuPermissions.Accounting.Periods.View,
       },
       {
         key: 'financeAccounting.chequeBooks',
         icon: 'DocumentCheckIcon',
         labelKey: 'menu.financeAccounting.chequeBooks',
         path: '/master/cheque-books',
+        permission: MenuPermissions.Finance.ChequeBooks.View,
       },
       {
         key: 'financeAccounting.shipmentCostCenters',
         icon: 'TruckIcon',
         labelKey: 'menu.financeAccounting.shipmentCostCenters',
         path: '/master/shipment-cost-centers',
+        permission: MenuPermissions.MasterData.ShipmentCostCenters.View,
       },
       // Letters of Credit (الاعتمادات المستندية)
       {
         key: 'financeAccounting.lettersOfCredit',
         icon: 'DocumentCheckIcon',
         labelKey: 'menu.financeAccounting.lettersOfCredit',
-        path: '/finance/letters-of-credit',
-      },
-      {
-        key: 'financeAccounting.lcTypes',
-        icon: 'TagIcon',
-        labelKey: 'menu.financeAccounting.lcTypes',
-        path: '/finance/lc-types',
-      },
-      {
-        key: 'financeAccounting.lcAlerts',
-        icon: 'BellAlertIcon',
-        labelKey: 'menu.financeAccounting.lcAlerts',
-        path: '/finance/lc-alerts',
+        children: [
+          {
+            key: 'financeAccounting.lettersOfCredit.main',
+            icon: 'DocumentCheckIcon',
+            labelKey: 'menu.financeAccounting.lettersOfCredit.main',
+            path: '/finance/letters-of-credit',
+            permission: MenuPermissions.Finance.View,
+          },
+          {
+            key: 'financeAccounting.lettersOfCredit.types',
+            icon: 'TagIcon',
+            labelKey: 'menu.financeAccounting.lettersOfCredit.types',
+            path: '/finance/lc-types',
+            permission: MenuPermissions.Finance.View,
+          },
+          {
+            key: 'financeAccounting.lettersOfCredit.alerts',
+            icon: 'BellAlertIcon',
+            labelKey: 'menu.financeAccounting.lettersOfCredit.alerts',
+            path: '/finance/lc-alerts',
+            permission: MenuPermissions.Finance.View,
+          },
+          {
+            key: 'financeAccounting.lettersOfCredit.reports',
+            icon: 'ChartBarIcon',
+            labelKey: 'menu.financeAccounting.lettersOfCredit.reports',
+            path: '/finance/letters-of-credit/reports',
+            permission: MenuPermissions.Finance.View,
+          },
+        ],
       },
       {
         key: 'financeAccounting.transferRequests',
@@ -501,54 +560,63 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
     key: 'sales',
     icon: 'ShoppingCartIcon',
     labelKey: 'menu.sales',
+    permission: MenuPermissions.Sales.View,
     children: [
       {
         key: 'sales.quotations',
         icon: 'DocumentTextIcon',
         labelKey: 'menu.sales.quotations',
         path: '/sales/quotations',
+        permission: MenuPermissions.Sales.Quotations.View,
       },
       {
         key: 'sales.customerContracts',
         icon: 'DocumentDuplicateIcon',
         labelKey: 'menu.sales.customerContracts',
         path: '/sales/customer-contracts',
+        permission: MenuPermissions.Sales.CustomerContracts.View,
       },
       {
         key: 'sales.salesOrders',
         icon: 'ClipboardDocumentListIcon',
         labelKey: 'menu.sales.salesOrders',
         path: '/sales/orders',
+        permission: MenuPermissions.Sales.Orders.View,
       },
       {
         key: 'sales.salesInvoices',
         icon: 'DocumentTextIcon',
         labelKey: 'menu.sales.salesInvoices',
         path: '/sales/invoices',
+        permission: MenuPermissions.Sales.Invoices.View,
       },
       {
         key: 'sales.invoiceTypes',
         icon: 'TagIcon',
         labelKey: 'menu.sales.invoiceTypes',
         path: '/master/invoice-types',
+        permission: MenuPermissions.MasterData.InvoiceTypes.View,
       },
       {
         key: 'sales.returns',
         icon: 'ArrowUturnLeftIcon',
         labelKey: 'menu.sales.returns',
         path: '/sales/returns',
+        permission: MenuPermissions.Sales.Returns.View,
       },
       {
         key: 'sales.paymentTerms',
         icon: 'ClockIcon',
         labelKey: 'menu.sales.paymentTerms',
         path: '/master/payment-terms',
+        permission: MenuPermissions.MasterData.PaymentTerms.View,
       },
       {
         key: 'sales.priceLists',
         icon: 'ListBulletIcon',
         labelKey: 'menu.sales.priceLists',
         path: '/sales/price-lists',
+        permission: MenuPermissions.Sales.PriceLists.View,
       },
       {
         key: 'sales.discountAgreements',
@@ -605,6 +673,7 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
     key: 'purchasing',
     icon: 'ShoppingBagIcon',
     labelKey: 'menu.purchasing',
+    permission: MenuPermissions.Procurement.View,
     children: [
       {
         key: 'purchasing.vendors',
@@ -625,6 +694,7 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
         icon: 'TagIcon',
         labelKey: 'menu.purchasing.vendorTypes',
         path: '/master/supplier-types',
+        permission: MenuPermissions.MasterData.SupplierTypes.View,
       },
       {
         key: 'purchasing.vendorStatus',
@@ -638,12 +708,14 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
         icon: 'DocumentChartBarIcon',
         labelKey: 'menu.purchasing.purchaseInvoices',
         path: '/purchasing/invoices',
+        permission: MenuPermissions.Procurement.PurchaseInvoices.View,
       },
       {
         key: 'purchasing.purchaseOrders',
         icon: 'ClipboardDocumentListIcon',
         labelKey: 'menu.purchasing.purchaseOrders',
         path: '/purchasing/orders',
+        permission: MenuPermissions.Procurement.PurchaseOrders.View,
       },
       {
         key: 'purchasing.payments',
@@ -657,54 +729,63 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
         icon: 'DocumentTextIcon',
         labelKey: 'menu.purchasing.vendorQuotations',
         path: '/purchasing/quotations',
+        permission: MenuPermissions.Procurement.View,
       },
       {
         key: 'purchasing.vendorContracts',
         icon: 'DocumentDuplicateIcon',
         labelKey: 'menu.purchasing.vendorContracts',
         path: '/purchasing/contracts',
+        permission: MenuPermissions.Procurement.VendorContracts.View,
       },
       {
         key: 'purchasing.purchaseReturns',
         icon: 'ArrowUturnLeftIcon',
         labelKey: 'menu.purchasing.purchaseReturns',
         path: '/purchasing/returns',
+        permission: MenuPermissions.Procurement.View,
       },
       {
         key: 'purchasing.goodsReceipts',
         icon: 'ArchiveBoxArrowDownIcon',
         labelKey: 'menu.purchasing.goodsReceipts',
         path: '/purchasing/goods-receipts',
+        permission: MenuPermissions.Procurement.View,
       },
       {
         key: 'purchasing.purchaseOrderTypes',
         icon: 'TagIcon',
         labelKey: 'menu.purchasing.purchaseOrderTypes',
         path: '/master/purchase-order-types',
+        permission: MenuPermissions.MasterData.PurchaseOrderTypes.View,
       },
       {
         key: 'purchasing.vendorPaymentTerms',
         icon: 'ClockIcon',
         labelKey: 'menu.purchasing.vendorPaymentTerms',
         path: '/master/vendor-payment-terms',
+        permission: MenuPermissions.MasterData.VendorPaymentTerms.View,
       },
       {
         key: 'purchasing.vendorPriceLists',
         icon: 'ListBulletIcon',
         labelKey: 'menu.purchasing.vendorPriceLists',
         path: '/purchasing/vendor-price-lists',
+        permission: MenuPermissions.Procurement.View,
       },
       {
         key: 'purchasing.supplyTerms',
         icon: 'TruckIcon',
         labelKey: 'menu.purchasing.supplyTerms',
         path: '/master/supply-terms',
+        permission: MenuPermissions.MasterData.SupplyTerms.View,
       },
       {
         key: 'purchasing.deliveryTerms',
         icon: 'TruckIcon',
         labelKey: 'menu.purchasing.deliveryTerms',
         path: '/master/delivery-terms',
+        permission: MenuPermissions.MasterData.DeliveryTerms.View,
       },
       {
         key: 'purchasing.purchaseOrderStatus',
@@ -732,6 +813,7 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
         icon: 'CheckCircleIcon',
         labelKey: 'menu.purchasing.contractApprovalStatus',
         path: '/master/contract-approval-status',
+        permission: MenuPermissions.MasterData.ContractApprovalStatus.View,
       },
       // Additional Procurement/Purchasing Items
       {
@@ -739,30 +821,21 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
         icon: 'ChartBarIcon',
         labelKey: 'menu.purchasing.procurementDashboard',
         path: '/procurement/dashboard',
+        permission: MenuPermissions.Procurement.Dashboard.View,
       },
       {
         key: 'purchasing.procurementPurchaseInvoices',
         icon: 'DocumentChartBarIcon',
         labelKey: 'menu.purchasing.procurementPurchaseInvoices',
         path: '/procurement/purchase-invoices',
-      },
-      {
-        key: 'purchasing.procurementPurchaseOrders',
-        icon: 'ClipboardDocumentListIcon',
-        labelKey: 'menu.purchasing.procurementPurchaseOrders',
-        path: '/procurement/purchase-orders',
+        permission: MenuPermissions.Procurement.PurchaseInvoices.View,
       },
       {
         key: 'purchasing.procurementReports',
         icon: 'ChartPieIcon',
         labelKey: 'menu.purchasing.procurementReports',
         path: '/procurement/reports',
-      },
-      {
-        key: 'purchasing.procurementVendorContracts',
-        icon: 'DocumentDuplicateIcon',
-        labelKey: 'menu.purchasing.procurementVendorContracts',
-        path: '/procurement/vendor-contracts',
+        permission: MenuPermissions.Procurement.Reports.View,
       },
     ],
   },
@@ -893,6 +966,7 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
         icon: 'HashtagIcon',
         labelKey: 'menu.inventory.serialNumbers',
         path: '/master/serial-numbers',
+        permission: MenuPermissions.MasterData.SerialNumbers.View,
       },
       {
         key: 'inventory.trackingPolicies',
@@ -906,12 +980,14 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
         icon: 'ExclamationTriangleIcon',
         labelKey: 'menu.inventory.stockLimits',
         path: '/master/stock-limits',
+        permission: MenuPermissions.MasterData.StockLimits.View,
       },
       {
         key: 'inventory.minMaxPolicies',
         icon: 'AdjustmentsHorizontalIcon',
         labelKey: 'menu.inventory.minMaxPolicies',
         path: '/master/min-max-policies',
+        permission: MenuPermissions.MasterData.MinMaxPolicies.View,
       },
       {
         key: 'inventory.inventoryPolicies',
@@ -932,18 +1008,21 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
         icon: 'ClockIcon',
         labelKey: 'menu.inventory.expiryPolicies',
         path: '/master/expiry-policies',
+        permission: MenuPermissions.MasterData.ExpiryPolicies.View,
       },
       {
         key: 'inventory.externalWarehouses',
         icon: 'BuildingOffice2Icon',
         labelKey: 'menu.inventory.externalWarehouses',
         path: '/master/external-warehouses',
+        permission: MenuPermissions.MasterData.ExternalWarehouses.View,
       },
       {
         key: 'inventory.valuationMethods',
         icon: 'CalculatorIcon',
         labelKey: 'menu.inventory.valuationMethods',
         path: '/master/valuation-methods',
+        permission: MenuPermissions.MasterData.ValuationMethods.View,
       },
       // Additional Inventory Items
       {
@@ -951,12 +1030,14 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
         icon: 'RectangleStackIcon',
         labelKey: 'menu.inventory.itemCategories',
         path: '/master/item-categories',
+        permission: MenuPermissions.Inventory.Categories.View,
       },
       {
         key: 'inventory.inventoryCounting',
         icon: 'ClipboardDocumentCheckIcon',
         labelKey: 'menu.inventory.inventoryCounting',
         path: '/master/inventory-counting',
+        permission: MenuPermissions.MasterData.InventoryCounting.View,
       },
       {
         key: 'inventory.reorderRules',
@@ -970,6 +1051,7 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
         icon: 'ArrowsRightLeftIcon',
         labelKey: 'menu.inventory.transfers',
         path: '/inventory/transfers',
+        permission: MenuPermissions.Inventory.Stock.Transfer,
       },
     ],
   },
@@ -981,6 +1063,7 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
     key: 'importExport',
     icon: 'GlobeAltIcon',
     labelKey: 'menu.importExport',
+    permission: MenuPermissions.Logistics.View,
     children: [
       {
         key: 'importExport.incoterms',
@@ -1036,6 +1119,7 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
         icon: 'ReceiptPercentIcon',
         labelKey: 'menu.importExport.tariffs',
         path: '/master/tariffs',
+        permission: MenuPermissions.MasterData.Tariffs.View,
       },
       {
         key: 'importExport.customsDuties',
@@ -1077,6 +1161,7 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
         icon: 'ArrowRightOnRectangleIcon',
         labelKey: 'menu.importExport.entryExitPoints',
         path: '/master/entry-exit-points',
+        permission: MenuPermissions.MasterData.EntryExitPoints.View,
       },
       {
         key: 'importExport.borderPoints',
@@ -1112,12 +1197,14 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
         icon: 'ShieldExclamationIcon',
         labelKey: 'menu.importExport.insuranceCompanies',
         path: '/master/insurance-companies',
+        permission: MenuPermissions.MasterData.InsuranceCompanies.View,
       },
       {
         key: 'importExport.laboratories',
         icon: 'BeakerIcon',
         labelKey: 'menu.importExport.laboratories',
         path: '/master/laboratories',
+        permission: MenuPermissions.MasterData.Laboratories.View,
       },
       // ─────────────────────────────────────────────────────
       // Shipping Domain Reference Data (Phase 1)
@@ -1134,12 +1221,14 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
         icon: 'BanknotesIcon',
         labelKey: 'menu.importExport.expenseCategories',
         path: '/shipping/expense-categories',
+        permission: MenuPermissions.MasterData.ShippingExpenseCategories.View,
       },
       {
         key: 'importExport.documentTypes',
         icon: 'DocumentDuplicateIcon',
         labelKey: 'menu.importExport.documentTypes',
         path: '/shipping/document-types',
+        permission: MenuPermissions.MasterData.ShippingDocumentTypes.View,
       },
     ],
   },
@@ -1151,6 +1240,7 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
     key: 'referenceData',
     icon: 'CircleStackIcon',
     labelKey: 'menu.referenceData',
+    permission: MenuPermissions.Master.View,
     children: [
       {
         key: 'referenceData.countries',
@@ -1192,28 +1282,28 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
         icon: 'MapPinIcon',
         labelKey: 'menu.referenceData.deliveryLocations',
         path: '/master/delivery-locations',
-        permission: 'master:reference_data:view',
+        permission: MenuPermissions.MasterData.DeliveryLocations.View,
       },
       {
         key: 'referenceData.taxZones',
         icon: 'MapIcon',
         labelKey: 'menu.referenceData.taxZones',
         path: '/master/tax-zones',
-        permission: 'master:reference_data:view',
+        permission: MenuPermissions.MasterData.TaxRegions.View,
       },
       {
         key: 'referenceData.recordStatus',
         icon: 'FlagIcon',
         labelKey: 'menu.referenceData.recordStatus',
         path: '/master/record-status',
-        permission: 'master:reference_data:view',
+        permission: MenuPermissions.MasterData.RecordStatuses.View,
       },
       {
         key: 'referenceData.requestStatus',
         icon: 'ClipboardDocumentCheckIcon',
         labelKey: 'menu.referenceData.requestStatus',
         path: '/master/request-status',
-        permission: 'master:reference_data:view',
+        permission: MenuPermissions.MasterData.RequestStatuses.View,
       },
       {
         key: 'referenceData.reports',
@@ -1235,7 +1325,7 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
         icon: 'BuildingStorefrontIcon',
         labelKey: 'menu.referenceData.branches',
         path: '/master/branches',
-        platformOnly: true,
+        permission: MenuPermissions.System.Branches.View,
       },
       {
         key: 'referenceData.companies',
@@ -1257,24 +1347,28 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
         icon: 'PaintBrushIcon',
         labelKey: 'menu.referenceData.uiThemes',
         path: '/master/ui-themes',
+        permission: MenuPermissions.MasterData.UIThemes.View,
       },
       {
         key: 'referenceData.numberingSeries',
         icon: 'HashtagIcon',
         labelKey: 'menu.referenceData.numberingSeries',
         path: '/master/numbering-series',
+        permission: MenuPermissions.MasterData.NumberingSeries.View,
       },
       {
         key: 'referenceData.printedTemplates',
         icon: 'DocumentTextIcon',
         labelKey: 'menu.referenceData.printedTemplates',
         path: '/master/printed-templates',
+        permission: MenuPermissions.MasterData.PrintedTemplates.View,
       },
       {
         key: 'referenceData.contactMethods',
         icon: 'PhoneIcon',
         labelKey: 'menu.referenceData.contactMethods',
         path: '/master/contact-methods',
+        permission: MenuPermissions.MasterData.ContactMethods.View,
       },
       {
         key: 'referenceData.clearanceOfficesPage',
@@ -1288,18 +1382,21 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
         icon: 'ShieldCheckIcon',
         labelKey: 'menu.referenceData.systemPolicies',
         path: '/master/system-policies',
+        permission: MenuPermissions.MasterData.SystemPolicies.View,
       },
       {
         key: 'referenceData.systemSetup',
         icon: 'Cog6ToothIcon',
         labelKey: 'menu.referenceData.systemSetup',
         path: '/master/system-setup',
+        permission: MenuPermissions.System.SystemSetup.View,
       },
       {
         key: 'referenceData.digitalSignatures',
         icon: 'FingerPrintIcon',
         labelKey: 'menu.referenceData.digitalSignatures',
         path: '/master/digital-signatures',
+        permission: MenuPermissions.MasterData.DigitalSignatures.View,
       },
     ],
   },
@@ -1318,6 +1415,7 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
         icon: 'TagIcon',
         labelKey: 'menu.taxes.taxTypes',
         path: '/master/tax-types',
+        permission: MenuPermissions.Tax.Types.View,
       },
       {
         key: 'taxes.taxRates',
@@ -1331,25 +1429,28 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
         icon: 'CodeBracketIcon',
         labelKey: 'menu.taxes.taxCodes',
         path: '/master/tax-codes',
+        permission: MenuPermissions.Tax.Codes.View,
       },
       {
         key: 'taxes.taxExemptions',
         icon: 'ShieldExclamationIcon',
         labelKey: 'menu.taxes.taxExemptions',
         path: '/master/tax-exemptions',
+        permission: MenuPermissions.MasterData.TaxExemptions.View,
       },
       {
         key: 'taxes.taxCategories',
         icon: 'FolderIcon',
         labelKey: 'menu.taxes.taxCategories',
         path: '/master/tax-categories',
+        permission: MenuPermissions.MasterData.TaxCategories.View,
       },
       {
         key: 'taxes.taxItemCategories',
         icon: 'CubeIcon',
         labelKey: 'menu.taxes.taxItemCategories',
         path: '/master/tax-item-categories',
-        permission: 'master:reference_data:view' as any,
+        permission: MenuPermissions.MasterData.TaxCategories.View,
       },
       {
         key: 'taxes.zakatCodes',
@@ -1371,24 +1472,28 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
         icon: 'ReceiptPercentIcon',
         labelKey: 'menu.taxes.taxes',
         path: '/master/taxes',
+        permission: MenuPermissions.MasterData.Taxes.View,
       },
       {
         key: 'taxes.taxRegions',
         icon: 'MapIcon',
         labelKey: 'menu.taxes.taxRegions',
         path: '/master/tax-regions',
+        permission: MenuPermissions.MasterData.TaxRegions.View,
       },
       {
         key: 'taxes.withholdingTax',
         icon: 'DocumentMinusIcon',
         labelKey: 'menu.taxes.withholdingTax',
         path: '/master/withholding-tax',
+        permission: MenuPermissions.Tax.View,
       },
       {
         key: 'taxes.zatcaIntegration',
         icon: 'LinkIcon',
         labelKey: 'menu.taxes.zatcaIntegration',
         path: '/master/zatca-integration',
+        permission: MenuPermissions.Tax.ZATCA.View,
       },
     ],
   },
@@ -1483,30 +1588,35 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
             icon: 'MapPinIcon',
             labelKey: 'menu.logistics.shipmentManagement.tracking',
             path: '/shipments/tracking',
+            permission: MenuPermissions.Logistics.Shipments.View,
           },
           {
             key: 'logistics.shipmentManagement.alerts',
             icon: 'BellIcon',
             labelKey: 'menu.logistics.shipmentManagement.alerts',
             path: '/shipments/alerts',
+            permission: MenuPermissions.Logistics.ShipmentAlerts.View,
           },
           {
             key: 'logistics.shipmentManagement.costTypes',
             icon: 'CurrencyDollarIcon',
             labelKey: 'menu.logistics.shipmentManagement.costTypes',
             path: '/shipments/cost-types',
+            permission: MenuPermissions.Logistics.ShipmentCostTypes.View,
           },
           {
             key: 'logistics.shipmentManagement.documentRequirements',
             icon: 'DocumentTextIcon',
             labelKey: 'menu.logistics.shipmentManagement.documentRequirements',
             path: '/shipments/document-requirements',
+            permission: MenuPermissions.Logistics.ShipmentDocumentRequirements.View,
           },
           {
             key: 'logistics.shipmentManagement.landedCostAllocation',
             icon: 'CalculatorIcon',
             labelKey: 'menu.logistics.shipmentManagement.landedCostAllocation',
             path: '/shipments/landed-cost-allocation',
+            permission: MenuPermissions.Logistics.LandedCostAllocation.View,
           },
           // ─────────────────────────────────────────────────────
           // Shipping Domain Architecture (Phase 1)
@@ -1516,18 +1626,21 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
             icon: 'CubeTransparentIcon',
             labelKey: 'menu.logistics.shipmentManagement.containers',
             path: '/shipping/shipment-containers',
+            permission: MenuPermissions.Logistics.Shipments.View,
           },
           {
             key: 'logistics.shipmentManagement.parties',
             icon: 'UserGroupIcon',
             labelKey: 'menu.logistics.shipmentManagement.parties',
             path: '/shipping/shipment-parties',
+            permission: MenuPermissions.Logistics.Shipments.View,
           },
           {
             key: 'logistics.shipmentManagement.compliance',
             icon: 'ShieldCheckIcon',
             labelKey: 'menu.logistics.shipmentManagement.compliance',
             path: '/shipping/shipment-compliance',
+            permission: MenuPermissions.ComplianceModule.View,
           },
         ],
       },
@@ -1674,42 +1787,49 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
         icon: 'BuildingOfficeIcon',
         labelKey: 'menu.logistics.transportCompanies',
         path: '/master/transport-companies',
+        permission: MenuPermissions.MasterData.TransportCompanies.View,
       },
       {
         key: 'logistics.vehicleTypes',
         icon: 'TruckIcon',
         labelKey: 'menu.logistics.vehicleTypes',
         path: '/master/vehicle-types',
+        permission: MenuPermissions.MasterData.VehicleTypes.View,
       },
       {
         key: 'logistics.vehicles',
         icon: 'TruckIcon',
         labelKey: 'menu.logistics.vehicles',
         path: '/master/vehicles',
+        permission: MenuPermissions.MasterData.Vehicles.View,
       },
       {
         key: 'logistics.drivers',
         icon: 'UserIcon',
         labelKey: 'menu.logistics.drivers',
         path: '/master/drivers',
+        permission: MenuPermissions.MasterData.Drivers.View,
       },
       {
         key: 'logistics.transportRoutes',
         icon: 'MapIcon',
         labelKey: 'menu.logistics.transportRoutes',
         path: '/master/transport-routes',
+        permission: MenuPermissions.MasterData.TransportRoutes.View,
       },
       {
         key: 'logistics.deliveryLocations',
         icon: 'MapPinIcon',
         labelKey: 'menu.logistics.deliveryLocations',
         path: '/master/delivery-locations',
+        permission: MenuPermissions.MasterData.DeliveryLocations.View,
       },
       {
         key: 'logistics.externalWarehouses',
         icon: 'BuildingStorefrontIcon',
         labelKey: 'menu.logistics.externalWarehouses',
         path: '/master/external-warehouses',
+        permission: MenuPermissions.MasterData.ExternalWarehouses.View,
       },
       {
         key: 'logistics.shipmentTypes',
@@ -1735,42 +1855,49 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
         icon: 'DocumentTextIcon',
         labelKey: 'menu.shipping.billOfLading',
         path: '/shipping/bill-of-lading',
+        permission: MenuPermissions.Shipping.BillOfLading.View,
       },
       {
         key: 'shipping.documents',
         icon: 'DocumentDuplicateIcon',
         labelKey: 'menu.shipping.documents',
         path: '/shipping/documents',
+        permission: MenuPermissions.Shipping.Documents.View,
       },
       {
         key: 'shipping.schedules',
         icon: 'CalendarDaysIcon',
         labelKey: 'menu.shipping.schedules',
         path: '/shipping/schedules',
+        permission: MenuPermissions.Shipping.Schedules.View,
       },
       {
         key: 'shipping.contracts',
         icon: 'ClipboardDocumentListIcon',
         labelKey: 'menu.shipping.contracts',
         path: '/shipping/contracts',
+        permission: MenuPermissions.Shipping.Contracts.View,
       },
       {
         key: 'shipping.insurance',
         icon: 'ShieldCheckIcon',
         labelKey: 'menu.shipping.insurance',
         path: '/shipping/insurance',
+        permission: MenuPermissions.Shipping.Insurance.View,
       },
       {
         key: 'shipping.carrierQuotes',
         icon: 'CurrencyDollarIcon',
         labelKey: 'menu.shipping.carrierQuotes',
         path: '/shipping/carrier-quotes',
+        permission: MenuPermissions.Logistics.CarrierQuotes.View,
       },
       {
         key: 'shipping.carrierEvaluations',
         icon: 'StarIcon',
         labelKey: 'menu.shipping.carrierEvaluations',
         path: '/shipping/carrier-evaluations',
+        permission: MenuPermissions.Logistics.CarrierEvaluations.View,
       },
     ],
   },
@@ -1789,48 +1916,56 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
         icon: 'DocumentTextIcon',
         labelKey: 'menu.documents.documentTypes',
         path: '/master/document-types',
+        permission: MenuPermissions.Documents.Types.View,
       },
       {
         key: 'documents.documentStatus',
         icon: 'FlagIcon',
         labelKey: 'menu.documents.documentStatus',
         path: '/master/document-status',
+        permission: MenuPermissions.MasterData.DocumentStatus.View,
       },
       {
         key: 'documents.approvalWorkflows',
         icon: 'ArrowPathIcon',
         labelKey: 'menu.documents.approvalWorkflows',
         path: '/master/approval-workflows',
+        permission: MenuPermissions.Documents.Workflows.View,
       },
       {
         key: 'documents.invoiceTemplates',
         icon: 'DocumentTextIcon',
         labelKey: 'menu.documents.invoiceTemplates',
         path: '/master/invoice-templates',
+        permission: MenuPermissions.MasterData.InvoiceTemplates.View,
       },
       {
         key: 'documents.purchaseOrderTemplates',
         icon: 'ClipboardDocumentListIcon',
         labelKey: 'menu.documents.purchaseOrderTemplates',
         path: '/master/purchase-order-templates',
+        permission: MenuPermissions.MasterData.PurchaseOrderTemplates.View,
       },
       {
         key: 'documents.contractTemplates',
         icon: 'DocumentDuplicateIcon',
         labelKey: 'menu.documents.contractTemplates',
         path: '/master/contract-templates',
+        permission: MenuPermissions.Documents.Templates.View,
       },
       {
         key: 'documents.warrantyDocuments',
         icon: 'ShieldCheckIcon',
         labelKey: 'menu.documents.warrantyDocuments',
         path: '/documents/warranty',
+        permission: MenuPermissions.Documents.View,
       },
       {
         key: 'documents.lcDocuments',
         icon: 'DocumentTextIcon',
         labelKey: 'menu.documents.lcDocuments',
         path: '/documents/letter-of-credit',
+        permission: MenuPermissions.Documents.View,
       },
     ],
   },
@@ -1842,42 +1977,49 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
     key: 'fixedAssets',
     icon: 'BuildingOffice2Icon',
     labelKey: 'menu.fixedAssets',
+    permission: MenuPermissions.Assets.View,
     children: [
       {
         key: 'fixedAssets.assets',
         icon: 'BuildingOffice2Icon',
         labelKey: 'menu.fixedAssets.assets',
         path: '/assets/fixed-assets',
+        permission: MenuPermissions.Assets.FixedAssets.View,
       },
       {
         key: 'fixedAssets.assetCategories',
         icon: 'FolderIcon',
         labelKey: 'menu.fixedAssets.assetCategories',
         path: '/master/asset-categories',
+        permission: MenuPermissions.MasterData.AssetCategories.View,
       },
       {
         key: 'fixedAssets.assetLocations',
         icon: 'MapPinIcon',
         labelKey: 'menu.fixedAssets.assetLocations',
         path: '/master/asset-locations',
+        permission: MenuPermissions.MasterData.AssetLocations.View,
       },
       {
         key: 'fixedAssets.assetStatus',
         icon: 'FlagIcon',
         labelKey: 'menu.fixedAssets.assetStatus',
         path: '/master/asset-status',
+        permission: MenuPermissions.MasterData.AssetStatus.View,
       },
       {
         key: 'fixedAssets.depreciationSchedules',
         icon: 'ChartBarIcon',
         labelKey: 'menu.fixedAssets.depreciationSchedules',
         path: '/assets/depreciation-schedules',
+        permission: MenuPermissions.Assets.DepreciationSchedules.View,
       },
       {
         key: 'fixedAssets.maintenanceContracts',
         icon: 'WrenchIcon',
         labelKey: 'menu.fixedAssets.maintenanceContracts',
         path: '/assets/maintenance-contracts',
+        permission: MenuPermissions.Assets.MaintenanceContracts.View,
       },
     ],
   },
@@ -1896,54 +2038,63 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
         icon: 'UsersIcon',
         labelKey: 'menu.hr.employees',
         path: '/hr/employees',
+        permission: MenuPermissions.HR.View,
       },
       {
         key: 'hr.employeeStatus',
         icon: 'FlagIcon',
         labelKey: 'menu.hr.employeeStatus',
         path: '/master/employee-status',
+        permission: MenuPermissions.MasterData.EmployeeStatus.View,
       },
       {
         key: 'hr.departments',
         icon: 'BuildingOfficeIcon',
         labelKey: 'menu.hr.departments',
         path: '/master/departments',
+        permission: MenuPermissions.HR.Departments.View,
       },
       {
         key: 'hr.responsibilityCenters',
         icon: 'ChartPieIcon',
         labelKey: 'menu.hr.responsibilityCenters',
         path: '/master/responsibility-centers',
+        permission: MenuPermissions.MasterData.ResponsibilityCenters.View,
       },
       {
         key: 'hr.allowanceTypes',
         icon: 'BanknotesIcon',
         labelKey: 'menu.hr.allowanceTypes',
         path: '/master/allowance-types',
+        permission: MenuPermissions.MasterData.AllowanceTypes.View,
       },
       {
         key: 'hr.deductionTypes',
         icon: 'MinusCircleIcon',
         labelKey: 'menu.hr.deductionTypes',
         path: '/master/deduction-types',
+        permission: MenuPermissions.MasterData.DeductionTypes.View,
       },
       {
         key: 'hr.advanceTypes',
         icon: 'CurrencyDollarIcon',
         labelKey: 'menu.hr.advanceTypes',
         path: '/master/advance-types',
+        permission: MenuPermissions.MasterData.AdvanceTypes.View,
       },
       {
         key: 'hr.expenseTypes',
         icon: 'ReceiptPercentIcon',
         labelKey: 'menu.hr.expenseTypes',
         path: '/master/hr-expense-types',
+        permission: MenuPermissions.MasterData.HrExpenseTypes.View,
       },
       {
         key: 'hr.payrollSchedules',
         icon: 'CalendarIcon',
         labelKey: 'menu.hr.payrollSchedules',
         path: '/master/payroll-periods',
+        permission: MenuPermissions.MasterData.PayrollPeriods.View,
       },
       {
         key: 'hr.attendanceSettings',
@@ -1957,18 +2108,21 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
         icon: 'DocumentTextIcon',
         labelKey: 'menu.hr.contractTypes',
         path: '/master/hr-contract-types',
+        permission: MenuPermissions.MasterData.HrContractTypes.View,
       },
       {
         key: 'hr.contractStatus',
         icon: 'FlagIcon',
         labelKey: 'menu.hr.contractStatus',
         path: '/master/hr-contract-status',
+        permission: MenuPermissions.MasterData.HrContractStatus.View,
       },
       {
         key: 'hr.allowancesDeductions',
         icon: 'CalculatorIcon',
         labelKey: 'menu.hr.allowancesDeductions',
         path: '/master/allowances',
+        permission: MenuPermissions.HR.Payroll.View,
       },
       // Additional HR Items
       {
@@ -1976,12 +2130,14 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
         icon: 'IdentificationIcon',
         labelKey: 'menu.hr.jobTitles',
         path: '/master/job-titles',
+        permission: MenuPermissions.MasterData.JobTitles.View,
       },
       {
         key: 'hr.deductions',
         icon: 'MinusCircleIcon',
         labelKey: 'menu.hr.deductions',
         path: '/master/deductions',
+        permission: MenuPermissions.MasterData.DeductionTypes.View,
       },
     ],
   },
@@ -1993,25 +2149,28 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
     key: 'crm',
     icon: 'HeartIcon',
     labelKey: 'menu.crm',
+    permission: MenuPermissions.CRM.View,
     children: [
       {
         key: 'crm.customers',
         icon: 'UsersIcon',
         labelKey: 'menu.crm.customers',
         path: '/master/customers',
+        permission: MenuPermissions.MasterData.Customers.View,
       },
       {
         key: 'crm.customerClassifications',
         icon: 'StarIcon',
         labelKey: 'menu.crm.customerClassifications',
         path: '/master/customer-classifications',
-        permission: 'customer_categories:view',
+        permission: MenuPermissions.MasterData.CustomerCategories.View,
       },
       {
         key: 'crm.customerTypes',
         icon: 'TagIcon',
         labelKey: 'menu.crm.customerTypes',
         path: '/master/customer-types',
+        permission: MenuPermissions.MasterData.CustomerTypes.View,
       },
       {
         key: 'crm.customerStatus',
@@ -2025,54 +2184,63 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
         icon: 'CreditCardIcon',
         labelKey: 'menu.crm.creditLimits',
         path: '/master/credit-limits',
+        permission: MenuPermissions.MasterData.Customers.View,
       },
       {
         key: 'crm.discountAgreements',
         icon: 'ReceiptPercentIcon',
         labelKey: 'menu.crm.discountAgreements',
         path: '/master/discount-agreements',
+        permission: MenuPermissions.MasterData.DiscountAgreements.View,
       },
       {
         key: 'crm.paymentMethods',
         icon: 'CreditCardIcon',
         labelKey: 'menu.crm.paymentMethods',
         path: '/master/payment-methods',
+        permission: MenuPermissions.MasterData.PaymentMethods.View,
       },
       {
         key: 'crm.addresses',
         icon: 'MapPinIcon',
         labelKey: 'menu.crm.addresses',
         path: '/crm/addresses',
+        permission: MenuPermissions.CRM.Addresses.View,
       },
       {
         key: 'crm.addressTypes',
         icon: 'HomeModernIcon',
         labelKey: 'menu.crm.addressTypes',
         path: '/master/address-types',
+        permission: MenuPermissions.MasterData.AddressTypes.View,
       },
       {
         key: 'crm.contacts',
         icon: 'PhoneIcon',
         labelKey: 'menu.crm.contacts',
         path: '/crm/contacts',
+        permission: MenuPermissions.CRM.Contacts.View,
       },
       {
         key: 'crm.contactTypes',
         icon: 'ChatBubbleLeftRightIcon',
         labelKey: 'menu.crm.contactTypes',
         path: '/master/contact-types',
+        permission: MenuPermissions.MasterData.ContactTypes.View,
       },
       {
         key: 'crm.salesOpportunities',
         icon: 'SparklesIcon',
         labelKey: 'menu.crm.salesOpportunities',
         path: '/crm/opportunities',
+        permission: MenuPermissions.CRM.Opportunities.View,
       },
       {
         key: 'crm.customerFollowUp',
         icon: 'ArrowPathIcon',
         labelKey: 'menu.crm.customerFollowUp',
         path: '/crm/follow-up',
+        permission: MenuPermissions.CRM.FollowUp.View,
       },
       // Additional CRM Items
       {
@@ -2080,12 +2248,14 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
         icon: 'UsersIcon',
         labelKey: 'menu.crm.customerGroups',
         path: '/master/customer-groups',
+        permission: MenuPermissions.MasterData.CustomerGroups.View,
       },
       {
         key: 'crm.supplierTypes',
         icon: 'TagIcon',
         labelKey: 'menu.crm.supplierTypes',
         path: '/master/supplier-types',
+        permission: MenuPermissions.MasterData.SupplierTypes.View,
       },
     ],
   },
@@ -2097,30 +2267,35 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
     key: 'advancedPurchasing',
     icon: 'ShoppingBagIcon',
     labelKey: 'menu.advancedPurchasing',
+    permission: MenuPermissions.AdvancedPurchasing.View,
     children: [
       {
         key: 'advancedPurchasing.purchaseOrders',
         icon: 'ClipboardDocumentListIcon',
         labelKey: 'menu.advancedPurchasing.purchaseOrders',
         path: '/purchasing/orders',
+        permission: MenuPermissions.Procurement.PurchaseOrders.View,
       },
       {
         key: 'advancedPurchasing.purchaseReturns',
         icon: 'ArrowUturnLeftIcon',
         labelKey: 'menu.advancedPurchasing.purchaseReturns',
         path: '/purchasing/returns',
+        permission: MenuPermissions.Procurement.View,
       },
       {
         key: 'advancedPurchasing.vendorCreditLimits',
         icon: 'CreditCardIcon',
         labelKey: 'menu.advancedPurchasing.vendorCreditLimits',
         path: '/purchasing/vendor-credit-limits',
+        permission: MenuPermissions.Procurement.View,
       },
       {
         key: 'advancedPurchasing.reports',
         icon: 'ChartBarIcon',
         labelKey: 'menu.advancedPurchasing.reports',
         path: '/reports/purchasing',
+        permission: MenuPermissions.Procurement.Reports.View,
       },
     ],
   },
@@ -2132,12 +2307,14 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
     key: 'advancedCustoms',
     icon: 'BuildingOfficeIcon',
     labelKey: 'menu.advancedCustoms',
+    permission: MenuPermissions.AdvancedCustoms.View,
     children: [
       {
         key: 'advancedCustoms.customsDeclarations',
         icon: 'DocumentTextIcon',
         labelKey: 'menu.advancedCustoms.customsDeclarations',
         path: '/customs/declarations',
+        permission: MenuPermissions.Customs.Declarations.View,
       },
       {
         key: 'advancedCustoms.feeCategories',
@@ -2158,6 +2335,7 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
         icon: 'ChartBarIcon',
         labelKey: 'menu.advancedCustoms.reports',
         path: '/reports/customs',
+        permission: MenuPermissions.AdvancedCustoms.View,
       },
     ],
   },
@@ -2169,12 +2347,14 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
     key: 'costsPricing',
     icon: 'CalculatorIcon',
     labelKey: 'menu.costsPricing',
+    permission: MenuPermissions.CostsPricing.View,
     children: [
       {
         key: 'costsPricing.costItems',
         icon: 'ListBulletIcon',
         labelKey: 'menu.costsPricing.costItems',
         path: '/master/cost-items',
+        permission: MenuPermissions.MasterData.CostItems.View,
       },
       {
         key: 'costsPricing.costElementGroups',
@@ -2188,6 +2368,7 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
         icon: 'CalculatorIcon',
         labelKey: 'menu.costsPricing.pricingMethods',
         path: '/master/pricing-methods',
+        permission: MenuPermissions.MasterData.PricingMethods.View,
       },
       {
         key: 'costsPricing.priceLists',
@@ -2201,12 +2382,14 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
         icon: 'ArrowsRightLeftIcon',
         labelKey: 'menu.costsPricing.exchangeRates',
         path: '/master/exchange-rates',
+        permission: MenuPermissions.MasterData.ExchangeRates.View,
       },
       {
         key: 'costsPricing.reports',
         icon: 'ChartBarIcon',
         labelKey: 'menu.costsPricing.reports',
         path: '/reports/costs-pricing',
+        permission: MenuPermissions.CostsPricing.View,
       },
     ],
   },
@@ -2218,36 +2401,42 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
     key: 'compliance',
     icon: 'ShieldCheckIcon',
     labelKey: 'menu.compliance',
+    permission: MenuPermissions.ComplianceModule.View,
     children: [
       {
         key: 'compliance.conformityCertificates',
         icon: 'DocumentCheckIcon',
         labelKey: 'menu.compliance.conformityCertificates',
         path: '/compliance/conformity-certificates',
+        permission: MenuPermissions.ComplianceModule.ConformityCertificates.View,
       },
       {
         key: 'compliance.originCertificates',
         icon: 'DocumentTextIcon',
         labelKey: 'menu.compliance.originCertificates',
         path: '/compliance/origin-certificates',
+        permission: MenuPermissions.ComplianceModule.OriginCertificates.View,
       },
       {
         key: 'compliance.importExportLicenses',
         icon: 'IdentificationIcon',
         labelKey: 'menu.compliance.importExportLicenses',
         path: '/compliance/licenses',
+        permission: MenuPermissions.ComplianceModule.Licenses.View,
       },
       {
         key: 'compliance.regulationsStandards',
         icon: 'BookOpenIcon',
         labelKey: 'menu.compliance.regulationsStandards',
         path: '/compliance/regulations',
+        permission: MenuPermissions.ComplianceModule.Regulations.View,
       },
       {
         key: 'compliance.reports',
         icon: 'ChartBarIcon',
         labelKey: 'menu.compliance.reports',
         path: '/reports/compliance',
+        permission: MenuPermissions.ComplianceModule.View,
       },
       {
         key: 'compliance.ifrsCompliance',
@@ -2266,49 +2455,54 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
     key: 'hrLinked',
     icon: 'BriefcaseIcon',
     labelKey: 'menu.hrLinked',
+    permission: MenuPermissions.HR.View,
     children: [
       {
         key: 'hrLinked.salaries',
         icon: 'BanknotesIcon',
         labelKey: 'menu.hrLinked.salaries',
         path: '/hr/salaries',
+        permission: MenuPermissions.HR.Payroll.View,
       },
       {
         key: 'hrLinked.advances',
         icon: 'CurrencyDollarIcon',
         labelKey: 'menu.hrLinked.advances',
         path: '/hr/advances',
+        permission: MenuPermissions.HR.View,
       },
       {
         key: 'hrLinked.expenses',
         icon: 'ReceiptPercentIcon',
         labelKey: 'menu.hrLinked.expenses',
         path: '/hr/expenses',
+        permission: MenuPermissions.HR.View,
       },
       {
         key: 'hrLinked.reports',
         icon: 'ChartBarIcon',
         labelKey: 'menu.hrLinked.reports',
         path: '/reports/hr',
+        permission: MenuPermissions.HR.View,
       },
     ],
   },
 
   // ═══════════════════════════════════════════════════════════
-  // ✅ إدارة الاعتمادات (Approval Matrix)
+  // ✅ إدارة الاعتمادات (Approval Workflow Engine)
   // ═══════════════════════════════════════════════════════════
   {
     key: 'approvals',
     icon: 'CheckCircleIcon',
     labelKey: 'menu.approvals',
-    permission: 'approvals:view',
+    permission: 'approval_documents:view',
     children: [
       {
-        key: 'approvals.pending',
-        icon: 'ClockIcon',
-        labelKey: 'menu.approvals.pending',
-        path: '/approvals/pending',
-        permission: 'approvals:view',
+        key: 'approvals.inbox',
+        icon: 'InboxStackIcon',
+        labelKey: 'menu.approvals.inbox',
+        path: '/approvals/inbox',
+        permission: 'approval_documents:view',
         badge: 'pendingApprovals',
       },
       {
@@ -2316,14 +2510,21 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
         icon: 'DocumentTextIcon',
         labelKey: 'menu.approvals.myRequests',
         path: '/approvals/my-requests',
-        permission: 'approvals:view',
+        permission: 'approval_documents:view',
       },
       {
-        key: 'approvals.workflows',
-        icon: 'CogIcon',
-        labelKey: 'menu.approvals.workflows',
-        path: '/approvals/workflows',
-        permission: 'approvals:manage',
+        key: 'approvals.monitor',
+        icon: 'ChartBarIcon',
+        labelKey: 'menu.approvals.monitor',
+        path: '/approvals/monitor',
+        permission: 'approval_documents:monitor',
+      },
+      {
+        key: 'approvals.settings',
+        icon: 'Cog6ToothIcon',
+        labelKey: 'menu.approvals.settings',
+        path: '/approvals/settings',
+        permission: 'approval_routes:view',
       },
     ],
   },
@@ -2368,7 +2569,7 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
         key: 'security.users',
         icon: 'UserGroupIcon',
         labelKey: 'menu.security.users',
-        path: '/admin/users',
+        path: '/master/users',
         permission: MenuPermissions.Users.View,
       },
       {
@@ -2404,6 +2605,14 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
         tenantOnly: true,
       },
       {
+        key: 'security.entityAccess',
+        icon: 'ShieldCheckIcon',
+        labelKey: 'menu.security.entityAccess',
+        path: '/admin/entity-access',
+        permission: MenuPermissions.System.EntityAccess.View,
+        tenantOnly: true,
+      },
+      {
         key: 'security.permissions',
         icon: 'KeyIcon',
         labelKey: 'menu.security.permissions',
@@ -2424,6 +2633,7 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
         icon: 'LockClosedIcon',
         labelKey: 'menu.security.fieldPermissions',
         path: '/admin/field-permissions',
+        permission: MenuPermissions.System.Permissions.View,
         platformOnly: true,
       },
       {
@@ -2431,6 +2641,7 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
         icon: 'CursorArrowRaysIcon',
         labelKey: 'menu.security.buttonPermissions',
         path: '/admin/button-permissions',
+        permission: MenuPermissions.System.Permissions.View,
         platformOnly: true,
       },
       {
@@ -2588,6 +2799,7 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
     key: 'systemSettings',
     icon: 'Cog6ToothIcon',
     labelKey: 'menu.systemSettings',
+    permission: MenuPermissions.System.Settings.View,
     children: [
       {
         key: 'systemSettings.myCompanies',
@@ -2624,6 +2836,7 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
         labelKey: 'menu.systemSettings.backup',
         path: '/system/backup',
         permission: 'backup:view',
+        platformOnly: true,
       },
       {
         key: 'systemSettings.referenceDataDashboard',
@@ -2631,6 +2844,7 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
         labelKey: 'menu.systemSettings.referenceDataDashboard',
         path: '/system/reference-data-dashboard',
         permission: 'backup:view',
+        platformOnly: true,
       },
       {
         key: 'systemSettings.backupSecurity',
@@ -2638,12 +2852,15 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
         labelKey: 'menu.systemSettings.backupSecurity',
         path: '/settings/backup-security',
         permission: 'backup:view',
+        platformOnly: true,
       },
       {
         key: 'systemSettings.securityPolicies',
         icon: 'ShieldCheckIcon',
         labelKey: 'menu.systemSettings.securityPolicies',
         path: '/settings/security-policies',
+        permission: MenuPermissions.System.SystemPolicies.View,
+        platformOnly: true,
       },
       {
         key: 'systemSettings.passwordPolicies',
@@ -2651,6 +2868,7 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
         labelKey: 'menu.systemSettings.passwordPolicies',
         path: '/settings/password-policies',
         permission: MenuPermissions.System.SystemPolicies.View,
+        platformOnly: true,
       },
       {
         key: 'systemSettings.sessionSettings',
@@ -2658,6 +2876,7 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
         labelKey: 'menu.systemSettings.sessionSettings',
         path: '/settings/sessions',
         permission: MenuPermissions.System.SystemPolicies.View,
+        platformOnly: true,
       },
       {
         key: 'systemSettings.auditSettings',
@@ -2679,6 +2898,7 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
         labelKey: 'menu.systemSettings.smtpSettings',
         path: '/settings/smtp',
         permission: MenuPermissions.System.SystemPolicies.View,
+        platformOnly: true,
       },
       {
         key: 'systemSettings.smsWhatsappSettings',
@@ -2686,6 +2906,7 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
         labelKey: 'menu.systemSettings.smsWhatsappSettings',
         path: '/settings/sms-whatsapp',
         permission: MenuPermissions.System.SystemPolicies.View,
+        platformOnly: true,
       },
       {
         key: 'systemSettings.approvalEngine',
@@ -2742,6 +2963,7 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
         labelKey: 'menu.systemSettings.dataGovernance',
         path: '/settings/data-governance',
         permission: MenuPermissions.System.SystemPolicies.View,
+        platformOnly: true,
       },
       {
         key: 'systemSettings.governanceScanner',
@@ -2756,13 +2978,15 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
         labelKey: 'menu.systemSettings.branding',
         path: '/settings/branding',
         permission: MenuPermissions.System.SystemPolicies.View,
+        platformOnly: true,
       },
       {
         key: 'systemSettings.companyProfile',
         icon: 'BuildingOffice2Icon',
         labelKey: 'menu.systemSettings.companyProfile',
         path: '/settings/company-profile',
-        permission: 'tenant_companies:view' as MenuPermission,
+        permission: 'companies:view' as MenuPermission,
+        tenantOnly: true,
       },
       {
         key: 'systemSettings.mfa',
@@ -2770,6 +2994,7 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
         labelKey: 'menu.systemSettings.mfa',
         path: '/settings/mfa',
         permission: MenuPermissions.System.SystemPolicies.View,
+        platformOnly: true,
       },
       {
         key: 'systemSettings.subscription',
@@ -2777,6 +3002,7 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
         labelKey: 'menu.systemSettings.subscription',
         path: '/settings/subscription',
         permission: MenuPermissions.System.SystemPolicies.View,
+        platformOnly: true,
       },
       {
         key: 'systemSettings.modules',
@@ -2784,6 +3010,7 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
         labelKey: 'menu.systemSettings.modules',
         path: '/settings/modules',
         permission: MenuPermissions.System.SystemPolicies.View,
+        platformOnly: true,
       },
       {
         key: 'systemSettings.tenant',
@@ -2799,6 +3026,7 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
         labelKey: 'menu.systemSettings.systemSettingsPage',
         path: '/settings/system-settings',
         permission: MenuPermissions.System.SystemPolicies.View,
+        platformOnly: true,
       },
     ],
   },
@@ -2810,12 +3038,14 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
     key: 'notifications',
     icon: 'BellIcon',
     labelKey: 'menu.notifications',
+    permission: MenuPermissions.Notifications.View,
     children: [
       {
         key: 'notifications.systemNotifications',
         icon: 'BellAlertIcon',
         labelKey: 'menu.notifications.systemNotifications',
         path: '/notifications',
+        permission: MenuPermissions.Notifications.View,
       },
       {
         key: 'notifications.alertRules',
@@ -2850,18 +3080,21 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
         icon: 'CalendarDaysIcon',
         labelKey: 'menu.notifications.paymentReminders',
         path: '/notifications/payment-reminders',
+        permission: MenuPermissions.Notifications.View,
       },
       {
         key: 'notifications.renewalAlerts',
         icon: 'ArrowPathIcon',
         labelKey: 'menu.notifications.renewalAlerts',
         path: '/notifications/renewal-alerts',
+        permission: MenuPermissions.Notifications.View,
       },
       {
         key: 'notifications.reports',
         icon: 'ChartBarIcon',
         labelKey: 'menu.notifications.reports',
         path: '/reports/notifications',
+        permission: MenuPermissions.Notifications.View,
       },
     ],
   },
@@ -2873,6 +3106,7 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
     key: 'advancedWarehouses',
     icon: 'BuildingStorefrontIcon',
     labelKey: 'menu.advancedWarehouses',
+    permission: MenuPermissions.Warehouses.View,
     children: [
       {
         key: 'advancedWarehouses.inventoryBalances',
@@ -2914,6 +3148,7 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
         icon: 'ClockIcon',
         labelKey: 'menu.advancedWarehouses.itemExpiry',
         path: '/inventory/item-expiry',
+        permission: MenuPermissions.Inventory.Stock.View,
       },
       {
         key: 'advancedWarehouses.reports',
@@ -2928,12 +3163,14 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
         icon: 'BuildingStorefrontIcon',
         labelKey: 'menu.advancedWarehouses.warehousesList',
         path: '/warehouses',
+        permission: MenuPermissions.Warehouses.View,
       },
       {
         key: 'advancedWarehouses.shipmentReceiving',
         icon: 'InboxArrowDownIcon',
         labelKey: 'menu.advancedWarehouses.shipmentReceiving',
         path: '/inventory/shipment-receiving',
+        permission: MenuPermissions.Logistics.ShipmentReceiving.View,
       },
     ],
   },
@@ -2976,10 +3213,18 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
         permission: MenuPermissions.Projects.Phases.View,
       },
       {
+        key: 'projects.reports',
+        icon: 'PresentationChartBarIcon',
+        labelKey: 'menu.projects.reports',
+        path: '/projects/reports',
+        permission: 'projects:reports:view',
+      },
+      {
         key: 'projects.contractTypes',
         icon: 'DocumentTextIcon',
         labelKey: 'menu.projects.contractTypes',
         path: '/master/project-contract-types',
+        permission: MenuPermissions.MasterData.ProjectContractTypes.View,
       },
     ],
   },
@@ -2998,6 +3243,7 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
         icon: 'FlagIcon',
         labelKey: 'menu.quality.qualityStatus',
         path: '/master/quality-status',
+        permission: MenuPermissions.MasterData.QualityStatus.View,
       },
       {
         key: 'quality.approvedVendors',
@@ -3030,6 +3276,7 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
         icon: 'ExclamationCircleIcon',
         labelKey: 'menu.risks.riskTypes',
         path: '/master/risk-types',
+        permission: MenuPermissions.MasterData.RiskTypes.View,
       },
       {
         key: 'risks.insuranceDocuments',
@@ -3062,30 +3309,35 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
     key: 'reportsAnalytics',
     icon: 'ChartBarIcon',
     labelKey: 'menu.reportsAnalytics',
+    permission: MenuPermissions.Reports.ReferenceData.View,
     children: [
       {
         key: 'reportsAnalytics.reportTypes',
         icon: 'DocumentChartBarIcon',
         labelKey: 'menu.reportsAnalytics.reportTypes',
         path: '/master/report-types',
+        permission: MenuPermissions.MasterData.ReportTypes.View,
       },
       {
         key: 'reportsAnalytics.kpis',
         icon: 'PresentationChartLineIcon',
         labelKey: 'menu.reportsAnalytics.kpis',
         path: '/reports/kpis',
+        permission: MenuPermissions.Reports.ReferenceData.View,
       },
       {
         key: 'reportsAnalytics.analyticalTemplates',
         icon: 'ChartPieIcon',
         labelKey: 'menu.reportsAnalytics.analyticalTemplates',
         path: '/reports/analytical-templates',
+        permission: MenuPermissions.Reports.ReferenceData.View,
       },
       {
         key: 'reportsAnalytics.mainReports',
         icon: 'ChartBarIcon',
         labelKey: 'menu.reportsAnalytics.mainReports',
         path: '/reports',
+        permission: MenuPermissions.Reports.ReferenceData.View,
       },
     ],
   },
@@ -3097,30 +3349,35 @@ export const LEGACY_MENU_REGISTRY: MenuItemConfig[] = [
     key: 'integrations',
     icon: 'LinkIcon',
     labelKey: 'menu.integrations',
+    permission: MenuPermissions.Integrations.View,
     children: [
       {
         key: 'integrations.paymentGateways',
         icon: 'CreditCardIcon',
         labelKey: 'menu.integrations.paymentGateways',
         path: '/integrations/payment-gateways',
+        permission: MenuPermissions.Integrations.PaymentGateways.View,
       },
       {
         key: 'integrations.shippingCompanies',
         icon: 'TruckIcon',
         labelKey: 'menu.integrations.shippingCompanies',
         path: '/integrations/shipping-companies',
+        permission: MenuPermissions.Integrations.ShippingCompanies.View,
       },
       {
         key: 'integrations.bankIntegration',
         icon: 'BuildingLibraryIcon',
         labelKey: 'menu.integrations.bankIntegration',
         path: '/integrations/banks',
+        permission: MenuPermissions.Integrations.BankIntegration.View,
       },
       {
         key: 'integrations.reports',
         icon: 'ChartBarIcon',
         labelKey: 'menu.integrations.reports',
         path: '/reports/integrations',
+        permission: MenuPermissions.Integrations.View,
       },
     ],
   },
@@ -3231,6 +3488,7 @@ export const MENU_REGISTRY: MenuItemConfig[] = (() => {
 
   // Financials
   const generalAccounting = section('financials.generalAccounting', 'menu.financials.generalAccounting', 'BookOpenIcon', [
+    pick(legacy, 'generalLedger.accounts'),
     pick(legacy, 'generalLedger.journals'),
     pick(legacy, 'generalLedger.ledgerBook'),
     {
@@ -3254,10 +3512,10 @@ export const MENU_REGISTRY: MenuItemConfig[] = (() => {
       path: '/accounting/auto-postings',
       permission: MenuPermissions.Accounting.Accounts.View,
     },
-    pick(legacy, 'generalLedger.costCenters'),
+    pick(legacy, 'financeAccounting.costCenters'),
     pick(legacy, 'generalLedger.openingBalances'),
     pick(legacy, 'generalLedger.financialYears'),
-    pick(legacy, 'generalLedger.fiscalPeriods'),
+    pick(legacy, 'financeAccounting.fiscalPeriods'),
     pick(legacy, 'generalLedger.budgets'),
   ]);
 
@@ -3283,27 +3541,6 @@ export const MENU_REGISTRY: MenuItemConfig[] = (() => {
     pick(legacy, 'generalLedger.chequesDue'),
     pick(legacy, 'generalLedger.bankMatching'),
     pick(legacy, 'generalLedger.bankReconciliation'),
-    // Letters of Credit (الاعتمادات المستندية)
-    {
-      key: 'financials.cashBanks.lettersOfCredit',
-      icon: 'DocumentCheckIcon',
-      labelKey: 'menu.financeAccounting.lettersOfCredit',
-      path: '/finance/letters-of-credit',
-    },
-    // LC Types (أنواع الاعتمادات)
-    {
-      key: 'financials.cashBanks.lcTypes',
-      icon: 'TagIcon',
-      labelKey: 'menu.financeAccounting.lcTypes',
-      path: '/finance/lc-types',
-    },
-    // LC Alerts (تنبيهات الاعتمادات)
-    {
-      key: 'financials.cashBanks.lcAlerts',
-      icon: 'BellAlertIcon',
-      labelKey: 'menu.financeAccounting.lcAlerts',
-      path: '/finance/lc-alerts',
-    },
   ]);
 
   const expensesRevenue = section('financials.expensesRevenue', 'menu.financials.expensesRevenue', 'ReceiptPercentIcon', [
@@ -3318,9 +3555,11 @@ export const MENU_REGISTRY: MenuItemConfig[] = (() => {
   ]);
 
   const financialStatements = section('financials.financialStatements', 'menu.financials.financialStatements', 'ChartBarIcon', [
+    pick(legacy, 'generalLedger.trialBalance'),
+    pick(legacy, 'generalLedger.incomeStatement'),
+    pick(legacy, 'generalLedger.generalLedgerReport'),
     pick(legacy, 'generalLedger.balanceSheet'),
     pick(legacy, 'generalLedger.cashFlow'),
-    pick(legacy, 'generalLedger.reports'),
   ]);
 
   const financials = section('financials', 'menu.financials', 'BanknotesIcon', [
@@ -3329,6 +3568,7 @@ export const MENU_REGISTRY: MenuItemConfig[] = (() => {
     expensesRevenue,
     taxesZakat,
     financialStatements,
+    pick(legacy, 'financeAccounting.lettersOfCredit'),
   ]);
   financials.module = 'accounting';
 
@@ -3341,8 +3581,8 @@ export const MENU_REGISTRY: MenuItemConfig[] = (() => {
 
   // Inventory & Logistics
   const inventoryLogistics = section('inventoryLogistics', 'menu.inventoryLogistics', 'CubeIcon', [
-    withModule(pick(legacy, 'inventory'), 'inventory'),
-    withModule(pick(legacy, 'advancedWarehouses'), 'warehouses'),
+    withModule(pick(legacy, 'inventory'), 'warehousing'),
+    withModule(pick(legacy, 'advancedWarehouses'), 'warehousing'),
     withModule(pick(legacy, 'logistics'), 'shipments'),
     withModule(pick(legacy, 'importExport'), 'customs'),
   ]);
@@ -3356,7 +3596,7 @@ export const MENU_REGISTRY: MenuItemConfig[] = (() => {
 
   // Master Data
   const masterData = section('masterDataHub', 'menu.masterDataHub', 'CircleStackIcon', [
-    pick(legacy, 'generalAdmin'),
+    pick(legacy, 'organization'),
     pick(legacy, 'referenceData'),
   ]);
 
@@ -3528,14 +3768,189 @@ export const MENU_REGISTRY: MenuItemConfig[] = (() => {
     ],
   };
 
+  // E-Commerce Store
+  const ecommerceStore: MenuItemConfig = {
+    key: 'ecommerceStore',
+    labelKey: 'menu.ecommerceStore',
+    icon: 'ShoppingCartIcon',
+    module: 'ecommerce',
+    permission: MenuPermissions.Store.View,
+    children: [
+      {
+        key: 'ecommerceStore.storeSettings',
+        labelKey: 'menu.ecommerceStore.storeSettings',
+        icon: 'Cog6ToothIcon',
+        path: '/ecommerce/settings',
+        permission: MenuPermissions.Store.Settings.View,
+      },
+      {
+        key: 'ecommerceStore.products',
+        labelKey: 'menu.ecommerceStore.products',
+        icon: 'CubeIcon',
+        path: '/ecommerce/products',
+        permission: MenuPermissions.Store.Products.View,
+      },
+      {
+        key: 'ecommerceStore.orders',
+        labelKey: 'menu.ecommerceStore.orders',
+        icon: 'ShoppingBagIcon',
+        path: '/ecommerce/orders',
+        permission: MenuPermissions.Store.Orders.View,
+      },
+      {
+        key: 'ecommerceStore.customers',
+        labelKey: 'menu.ecommerceStore.customers',
+        icon: 'UserGroupIcon',
+        path: '/ecommerce/customers',
+        permission: MenuPermissions.Store.Customers.View,
+      },
+      {
+        key: 'ecommerceStore.coupons',
+        labelKey: 'menu.ecommerceStore.coupons',
+        icon: 'TicketIcon',
+        path: '/ecommerce/coupons',
+        permission: MenuPermissions.Store.Coupons.View,
+      },
+      {
+        key: 'ecommerceStore.reviews',
+        labelKey: 'menu.ecommerceStore.reviews',
+        icon: 'StarIcon',
+        path: '/ecommerce/reviews',
+        permission: MenuPermissions.Store.Reviews.View,
+      },
+      {
+        key: 'ecommerceStore.shipping',
+        labelKey: 'menu.ecommerceStore.shipping',
+        icon: 'TruckIcon',
+        path: '/ecommerce/shipping',
+        permission: MenuPermissions.Store.Shipping.View,
+      },
+      {
+        key: 'ecommerceStore.analytics',
+        labelKey: 'menu.ecommerceStore.analytics',
+        icon: 'ChartBarIcon',
+        path: '/ecommerce/analytics',
+        permission: MenuPermissions.Store.Analytics.View,
+      },
+    ],
+  };
+
+  // Multi-Vendor Marketplace
+  const marketplace: MenuItemConfig = {
+    key: 'marketplace',
+    labelKey: 'menu.marketplace',
+    icon: 'BuildingStorefrontIcon',
+    module: 'marketplace',
+    permission: MenuPermissions.Marketplace.View,
+    children: [
+      {
+        key: 'marketplace.dashboard',
+        labelKey: 'menu.marketplace.dashboard',
+        icon: 'ChartBarIcon',
+        path: '/marketplace/dashboard',
+        permission: MenuPermissions.Marketplace.View,
+      },
+      {
+        key: 'marketplace.vendors',
+        labelKey: 'menu.marketplace.vendors',
+        icon: 'BuildingStorefrontIcon',
+        path: '/marketplace/vendors',
+        permission: MenuPermissions.Marketplace.Vendors.View,
+      },
+      {
+        key: 'marketplace.listings',
+        labelKey: 'menu.marketplace.listings',
+        icon: 'CubeIcon',
+        path: '/marketplace/listings',
+        permission: MenuPermissions.Marketplace.Listings.View,
+      },
+      {
+        key: 'marketplace.orders',
+        labelKey: 'menu.marketplace.orders',
+        icon: 'ShoppingBagIcon',
+        path: '/marketplace/orders',
+        permission: MenuPermissions.Marketplace.Orders.View,
+      },
+      {
+        key: 'marketplace.payouts',
+        labelKey: 'menu.marketplace.payouts',
+        icon: 'BanknotesIcon',
+        path: '/marketplace/payouts',
+        permission: MenuPermissions.Marketplace.Payouts.View,
+      },
+      {
+        key: 'marketplace.settings',
+        labelKey: 'menu.marketplace.settings',
+        icon: 'Cog6ToothIcon',
+        path: '/marketplace/settings',
+        permission: MenuPermissions.Marketplace.Manage,
+      },
+    ],
+  };
+
+  // Vendor Dashboard (for marketplace vendors)
+  const vendorDashboard: MenuItemConfig = {
+    key: 'vendorDashboard',
+    labelKey: 'menu.vendorDashboard',
+    icon: 'BuildingStorefrontIcon',
+    module: 'seller_dashboard',
+    permission: MenuPermissions.VendorDashboard.View,
+    children: [
+      {
+        key: 'vendorDashboard.overview',
+        labelKey: 'menu.vendorDashboard.overview',
+        icon: 'ChartBarIcon',
+        path: '/vendor/dashboard',
+        permission: MenuPermissions.VendorDashboard.View,
+      },
+      {
+        key: 'vendorDashboard.products',
+        labelKey: 'menu.vendorDashboard.products',
+        icon: 'CubeIcon',
+        path: '/vendor/products',
+        permission: MenuPermissions.VendorDashboard.Listings.View,
+      },
+      {
+        key: 'vendorDashboard.orders',
+        labelKey: 'menu.vendorDashboard.orders',
+        icon: 'ShoppingBagIcon',
+        path: '/vendor/orders',
+        permission: MenuPermissions.VendorDashboard.Orders.View,
+      },
+      {
+        key: 'vendorDashboard.wallet',
+        labelKey: 'menu.vendorDashboard.wallet',
+        icon: 'WalletIcon',
+        path: '/vendor/wallet',
+        permission: MenuPermissions.VendorDashboard.Wallet.View,
+      },
+      {
+        key: 'vendorDashboard.payouts',
+        labelKey: 'menu.vendorDashboard.payouts',
+        icon: 'BanknotesIcon',
+        path: '/vendor/payouts',
+        permission: MenuPermissions.VendorDashboard.Payouts.View,
+      },
+      {
+        key: 'vendorDashboard.settings',
+        labelKey: 'menu.vendorDashboard.settings',
+        icon: 'Cog6ToothIcon',
+        path: '/vendor/settings',
+        permission: MenuPermissions.VendorDashboard.Settings.View,
+      },
+    ],
+  };
+
   return dedupeMenuByPath(
     [
       home,
       myRequests,
-      generalLedgerSystem,
       financials,
       businessOperations,
       inventoryLogistics,
+      ecommerceStore,
+      marketplace,
+      vendorDashboard,
       assetsResources,
       masterData,
       adminSecurity,
@@ -3569,4 +3984,67 @@ export function getAllPermissions(): string[] {
   }
   extractPermissions(MENU_REGISTRY);
   return [...new Set(permissions)];
+}
+
+// ─── Tenant Module Tree Helpers ──────────────────────────────────────────────
+
+/** Screen node for tenant module tree display */
+export interface ModuleScreenNode {
+  key: string;
+  labelKey: string;
+  icon: string;
+  path?: string;
+  children?: ModuleScreenNode[];
+}
+
+/**
+ * Build a map of module_code → screen tree nodes from MENU_REGISTRY.
+ * Used by the tenant management page to show which screens each module includes.
+ * Excludes platformOnly items.
+ */
+export function getModuleScreenMap(): Record<string, ModuleScreenNode[]> {
+  const map: Record<string, ModuleScreenNode[]> = {};
+
+  function toNode(item: MenuItemConfig): ModuleScreenNode | null {
+    if (item.platformOnly) return null;
+    const children = item.children
+      ?.map(toNode)
+      .filter((c): c is ModuleScreenNode => c !== null);
+    if (!item.path && (!children || children.length === 0)) return null;
+    return {
+      key: item.key,
+      labelKey: item.labelKey,
+      icon: item.icon,
+      path: item.path,
+      ...(children && children.length > 0 ? { children } : {}),
+    };
+  }
+
+  function collect(items: MenuItemConfig[]) {
+    for (const item of items) {
+      if (item.platformOnly) continue;
+      if (item.module) {
+        const node = toNode(item);
+        if (node) {
+          if (!map[item.module]) map[item.module] = [];
+          map[item.module].push(node);
+        }
+      } else if (item.children) {
+        collect(item.children);
+      }
+    }
+  }
+
+  collect(MENU_REGISTRY);
+  return map;
+}
+
+/** Count total leaf screens (paths) in a node tree */
+export function countModuleScreens(nodes: ModuleScreenNode[]): number {
+  let count = 0;
+  for (const node of nodes) {
+    if (node.path) count++;
+    if (node.children) count += countModuleScreens(node.children);
+  }
+  return count;
 }

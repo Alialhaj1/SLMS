@@ -7,7 +7,7 @@ import { useToast } from '@/contexts/ToastContext';
 import { ShieldCheckIcon, CheckCircleIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 
 interface CheckItem {
-  label: string;
+  key: string;
   done: boolean;
   critical?: boolean;
 }
@@ -23,56 +23,56 @@ const buildSections = (): Section[] => [
   {
     name: 'Security', icon: '🔒', color: 'blue',
     items: [
-      { label: 'JWT authentication with refresh tokens', done: true },
-      { label: 'RBAC permission system enforced on all routes', done: true },
-      { label: 'Bcrypt password hashing (cost factor 12)', done: true },
-      { label: 'SQL injection prevention (parameterized queries)', done: true },
-      { label: 'Rate limiting on auth endpoints', done: false, critical: true },
-      { label: 'CORS properly configured for production', done: false },
-      { label: 'HTTPS enforced on all endpoints', done: true },
-      { label: 'Sensitive data never logged', done: true },
+      { key: 'jwt_auth', done: true },
+      { key: 'rbac', done: true },
+      { key: 'bcrypt', done: true },
+      { key: 'sql_injection', done: true },
+      { key: 'rate_limiting', done: false, critical: true },
+      { key: 'cors', done: false },
+      { key: 'https', done: true },
+      { key: 'sensitive_data', done: true },
     ],
   },
   {
     name: 'Compliance', icon: '📋', color: 'green',
     items: [
-      { label: 'Audit logging for all mutations', done: true },
-      { label: 'Soft deletes with retention policy', done: true },
-      { label: 'Data export capability (GDPR)', done: false },
-      { label: 'User consent tracking', done: false },
-      { label: 'Password policy enforcement', done: true },
-      { label: 'Session timeout configuration', done: false },
+      { key: 'audit_logging', done: true },
+      { key: 'soft_deletes', done: true },
+      { key: 'data_export', done: false },
+      { key: 'user_consent', done: false },
+      { key: 'password_policy', done: true },
+      { key: 'session_timeout', done: false },
     ],
   },
   {
     name: 'Performance', icon: '⚡', color: 'yellow',
     items: [
-      { label: 'Database connection pooling', done: true },
-      { label: 'Query optimization & indexing', done: true },
-      { label: 'API response caching (Redis)', done: false },
-      { label: 'Frontend code splitting (Next.js)', done: true },
-      { label: 'Image optimization', done: false },
-      { label: 'Load testing completed', done: false, critical: true },
+      { key: 'db_pooling', done: true },
+      { key: 'query_optimization', done: true },
+      { key: 'redis_caching', done: false },
+      { key: 'code_splitting', done: true },
+      { key: 'image_optimization', done: false },
+      { key: 'load_testing', done: false, critical: true },
     ],
   },
   {
     name: 'Scalability', icon: '📈', color: 'purple',
     items: [
-      { label: 'Multi-tenant architecture', done: true },
-      { label: 'Horizontal scaling support (Docker)', done: true },
-      { label: 'Message queue integration (RabbitMQ)', done: true },
-      { label: 'Database read replicas', done: false },
-      { label: 'CDN for static assets', done: false },
+      { key: 'multi_tenant', done: true },
+      { key: 'horizontal_scaling', done: true },
+      { key: 'message_queue', done: true },
+      { key: 'read_replicas', done: false },
+      { key: 'cdn', done: false },
     ],
   },
   {
     name: 'Documentation', icon: '📄', color: 'gray',
     items: [
-      { label: 'API documentation complete', done: true },
-      { label: 'Deployment guide available', done: true },
-      { label: 'Developer onboarding guide', done: false },
-      { label: 'Architecture decision records', done: false },
-      { label: 'User manual / help system', done: false, critical: true },
+      { key: 'api_docs', done: true },
+      { key: 'deployment_guide', done: true },
+      { key: 'onboarding_guide', done: false },
+      { key: 'adr', done: false },
+      { key: 'user_manual', done: false, critical: true },
     ],
   },
 ];
@@ -111,20 +111,20 @@ export default function EnterpriseReadinessPage() {
 
   return (
     <MainLayout>
-      <Head><title>{t('enterpriseReadiness.title') || 'Enterprise Readiness'} - SLMS</title></Head>
+      <Head><title>{t('adminEnterpriseReadiness.title')} - SLMS</title></Head>
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
               <ShieldCheckIcon className="w-7 h-7 text-blue-500" />
-              {t('enterpriseReadiness.title') || 'Enterprise Readiness'}
+              {t('adminEnterpriseReadiness.title')}
             </h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('enterpriseReadiness.subtitle') || 'Track production-readiness across key areas'}</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('adminEnterpriseReadiness.subtitle')}</p>
           </div>
           {!loading && (
             <div className="text-right">
               <p className="text-3xl font-bold text-gray-900 dark:text-white">{overallPct}%</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">{doneItems}/{totalItems} items complete</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">{doneItems}/{totalItems} {t('adminEnterpriseReadiness.itemsComplete')}</p>
             </div>
           )}
         </div>
@@ -142,7 +142,7 @@ export default function EnterpriseReadinessPage() {
               <div key={section.name} className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-base font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                    <span>{section.icon}</span> {section.name}
+                    <span>{section.icon}</span> {t(`adminEnterpriseReadiness.sections.${section.name}`)}
                   </h3>
                   <span className="text-sm font-bold text-gray-600 dark:text-gray-300">{pct}%</span>
                 </div>
@@ -158,8 +158,8 @@ export default function EnterpriseReadinessPage() {
                         <ExclamationTriangleIcon className={`w-5 h-5 flex-shrink-0 mt-0.5 ${item.critical ? 'text-red-500' : 'text-gray-300 dark:text-slate-600'}`} />
                       )}
                       <span className={`${item.done ? 'text-gray-600 dark:text-gray-400 line-through' : 'text-gray-900 dark:text-white'} ${item.critical && !item.done ? 'font-medium' : ''}`}>
-                        {item.label}
-                        {item.critical && !item.done && <span className="ml-1 text-xs text-red-500 font-semibold">CRITICAL</span>}
+                        {t(`adminEnterpriseReadiness.items.${item.key}`)}
+                        {item.critical && !item.done && <span className="ml-1 text-xs text-red-500 font-semibold">{t('adminEnterpriseReadiness.critical')}</span>}
                       </span>
                     </li>
                   ))}

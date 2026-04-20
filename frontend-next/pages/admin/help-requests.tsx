@@ -114,7 +114,7 @@ export default function HelpRequestsPage() {
       setRequests(data.data || data.requests || []);
     } catch (error) {
       console.error('Error fetching help requests:', error);
-      showToast('Failed to load help requests', 'error');
+      showToast(t('adminHelpRequests.loadFailed'), 'error');
     } finally {
       setLoading(false);
     }
@@ -147,14 +147,14 @@ export default function HelpRequestsPage() {
         throw new Error('Failed to update request');
       }
 
-      showToast(`Request ${newStatus} successfully`, 'success');
+      showToast(t('adminHelpRequests.updateSuccess'), 'success');
       setIsModalOpen(false);
       setAdminResponse('');
       setSelectedRequest(null);
       fetchRequests();
     } catch (error) {
       console.error('Error updating request:', error);
-      showToast('Failed to update request', 'error');
+      showToast(t('adminHelpRequests.updateFailed'), 'error');
     } finally {
       setUpdating(false);
     }
@@ -168,10 +168,10 @@ export default function HelpRequestsPage() {
 
   const getStatusBadge = (status: string) => {
     const badges = {
-      pending: { color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400', label: 'Pending' },
-      approved: { color: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400', label: 'Approved' },
-      rejected: { color: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400', label: 'Rejected' },
-      resolved: { color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400', label: 'Resolved' },
+      pending: { color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400', label: t('adminHelpRequests.pending') },
+      approved: { color: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400', label: t('adminHelpRequests.approved') },
+      rejected: { color: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400', label: t('adminHelpRequests.rejected') },
+      resolved: { color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400', label: t('adminHelpRequests.resolved') },
     };
     const badge = badges[status as keyof typeof badges] || badges.pending;
     return (
@@ -183,9 +183,9 @@ export default function HelpRequestsPage() {
 
   const getTypeLabel = (type: string) => {
     const types = {
-      access_request: 'Access Request',
-      permission_request: 'Permission Request',
-      general_support: 'General Support',
+      access_request: t('adminHelpRequests.accessRequest'),
+      permission_request: t('adminHelpRequests.permissionRequest'),
+      general_support: t('adminHelpRequests.generalSupport'),
     };
     return types[type as keyof typeof types] || type;
   };
@@ -193,7 +193,7 @@ export default function HelpRequestsPage() {
   if (loading) {
     return (
       <MainLayout>
-        <Head><title>Help Requests | SLMS</title></Head>
+        <Head><title>{t('adminHelpRequests.title')} | SLMS</title></Head>
         <div className="flex items-center justify-center min-h-screen">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
         </div>
@@ -204,7 +204,7 @@ export default function HelpRequestsPage() {
   return (
     <MainLayout>
       <Head>
-        <title>Help Requests | SLMS</title>
+        <title>{t('adminHelpRequests.title')} | SLMS</title>
       </Head>
 
       <div className="p-6">
@@ -213,11 +213,11 @@ export default function HelpRequestsPage() {
           <div className="flex items-center gap-3 mb-2">
             <QuestionMarkCircleIcon className="w-8 h-8 text-primary-600" />
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-              Help Requests
+              {t('adminHelpRequests.title')}
             </h1>
           </div>
           <p className="text-gray-600 dark:text-gray-400">
-            Manage user help requests and access permission requests
+            {t('adminHelpRequests.subtitle')}
           </p>
         </div>
 
@@ -225,38 +225,38 @@ export default function HelpRequestsPage() {
         <Card className="mb-6 p-4">
           <div className="flex items-center gap-2 mb-4">
             <FunnelIcon className="w-5 h-5 text-gray-500" />
-            <h3 className="font-medium text-gray-900 dark:text-white">Filters</h3>
+            <h3 className="font-medium text-gray-900 dark:text-white">{t('adminHelpRequests.filters')}</h3>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Status
+                {t('adminHelpRequests.status')}
               </label>
               <select
                 value={filterStatus}
                 onChange={(e) => setFilterStatus(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
               >
-                <option value="all">All Statuses</option>
-                <option value="pending">Pending</option>
-                <option value="approved">Approved</option>
-                <option value="rejected">Rejected</option>
-                <option value="resolved">Resolved</option>
+                <option value="all">{t('adminHelpRequests.allStatuses')}</option>
+                <option value="pending">{t('adminHelpRequests.pending')}</option>
+                <option value="approved">{t('adminHelpRequests.approved')}</option>
+                <option value="rejected">{t('adminHelpRequests.rejected')}</option>
+                <option value="resolved">{t('adminHelpRequests.resolved')}</option>
               </select>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Type
+                {t('adminHelpRequests.type')}
               </label>
               <select
                 value={filterType}
                 onChange={(e) => setFilterType(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
               >
-                <option value="all">All Types</option>
-                <option value="access_request">Access Request</option>
-                <option value="permission_request">Permission Request</option>
-                <option value="general_support">General Support</option>
+                <option value="all">{t('adminHelpRequests.allTypes')}</option>
+                <option value="access_request">{t('adminHelpRequests.accessRequest')}</option>
+                <option value="permission_request">{t('adminHelpRequests.permissionRequest')}</option>
+                <option value="general_support">{t('adminHelpRequests.generalSupport')}</option>
               </select>
             </div>
           </div>
@@ -265,14 +265,14 @@ export default function HelpRequestsPage() {
         {/* Requests Count */}
         <div className="mb-4 flex items-center justify-between">
           <p className="text-sm text-gray-600 dark:text-gray-400">
-            {requests.length} request{requests.length !== 1 ? 's' : ''} found
+            {t('adminHelpRequests.requestsFound', { count: requests.length })}
           </p>
           <Button
             onClick={fetchRequests}
             variant="secondary"
             size="sm"
           >
-            Refresh
+            {t('adminHelpRequests.refresh')}
           </Button>
         </div>
 
@@ -281,12 +281,12 @@ export default function HelpRequestsPage() {
           <Card className="p-8 text-center">
             <QuestionMarkCircleIcon className="w-16 h-16 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-              No help requests found
+              {t('adminHelpRequests.noRequests')}
             </h3>
             <p className="text-gray-600 dark:text-gray-400">
               {filterStatus !== 'all' || filterType !== 'all'
-                ? 'Try adjusting your filters'
-                : 'No users have submitted help requests yet'}
+                ? t('adminHelpRequests.adjustFilters')
+                : t('adminHelpRequests.noRequestsYet')}
             </p>
           </Card>
         ) : (
@@ -320,7 +320,7 @@ export default function HelpRequestsPage() {
                     variant="primary"
                     size="sm"
                   >
-                    Review
+                    {t('adminHelpRequests.review')}
                   </Button>
                 </div>
 
@@ -334,7 +334,7 @@ export default function HelpRequestsPage() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
                     {request.requested_permission && (
                       <div className="text-sm">
-                        <span className="font-medium text-gray-700 dark:text-gray-300">Requested Permission: </span>
+                        <span className="font-medium text-gray-700 dark:text-gray-300">{t('adminHelpRequests.requestedPermission')}: </span>
                         <code className="px-2 py-0.5 bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400 rounded">
                           {request.requested_permission}
                         </code>
@@ -342,7 +342,7 @@ export default function HelpRequestsPage() {
                     )}
                     {request.requested_page && (
                       <div className="text-sm">
-                        <span className="font-medium text-gray-700 dark:text-gray-300">Requested Page: </span>
+                        <span className="font-medium text-gray-700 dark:text-gray-300">{t('adminHelpRequests.requestedPage')}: </span>
                         <code className="px-2 py-0.5 bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400 rounded">
                           {request.requested_page}
                         </code>
@@ -353,13 +353,13 @@ export default function HelpRequestsPage() {
 
                 {request.admin_response && (
                   <div className="border-t border-gray-200 dark:border-gray-700 pt-3 mt-3">
-                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Admin Response:</p>
+                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{t('adminHelpRequests.adminResponse')}:</p>
                     <p className="text-sm text-gray-600 dark:text-gray-400">
                       {request.admin_response}
                     </p>
                     {request.resolved_by_name && (
                       <p className="text-xs text-gray-500 dark:text-gray-500 mt-2">
-                        Resolved by {request.resolved_by_name} on {new Date(request.resolved_at!).toLocaleString()}
+                        {t('adminHelpRequests.resolvedBy', { name: request.resolved_by_name || '', date: new Date(request.resolved_at!).toLocaleString() })}
                       </p>
                     )}
                   </div>
@@ -374,18 +374,18 @@ export default function HelpRequestsPage() {
       <Modal
         isOpen={isModalOpen}
         onClose={() => !updating && setIsModalOpen(false)}
-        title="Review Help Request"
+        title={t('adminHelpRequests.reviewTitle')}
         size="lg"
       >
         {selectedRequest && (
           <div className="space-y-4">
             <div>
-              <h4 className="font-medium text-gray-900 dark:text-white mb-1">Subject</h4>
+              <h4 className="font-medium text-gray-900 dark:text-white mb-1">{t('adminHelpRequests.subject')}</h4>
               <p className="text-gray-700 dark:text-gray-300">{selectedRequest.subject}</p>
             </div>
 
             <div>
-              <h4 className="font-medium text-gray-900 dark:text-white mb-1">Message</h4>
+              <h4 className="font-medium text-gray-900 dark:text-white mb-1">{t('adminHelpRequests.message')}</h4>
               <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
                 <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
                   {selectedRequest.message}
@@ -394,14 +394,14 @@ export default function HelpRequestsPage() {
             </div>
 
             <div>
-              <h4 className="font-medium text-gray-900 dark:text-white mb-1">User Information</h4>
+              <h4 className="font-medium text-gray-900 dark:text-white mb-1">{t('adminHelpRequests.userInfo')}</h4>
               <div className="grid grid-cols-2 gap-2 text-sm">
                 <div>
-                  <span className="text-gray-600 dark:text-gray-400">Email: </span>
+                  <span className="text-gray-600 dark:text-gray-400">{t('adminHelpRequests.email')}: </span>
                   <span className="text-gray-900 dark:text-white">{selectedRequest.user_email}</span>
                 </div>
                 <div>
-                  <span className="text-gray-600 dark:text-gray-400">Company: </span>
+                  <span className="text-gray-600 dark:text-gray-400">{t('adminHelpRequests.company')}: </span>
                   <span className="text-gray-900 dark:text-white">{selectedRequest.company_name}</span>
                 </div>
               </div>
@@ -409,10 +409,10 @@ export default function HelpRequestsPage() {
 
             {(selectedRequest.requested_permission || selectedRequest.requested_page) && (
               <div>
-                <h4 className="font-medium text-gray-900 dark:text-white mb-2">Request Details</h4>
+                <h4 className="font-medium text-gray-900 dark:text-white mb-2">{t('adminHelpRequests.requestDetails')}</h4>
                 {selectedRequest.requested_permission && (
                   <div className="mb-2">
-                    <span className="text-sm text-gray-600 dark:text-gray-400">Permission: </span>
+                    <span className="text-sm text-gray-600 dark:text-gray-400">{t('adminHelpRequests.requestedPermission')}: </span>
                     <code className="px-2 py-1 bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400 rounded text-sm">
                       {selectedRequest.requested_permission}
                     </code>
@@ -420,7 +420,7 @@ export default function HelpRequestsPage() {
                 )}
                 {selectedRequest.requested_page && (
                   <div>
-                    <span className="text-sm text-gray-600 dark:text-gray-400">Page: </span>
+                    <span className="text-sm text-gray-600 dark:text-gray-400">{t('adminHelpRequests.requestedPage')}: </span>
                     <code className="px-2 py-1 bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400 rounded text-sm">
                       {selectedRequest.requested_page}
                     </code>
@@ -431,10 +431,10 @@ export default function HelpRequestsPage() {
 
             <div>
               <Input
-                label="Admin Response"
+                label={t('adminHelpRequests.adminResponse')}
                 value={adminResponse}
                 onChange={(e) => setAdminResponse(e.target.value)}
-                placeholder="Enter your response or reason..."
+                placeholder={t('adminHelpRequests.responsePlaceholder')}
                 multiline
                 rows={4}
               />
@@ -449,7 +449,7 @@ export default function HelpRequestsPage() {
                   className="flex-1"
                 >
                   <CheckCircleIcon className="w-5 h-5 mr-2" />
-                  Approve
+                  {t('adminHelpRequests.approve')}
                 </Button>
                 <Button
                   onClick={() => handleUpdateStatus('rejected')}
@@ -458,7 +458,7 @@ export default function HelpRequestsPage() {
                   className="flex-1"
                 >
                   <XCircleIcon className="w-5 h-5 mr-2" />
-                  Reject
+                  {t('adminHelpRequests.reject')}
                 </Button>
                 <Button
                   onClick={() => handleUpdateStatus('resolved')}
@@ -467,7 +467,7 @@ export default function HelpRequestsPage() {
                   className="flex-1"
                 >
                   <ClockIcon className="w-5 h-5 mr-2" />
-                  Resolve
+                  {t('adminHelpRequests.resolve')}
                 </Button>
               </div>
             )}
@@ -479,7 +479,7 @@ export default function HelpRequestsPage() {
                   variant="secondary"
                   className="w-full"
                 >
-                  Close
+                  {t('adminHelpRequests.close')}
                 </Button>
               </div>
             )}

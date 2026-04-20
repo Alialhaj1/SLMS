@@ -165,9 +165,24 @@ router.get(
       );
       const total = countResult.rows[0].total;
 
-      // Get paginated data
+      // Get company base currency
+      const companyResult = await pool.query(
+        `SELECT COALESCE(default_currency, 'SAR') as base_currency FROM companies WHERE id = $1 AND deleted_at IS NULL`,
+        [companyId]
+      );
+      const baseCurrencyCode = companyResult.rows[0]?.base_currency || 'SAR';
+
+      // Get paginated data with rate_vs_base computed column
       const result = await pool.query(
-        `SELECT 
+        `WITH base_cur AS (
+           SELECT cu.id, cu.code
+           FROM currencies cu
+           WHERE cu.code = '${baseCurrencyCode}'
+             AND cu.deleted_at IS NULL
+           ORDER BY cu.id ASC
+           LIMIT 1
+         )
+         SELECT 
            er.id,
            er.company_id,
            er.from_currency_id,
@@ -188,13 +203,33 @@ router.get(
            er.created_by,
            u.email as created_by_email,
            er.created_at,
-           er.updated_at
+           er.updated_at,
+           (SELECT bc.code FROM base_cur bc) as company_base_currency,
+           CASE
+             WHEN tc.code = (SELECT bc.code FROM base_cur bc)
+               THEN er.rate::numeric
+             WHEN fc.code = (SELECT bc.code FROM base_cur bc)
+               THEN ROUND((1.0 / NULLIF(er.rate, 0))::numeric, 6)
+             ELSE (
+               SELECT ROUND((sub.rate / NULLIF(er.rate, 0))::numeric, 6)
+               FROM exchange_rates sub
+               WHERE sub.company_id = er.company_id
+                 AND sub.from_currency_id = er.from_currency_id
+                 AND sub.to_currency_id = (SELECT bc.id FROM base_cur bc)
+                 AND sub.is_active = true
+                 AND sub.deleted_at IS NULL
+               ORDER BY sub.rate_date DESC
+               LIMIT 1
+             )
+           END as rate_vs_base
          FROM exchange_rates er
          LEFT JOIN currencies fc ON fc.id = er.from_currency_id
          LEFT JOIN currencies tc ON tc.id = er.to_currency_id
          LEFT JOIN users u ON u.id = er.created_by
          WHERE ${whereClause}
-         ORDER BY er.rate_date DESC, er.created_at DESC
+         ORDER BY 
+           CASE WHEN er.rate != 1.0 THEN 0 ELSE 1 END,
+           er.rate_date DESC, er.created_at DESC
          LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
         [...params, limitNum, offset]
       );
@@ -202,6 +237,9 @@ router.get(
       return res.json({
         success: true,
         data: result.rows,
+        meta: {
+          base_currency: baseCurrencyCode,
+        },
         pagination: {
           page: pageNum,
           limit: limitNum,
@@ -712,11 +750,18 @@ router.post(
     try {
       const companyId = req.companyId;
       const userId = (req as any).user?.id ?? null;
-      const { base_currency_code = 'USD', target_currencies } = req.body;
+      const { target_currencies } = req.body;
+
+      // Use company's default currency as base (fall back to USD if not set)
+      const companyRow = await pool.query(
+        `SELECT COALESCE(default_currency, 'SAR') as base FROM companies WHERE id = $1 AND deleted_at IS NULL`,
+        [companyId]
+      );
+      const base_currency_code: string = req.body.base_currency_code || companyRow.rows[0]?.base || 'SAR';
 
       // Get base currency
       const baseCurrency = await pool.query(
-        'SELECT id, code FROM currencies WHERE code = $1 AND deleted_at IS NULL',
+        'SELECT id, code FROM currencies WHERE code = $1 AND deleted_at IS NULL ORDER BY id ASC LIMIT 1',
         [base_currency_code]
       );
 
@@ -746,27 +791,31 @@ router.post(
       }
 
       // In a real implementation, you would call an external API here
-      // For now, we'll return a placeholder response
+      // Mock rates: expressed as "how many [target] per 1 [base]"
       const today = new Date().toISOString().split('T')[0];
       const syncedRates: any[] = [];
       const errors: any[] = [];
 
-      // Simulate API rates (in production, replace with actual API call)
-      const mockApiRates: Record<string, number> = {
-        'SAR': 3.75,
-        'EUR': 0.92,
-        'GBP': 0.79,
-        'AED': 3.67,
-        'EGP': 30.90,
-        'JPY': 149.50,
-        'CNY': 7.24,
+      // Mock rates keyed by base → target currency code
+      // Values represent: 1 [base] = X [target]
+      const mockRatesByBase: Record<string, Record<string, number>> = {
+        'USD': { 'SAR': 3.75, 'EUR': 0.92, 'GBP': 0.79, 'AED': 3.67, 'EGP': 30.90, 'JPY': 149.50, 'CNY': 7.24, 'KWD': 0.31, 'BHD': 0.376, 'OMR': 0.385, 'QAR': 3.64, 'INR': 83.20, 'TRY': 32.10 },
+        'SAR': { 'USD': 0.2667, 'EUR': 0.2453, 'GBP': 0.2107, 'AED': 0.9787, 'EGP': 8.24, 'JPY': 39.87, 'CNY': 1.931, 'KWD': 0.0827, 'BHD': 0.1003, 'OMR': 0.1027, 'QAR': 0.9707, 'INR': 22.19, 'TRY': 8.56 },
+        'EUR': { 'USD': 1.087, 'SAR': 4.076, 'GBP': 0.858, 'AED': 3.989, 'JPY': 162.5, 'CNY': 7.87, 'KWD': 0.337 },
+        'GBP': { 'USD': 1.267, 'SAR': 4.747, 'EUR': 1.165, 'AED': 4.648, 'JPY': 189.4, 'CNY': 9.170 },
       };
+      const mockApiRates: Record<string, number> = mockRatesByBase[base_currency_code] || mockRatesByBase['SAR'];
 
       for (const currency of currencies.rows) {
         if (currency.code === base_currency_code) continue;
 
         try {
-          const rate = mockApiRates[currency.code] || 1;
+          const rate = mockApiRates[currency.code];
+          // Skip currencies that don't have a known rate (avoid storing fake 1.0 rates)
+          if (rate == null || rate <= 0) {
+            errors.push({ currency: currency.code, error: 'Rate not available in mock data' });
+            continue;
+          }
 
           // Check if rate already exists for today
           const existing = await pool.query(
@@ -920,9 +969,11 @@ router.get(
       );
 
       if (baseToForeignRate.rows.length > 0) {
-        // Rate stored as SAR -> USD = 3.757, return directly as 1 USD = 3.757 SAR
-        const rate = parseFloat(baseToForeignRate.rows[0].rate);
-        console.log(`[Exchange Rate] Found base→foreign rate (${baseCurrencyCode}→${currency_code}): ${rate}`);
+        // Rate stored as SAR→USD = 0.2667 meaning "1 SAR = 0.2667 USD"
+        // We need "1 USD = ? SAR" = 1/0.2667 = 3.75 for use in forms
+        const storedRate = parseFloat(baseToForeignRate.rows[0].rate);
+        const rate = storedRate !== 0 ? parseFloat((1 / storedRate).toFixed(6)) : 1;
+        console.log(`[Exchange Rate] Found base→foreign rate (${baseCurrencyCode}→${currency_code}): ${storedRate} → inverted: ${rate}`);
         return res.json({
           success: true,
           data: {

@@ -32,7 +32,7 @@ router.use(authenticate, loadCompanyContext);
  */
 router.get('/vendor-aging', authenticate, requirePermission('procurement:reports:view'), async (req: Request, res: Response) => {
   try {
-    const companyId = req.user!.companyId;
+    const companyId = (req as any).companyContext?.companyId || (req as any).companyId;
     const currencyCode = req.query.currency_code as string | undefined;
     const asOfDate = req.query.as_of_date as string || new Date().toISOString().split('T')[0];
 
@@ -44,13 +44,13 @@ router.get('/vendor-aging', authenticate, requirePermission('procurement:reports
     let targetCurrency = currencyCode;
     if (!targetCurrency) {
       const companyResult = await pool.query(
-        'SELECT base_currency_code FROM companies WHERE id = $1 AND deleted_at IS NULL',
+        'SELECT default_currency FROM companies WHERE id = $1 AND deleted_at IS NULL',
         [companyId]
       );
       if (companyResult.rows.length === 0) {
         return res.status(404).json({ error: 'Company not found' });
       }
-      targetCurrency = companyResult.rows[0].base_currency_code || 'SAR';
+      targetCurrency = companyResult.rows[0].default_currency || 'SAR';
     }
 
     // Query vendor aging with buckets
@@ -61,38 +61,24 @@ router.get('/vendor-aging', authenticate, requirePermission('procurement:reports
           pi.id as invoice_id,
           pi.invoice_number,
           pi.due_date,
-          pi.currency_code,
           pi.total_amount,
-          COALESCE(
-            (SELECT SUM(amount) 
-             FROM vendor_balance_transactions 
-             WHERE invoice_id = pi.id 
-               AND transaction_type = 'payment' 
-               AND deleted_at IS NULL
-            ), 0
-          ) as paid_amount,
-          (pi.total_amount - COALESCE(
-            (SELECT SUM(amount) 
-             FROM vendor_balance_transactions 
-             WHERE invoice_id = pi.id 
-               AND transaction_type = 'payment' 
-               AND deleted_at IS NULL
-            ), 0
-          )) as outstanding_amount,
-          DATE_PART('day', $3::date - pi.due_date) as days_overdue
+          pi.balance as outstanding_amount,
+          ($3::date - pi.due_date::date) as days_overdue
         FROM purchase_invoices pi
+        JOIN currencies c ON pi.currency_id = c.id
         WHERE pi.company_id = $1
-          AND pi.currency_code = $2
+          AND c.code = $2
           AND pi.is_posted = true
           AND pi.status NOT IN ('cancelled', 'draft')
           AND pi.deleted_at IS NULL
+          AND pi.balance > 0
           AND pi.due_date <= $3::date
       )
       SELECT
         v.id as vendor_id,
         v.code as vendor_code,
         v.name as vendor_name,
-        v.name_arabic as vendor_name_arabic,
+        v.name_ar as vendor_name_arabic,
         $2 as currency_code,
         -- Current (not yet due or due today)
         COALESCE(SUM(CASE WHEN ib.days_overdue <= 0 THEN ib.outstanding_amount ELSE 0 END), 0) as current_balance,
@@ -110,7 +96,7 @@ router.get('/vendor-aging', authenticate, requirePermission('procurement:reports
       LEFT JOIN invoice_balances ib ON v.id = ib.vendor_id
       WHERE v.company_id = $1
         AND v.deleted_at IS NULL
-      GROUP BY v.id, v.code, v.name, v.name_arabic
+      GROUP BY v.id, v.code, v.name, v.name_ar
       HAVING COALESCE(SUM(ib.outstanding_amount), 0) > 0
       ORDER BY total_balance DESC
     `;
@@ -165,7 +151,7 @@ router.get('/vendor-aging', authenticate, requirePermission('procurement:reports
  */
 router.get('/price-variance', authenticate, requirePermission('procurement:reports:view'), async (req: Request, res: Response) => {
   try {
-    const companyId = req.user!.companyId;
+    const companyId = (req as any).companyContext?.companyId || (req as any).companyId;
     const threshold = parseFloat(req.query.threshold as string) || 5.0;
     const fromDate = req.query.from_date as string;
     const toDate = req.query.to_date as string;
@@ -195,7 +181,7 @@ router.get('/price-variance', authenticate, requirePermission('procurement:repor
           poi.item_id,
           AVG(poi.unit_price) as avg_po_price,
           COUNT(DISTINCT po.id) as po_count,
-          SUM(poi.quantity) as total_po_qty
+          SUM(poi.ordered_qty) as total_po_qty
         FROM purchase_order_items poi
         JOIN purchase_orders po ON poi.order_id = po.id
         WHERE po.company_id = $1
@@ -216,7 +202,6 @@ router.get('/price-variance', authenticate, requirePermission('procurement:repor
           AND pi.is_posted = true
           AND pi.status NOT IN ('cancelled', 'draft')
           AND pi.deleted_at IS NULL
-          AND pii.deleted_at IS NULL
           ${dateFilter}
         GROUP BY pii.item_id
       )
@@ -224,7 +209,7 @@ router.get('/price-variance', authenticate, requirePermission('procurement:repor
         i.id as item_id,
         i.code as item_code,
         i.name as item_name,
-        i.name_arabic as item_name_arabic,
+        i.name_ar as item_name_arabic,
         u.code as uom_code,
         COALESCE(pp.avg_po_price, 0) as avg_po_price,
         COALESCE(ip.avg_invoice_price, 0) as avg_invoice_price,
@@ -244,11 +229,11 @@ router.get('/price-variance', authenticate, requirePermission('procurement:repor
       FROM items i
       LEFT JOIN po_prices pp ON i.id = pp.item_id
       LEFT JOIN invoice_prices ip ON i.id = ip.item_id
-      LEFT JOIN units_of_measure u ON i.uom_id = u.id
+      LEFT JOIN units_of_measure u ON i.base_uom_id = u.id
       WHERE i.company_id = $1
         AND i.deleted_at IS NULL
         AND (pp.item_id IS NOT NULL OR ip.item_id IS NOT NULL)
-      ORDER BY ABS(variance_amount) DESC
+      ORDER BY ABS(COALESCE(ip.avg_invoice_price, 0) - COALESCE(pp.avg_po_price, 0)) DESC
     `;
 
     const result = await pool.query(query, queryParams);
@@ -293,7 +278,7 @@ router.get('/price-variance', authenticate, requirePermission('procurement:repor
  */
 router.get('/outstanding-pos', authenticate, requirePermission('procurement:reports:view'), async (req: Request, res: Response) => {
   try {
-    const companyId = req.user!.companyId;
+    const companyId = (req as any).companyContext?.companyId || (req as any).companyId;
     const vendorId = req.query.vendor_id ? parseInt(req.query.vendor_id as string) : null;
     const agingThreshold = parseInt(req.query.aging_threshold as string) || 30;
 
@@ -314,35 +299,36 @@ router.get('/outstanding-pos', authenticate, requirePermission('procurement:repo
           po.id,
           po.order_number,
           po.order_date,
-          po.expected_delivery_date,
+          po.expected_date as expected_delivery_date,
           po.vendor_id,
-          po.currency_code,
+          COALESCE(cur.code, 'SAR') as currency_code,
           po.status,
           v.code as vendor_code,
           v.name as vendor_name,
-          v.name_arabic as vendor_name_arabic,
-          SUM(poi.quantity) as total_ordered,
-          SUM(poi.received_quantity) as total_received,
-          SUM(poi.quantity - poi.received_quantity) as total_remaining,
-          SUM(poi.quantity * poi.unit_price) as total_amount,
-          SUM((poi.quantity - poi.received_quantity) * poi.unit_price) as remaining_amount,
-          DATE_PART('day', CURRENT_DATE - po.order_date) as days_outstanding,
+          v.name_ar as vendor_name_arabic,
+          SUM(poi.ordered_qty) as total_ordered,
+          SUM(poi.received_qty) as total_received,
+          SUM(poi.ordered_qty - poi.received_qty) as total_remaining,
+          SUM(poi.ordered_qty * poi.unit_price) as total_amount,
+          SUM((poi.ordered_qty - poi.received_qty) * poi.unit_price) as remaining_amount,
+          (CURRENT_DATE - po.order_date::date) as days_outstanding,
           CASE 
-            WHEN po.expected_delivery_date < CURRENT_DATE THEN DATE_PART('day', CURRENT_DATE - po.expected_delivery_date)
+            WHEN po.expected_date IS NOT NULL AND po.expected_date < CURRENT_DATE THEN (CURRENT_DATE - po.expected_date::date)
             ELSE 0
           END as days_overdue
         FROM purchase_orders po
         JOIN vendors v ON po.vendor_id = v.id
         JOIN purchase_order_items poi ON po.id = poi.order_id
+        LEFT JOIN currencies cur ON po.currency_id = cur.id
         WHERE po.company_id = $1
           AND po.status IN ('approved', 'partially_received')
           AND po.deleted_at IS NULL
           AND poi.deleted_at IS NULL
           ${vendorFilter}
-        GROUP BY po.id, po.order_number, po.order_date, po.expected_delivery_date, 
-                 po.vendor_id, po.currency_code, po.status,
-                 v.code, v.name, v.name_arabic
-        HAVING SUM(poi.quantity - poi.received_quantity) > 0
+        GROUP BY po.id, po.order_number, po.order_date, po.expected_date, 
+                 po.vendor_id, cur.code, po.status,
+                 v.code, v.name, v.name_ar
+        HAVING SUM(poi.ordered_qty - poi.received_qty) > 0
       )
       SELECT
         id,
@@ -406,7 +392,7 @@ router.get('/outstanding-pos', authenticate, requirePermission('procurement:repo
  */
 router.get('/payment-history', authenticate, requirePermission('procurement:reports:view'), async (req: Request, res: Response) => {
   try {
-    const companyId = req.user!.companyId;
+    const companyId = (req as any).companyContext?.companyId || (req as any).companyId;
     const { vendor_id, from_date, to_date, status } = req.query;
 
     if (!companyId) {
@@ -422,7 +408,7 @@ router.get('/payment-history', authenticate, requirePermission('procurement:repo
         vp.payment_amount,
         vp.allocated_amount,
         vp.unallocated_amount,
-        vp.currency_code,
+        COALESCE(cur.code, 'SAR') as currency_code,
         vp.status,
         vp.is_posted,
         v.code as vendor_code,
@@ -434,6 +420,7 @@ router.get('/payment-history', authenticate, requirePermission('procurement:repo
         ) as allocation_count
       FROM vendor_payments vp
       INNER JOIN vendors v ON vp.vendor_id = v.id
+      LEFT JOIN currencies cur ON vp.currency_id = cur.id
       WHERE vp.company_id = $1
         AND vp.deleted_at IS NULL
     `;
@@ -501,7 +488,7 @@ router.get('/payment-history', authenticate, requirePermission('procurement:repo
  */
 router.get('/unapplied-payments', authenticate, requirePermission('procurement:reports:view'), async (req: Request, res: Response) => {
   try {
-    const companyId = req.user!.companyId;
+    const companyId = (req as any).companyContext?.companyId || (req as any).companyId;
 
     if (!companyId) {
       return res.status(400).json({ error: 'Company context required' });
@@ -515,12 +502,13 @@ router.get('/unapplied-payments', authenticate, requirePermission('procurement:r
         vp.payment_amount,
         vp.allocated_amount,
         vp.unallocated_amount,
-        vp.currency_code,
+        COALESCE(cur.code, 'SAR') as currency_code,
         v.code as vendor_code,
         v.name as vendor_name,
-        CURRENT_DATE - vp.payment_date as days_unapplied
+        (CURRENT_DATE - vp.payment_date::date) as days_unapplied
       FROM vendor_payments vp
       INNER JOIN vendors v ON vp.vendor_id = v.id
+      LEFT JOIN currencies cur ON vp.currency_id = cur.id
       WHERE vp.company_id = $1
         AND vp.unallocated_amount > 0
         AND vp.is_posted = true
@@ -551,7 +539,7 @@ router.get('/unapplied-payments', authenticate, requirePermission('procurement:r
  */
 router.get('/vendor-balance', authenticate, requirePermission('procurement:reports:view'), async (req: Request, res: Response) => {
   try {
-    const companyId = req.user!.companyId;
+    const companyId = (req as any).companyContext?.companyId || (req as any).companyId;
     const { currency_code } = req.query;
 
     if (!companyId) {
@@ -562,13 +550,13 @@ router.get('/vendor-balance', authenticate, requirePermission('procurement:repor
     let targetCurrency = currency_code as string;
     if (!targetCurrency) {
       const companyResult = await pool.query(
-        'SELECT base_currency_code FROM companies WHERE id = $1 AND deleted_at IS NULL',
+        'SELECT default_currency FROM companies WHERE id = $1 AND deleted_at IS NULL',
         [companyId]
       );
       if (companyResult.rows.length === 0) {
         return res.status(404).json({ error: 'Company not found' });
       }
-      targetCurrency = companyResult.rows[0].base_currency_code || 'SAR';
+      targetCurrency = companyResult.rows[0].default_currency || 'SAR';
     }
 
     const result = await pool.query(
@@ -583,12 +571,13 @@ router.get('/vendor-balance', authenticate, requirePermission('procurement:repor
       FROM vendors v
       LEFT JOIN purchase_invoices pi ON v.id = pi.vendor_id
         AND pi.company_id = $1
-        AND pi.currency_code = $2
         AND pi.is_posted = true
         AND pi.balance > 0
         AND pi.deleted_at IS NULL
+      LEFT JOIN currencies cur ON pi.currency_id = cur.id
       WHERE v.company_id = $1
         AND v.deleted_at IS NULL
+        AND (pi.id IS NULL OR cur.code = $2)
       GROUP BY v.id, v.code, v.name
       HAVING COALESCE(SUM(pi.balance), 0) > 0
       ORDER BY outstanding_balance DESC`,

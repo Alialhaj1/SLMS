@@ -67,6 +67,7 @@ interface CompanyInfo {
   email: string;
   website: string;
   logo: string;
+  logo_url: string;
 }
 
 // Currency names for amount in words
@@ -271,7 +272,8 @@ export default function TransferRequestPrintPage() {
     const printDate = now.toLocaleDateString('en-GB');
     const printTime = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
     const amountNum = typeof request.transfer_amount === 'string' ? parseFloat(request.transfer_amount) : request.transfer_amount;
-    const logoUrl = company?.logo || '';
+    const rawLogo = company?.logo_url || company?.logo || '';
+    const logoUrl = rawLogo && rawLogo.startsWith('/') ? `${window.location.origin}${rawLogo}` : rawLogo;
     const currencyCode = request.currency_code || 'SAR';
     
     // Transfer type label

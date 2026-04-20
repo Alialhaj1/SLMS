@@ -2,7 +2,7 @@ import Head from 'next/head';
 import MainLayout from '../../components/layout/MainLayout';
 import PolicyCrudTable from '../../components/settings/PolicyCrudTable';
 import { useTranslation } from '../../hooks/useTranslation';
-import { withPermission } from '../../utils/withPermission';
+import { withPermission, withPlatformGuard } from '../../utils/withPermission';
 
 function BackupSecuritySettingsPage() {
   const { t } = useTranslation();
@@ -29,5 +29,5 @@ function BackupSecuritySettingsPage() {
 }
 
 
-export default withPermission('system_policies:view', BackupSecuritySettingsPage);
+export default withPlatformGuard(withPermission('system_policies:view', BackupSecuritySettingsPage));
 

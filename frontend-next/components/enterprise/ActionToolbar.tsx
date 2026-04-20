@@ -11,6 +11,7 @@ import {
   PlusIcon,
   ArrowPathIcon,
   ArrowDownTrayIcon,
+  ArrowUpTrayIcon,
   FunnelIcon,
   ViewColumnsIcon,
   ChevronDownIcon,
@@ -74,7 +75,9 @@ export default function ActionToolbar({
   }, [exportOpen]);
 
   const canCreate = hasPermission(`${permissionPrefix}:create`);
+  const canEdit = hasPermission(`${permissionPrefix}:edit`);
   const canExport = hasPermission(`${permissionPrefix}:view`);
+  const canDelete = hasPermission(`${permissionPrefix}:delete`);
 
   // Separate toolbar actions from row-level or bulk-only actions
   const toolbarActions = actions.filter(
@@ -101,6 +104,7 @@ export default function ActionToolbar({
               transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2
               dark:focus:ring-offset-slate-800"
             aria-label={t('common.create') || 'Create'}
+            title={`${t('common.create') || 'Create'} (Ctrl+N)`}
           >
             <PlusIcon className="w-4 h-4" />
             <span className="hidden sm:inline">{t('common.create') || 'Create'}</span>
@@ -118,6 +122,7 @@ export default function ActionToolbar({
             transition-colors focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2
             dark:focus:ring-offset-slate-800"
           aria-label={t('common.refresh') || 'Refresh'}
+          title={`${t('common.refresh') || 'Refresh'} (Ctrl+R)`}
         >
           <ArrowPathIcon className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           <span className="hidden sm:inline">{t('common.refresh') || 'Refresh'}</span>
@@ -136,6 +141,7 @@ export default function ActionToolbar({
                 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2
                 dark:focus:ring-offset-slate-800"
               aria-label={t('common.export') || 'Export'}
+              title={t('common.export') || 'Export data'}
             >
               <ArrowDownTrayIcon className="w-4 h-4" />
               <span className="hidden sm:inline">{t('common.export') || 'Export'}</span>
@@ -167,6 +173,25 @@ export default function ActionToolbar({
               </div>
             )}
           </div>
+        )}
+
+        {/* Import button - visible if user can create OR edit */}
+        {(canCreate || canEdit) && (
+          <button
+            onClick={() => onAction('import')}
+            disabled={loading}
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg
+              text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-900/20
+              hover:bg-emerald-100 dark:hover:bg-emerald-900/40 border border-emerald-200 dark:border-emerald-800
+              disabled:opacity-50 disabled:cursor-not-allowed
+              transition-all focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2
+              dark:focus:ring-offset-slate-800"
+            aria-label={t('common.import') || 'Import'}
+            title={t('import.importTooltip') || 'Import data from Excel/CSV file'}
+          >
+            <ArrowUpTrayIcon className="w-4 h-4" />
+            <span className="hidden sm:inline">{t('common.import') || 'Import'}</span>
+          </button>
         )}
 
         {/* Custom toolbar actions */}
@@ -232,6 +257,7 @@ export default function ActionToolbar({
               }`}
             aria-label={t('common.filters') || 'Filters'}
             aria-pressed={filtersActive}
+            title={`${t('common.filters') || 'Filters'} (Ctrl+F)`}
           >
             <FunnelIcon className="w-4 h-4" />
             <span className="hidden md:inline">{t('common.filters') || 'Filters'}</span>
@@ -247,10 +273,11 @@ export default function ActionToolbar({
               hover:bg-gray-200 dark:hover:bg-slate-600
               transition-colors focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2
               dark:focus:ring-offset-slate-800"
-            aria-label={t('common.columns') || 'Columns'}
+            aria-label={t('common.columns', 'Columns')}
+            title={t('common.columns', 'Columns')}
           >
             <ViewColumnsIcon className="w-4 h-4" />
-            <span className="hidden md:inline">{t('common.columns') || 'Columns'}</span>
+            <span className="hidden md:inline">{t('common.columns', 'Columns')}</span>
           </button>
         )}
       </div>

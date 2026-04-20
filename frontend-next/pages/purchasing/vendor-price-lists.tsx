@@ -6,6 +6,7 @@ import Input from '../../components/ui/Input';
 import Modal from '../../components/ui/Modal';
 import { useTranslation } from '../../hooks/useTranslation';
 import { useToast } from '../../contexts/ToastContext';
+import { useCurrencies } from '../../hooks/useReferenceData';
 import {
   ClipboardDocumentListIcon,
   PlusIcon,
@@ -76,6 +77,7 @@ const mockVendorPriceLists: VendorPriceList[] = [
 export default function VendorPriceListsPage() {
   const { locale } = useTranslation();
   const { showToast } = useToast();
+  const { currencies: currencyList } = useCurrencies();
 
   const [lists] = useState<VendorPriceList[]>(mockVendorPriceLists);
   const [selectedStatus, setSelectedStatus] = useState<'all' | VendorPriceListStatus>('all');
@@ -365,9 +367,9 @@ export default function VendorPriceListsPage() {
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{locale === 'ar' ? 'العملة' : 'Currency'}</label>
               <select value={formData.currency} onChange={(e) => setFormData({ ...formData, currency: e.target.value as any })} className="input">
-                <option value="SAR">SAR</option>
-                <option value="USD">USD</option>
-                <option value="EUR">EUR</option>
+                {currencyList.map(c => (
+                  <option key={c.code} value={c.code}>{c.code}</option>
+                ))}
               </select>
             </div>
             <Input label={locale === 'ar' ? 'المورد (EN)' : 'Vendor (EN)'} value={formData.vendor} onChange={(e) => setFormData({ ...formData, vendor: e.target.value })} />

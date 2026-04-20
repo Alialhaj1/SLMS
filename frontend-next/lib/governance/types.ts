@@ -264,6 +264,8 @@ export interface PageConfig<T = any> {
   exportEnabled?: boolean;
   /** Export filename prefix */
   exportFilename?: string;
+  /** Custom import endpoint (overrides default /api/master/bulk/:resource/import) */
+  importEndpoint?: string;
   /** Default sort field */
   defaultSortField?: string;
   /** Default sort order */

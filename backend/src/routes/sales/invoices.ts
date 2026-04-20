@@ -26,7 +26,7 @@ router.get(
   requirePermission('sales_invoices:view'),
   async (req: Request, res: Response) => {
     try {
-      const companyId = (req as any).user.companyId;
+      const companyId = (req as any).companyId ?? (req as any).companyContext?.companyId;
       if (!companyId) {
         return res.status(400).json({ error: 'Company context required' });
       }

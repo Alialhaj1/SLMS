@@ -13,7 +13,7 @@ const uiSignatureTypeSchema = z.enum(['image', 'certificate', 'biometric']);
 
 // Canonical DB schema (matches migration 027_create_master_data_group1.sql)
 const digitalSignatureDbSchema = z.object({
-  user_id: z.number().int().positive().optional(),
+  user_id: z.number().int().positive().nullable().optional(),
   signature_name_en: z.string().min(1).max(255),
   signature_name_ar: z.string().min(1).max(255),
   signature_title_en: z.string().max(255).optional(),
@@ -48,7 +48,7 @@ const digitalSignatureUiSchema = z.object({
   is_default: z.boolean().optional(),
   is_active: z.boolean().default(true),
   company_id: z.number().int().positive().optional(),
-  user_id: z.number().int().positive().optional(),
+  user_id: z.number().int().positive().nullable().optional(),
 });
 
 const createSignatureSchema = z.union([digitalSignatureDbSchema, digitalSignatureUiSchema]);
@@ -148,21 +148,36 @@ function mapInputToDbInsert(
 
 function mapDbRowToUi(row: any) {
   return {
+    // Raw DB fields (current frontend expects these)
     id: row.id,
+    company_id: row.company_id,
+    user_id: row.user_id ?? null,
+    user_name: row.user_name || null,
+    user_email: row.user_email || null,
+    signature_name_en: row.signature_name_en || '',
+    signature_name_ar: row.signature_name_ar || '',
+    signature_title_en: row.signature_title_en || '',
+    signature_title_ar: row.signature_title_ar || '',
+    department: row.department || '',
+    signature_image_url: row.signature_image_url || '',
+    signature_type: row.signature_type || 'manual',
+    certificate_issuer: row.certificate_issuer || '',
+    certificate_serial: row.certificate_serial || '',
+    certificate_issued_date: row.certificate_issued_date || null,
+    certificate_expiry_date: row.certificate_expiry_date || null,
+    signature_authority: row.signature_authority || '',
+    requires_2fa: Boolean(row.requires_2fa),
+    is_default: Boolean(row.is_default),
+    is_active: row.is_active,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+    // Legacy compat fields
     signature_name: row.signature_name_en || row.signature_name_ar || '-',
     signer_name: row.user_name || row.signature_authority || '-',
     signer_title: row.signature_title_en || row.signature_title_ar || '',
-    signature_type: mapDbSignatureTypeToUi(row.signature_type),
     signature_data: row.signature_image_url || row.certificate_path || '',
-    certificate_serial: row.certificate_serial || '',
-    certificate_issuer: row.certificate_issuer || '',
     valid_from: row.certificate_issued_date || null,
     valid_until: row.certificate_expiry_date || null,
-    is_default: Boolean(row.is_default),
-    is_active: row.is_active,
-    company_id: row.company_id,
-    created_at: row.created_at,
-    updated_at: row.updated_at,
   };
 }
 

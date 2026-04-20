@@ -123,13 +123,10 @@ export default function VendorPaymentForm({
   const hasUnallocated = (formData.payment_amount || 0) > (formData.total_allocated || 0);
   const hasOverAllocation = (formData.total_allocated || 0) > (formData.payment_amount || 0);
 
-  const handlePaymentMethodChange = (methodId: number, type: string) => {
-    // BANK and CHEQUE types require bank account selection
-    const requiresBankAccount = type === 'BANK' || type === 'CHEQUE';
+  const handlePaymentMethodChange = (methodId: number, type: string, behavior?: string) => {
     setFormData({
       ...formData,
       payment_method_id: methodId,
-      bank_account_id: requiresBankAccount ? formData.bank_account_id : undefined,
     });
   };
 
@@ -227,13 +224,6 @@ export default function VendorPaymentForm({
               required
               error={formErrors.payment_date}
             />
-
-            <Input
-              label={locale === 'ar' ? 'رقم المرجع' : 'Reference Number'}
-              value={formData.reference_number || ''}
-              onChange={(e) => setFormData({ ...formData, reference_number: e.target.value })}
-              placeholder={locale === 'ar' ? 'رقم الشيك أو الحوالة' : 'Cheque # or transfer #'}
-            />
           </div>
         </div>
 
@@ -247,12 +237,16 @@ export default function VendorPaymentForm({
             <PaymentMethodSelector
               paymentMethodId={formData.payment_method_id || 0}
               bankAccountId={formData.bank_account_id}
+              referenceNumber={formData.reference_number}
               onPaymentMethodChange={handlePaymentMethodChange}
               onBankAccountChange={(accountId) => setFormData({ ...formData, bank_account_id: accountId || undefined })}
+              onReferenceChange={(v) => setFormData({ ...formData, reference_number: v })}
               companyId={companyId}
               label={locale === 'ar' ? 'طريقة الدفع' : 'Payment Method'}
               required
               error={formErrors.payment_method_id}
+              locale={locale}
+              showInlineFields={true}
             />
 
             <CurrencySelector

@@ -288,7 +288,7 @@ export class SalesOrderService {
     const result = await pool.query(`
       SELECT so.*,
              c.code as customer_code_db, c.name as customer_name_db, c.credit_policy,
-             u.first_name || ' ' || u.last_name as sales_rep_name,
+             u.full_name as sales_rep_name,
              sq.quotation_number,
              w.name as warehouse_name
       FROM sales_orders so
@@ -473,7 +473,7 @@ export class SalesOrderService {
     const dataResult = await pool.query(`
       SELECT so.*,
              c.code as customer_code_db, c.name as customer_name_db,
-             u.first_name || ' ' || u.last_name as sales_rep_name
+             u.full_name as sales_rep_name
       FROM sales_orders so
       LEFT JOIN customers c ON so.customer_id = c.id
       LEFT JOIN users u ON so.sales_rep_id = u.id

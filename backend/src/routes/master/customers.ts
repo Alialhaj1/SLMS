@@ -36,28 +36,12 @@ const CUSTOMER_SELECT = `
     cur.code  AS currency_code,
     cur.name  AS currency_name,
     cur.symbol AS currency_symbol,
-    lang.name_en AS language_name,
-    lang.name_native AS language_native_name,
-    ctype.name_en   AS customer_type_name,
-    ctype.name_ar   AS customer_type_name_ar,
-    ccat.name_en    AS customer_category_name,
-    ccat.name_ar    AS customer_category_name_ar,
-    cs.name_en      AS customer_status_name,
-    cs.name_ar      AS customer_status_name_ar,
-    cs.color        AS customer_status_color,
-    delt.name_en    AS delivery_term_name,
-    delt.incoterm_code AS delivery_term_incoterm,
     uc.email  AS created_by_name,
     uu.email  AS updated_by_name
   FROM customers c
   LEFT JOIN countries cn          ON c.country_id = cn.id
   LEFT JOIN cities ct             ON c.city_id = ct.id
   LEFT JOIN currencies cur        ON c.currency_id = cur.id
-  LEFT JOIN system_languages lang ON c.language_id = lang.id
-  LEFT JOIN customer_types ctype  ON c.customer_type_id = ctype.id
-  LEFT JOIN customer_categories ccat ON c.customer_category_id = ccat.id
-  LEFT JOIN customer_statuses cs  ON c.status_id = cs.id
-  LEFT JOIN delivery_terms delt   ON c.delivery_term_id = delt.id
   LEFT JOIN users uc              ON c.created_by = uc.id
   LEFT JOIN users uu              ON c.updated_by = uu.id
 `;
@@ -287,13 +271,10 @@ router.get(
 
       // Sorting — whitelist allowed columns
       const sortableColumns: Record<string, string> = {
-        code: 'c.code', name: 'c.name', name_en: 'c.name_en', name_ar: 'c.name_ar',
+        code: 'c.code', name: 'c.name', name_ar: 'c.name_ar',
         country_name: 'cn.name', city_name: 'ct.name', currency_code: 'cur.code',
-        customer_type_name: 'ctype.name_en', customer_category_name: 'ccat.name_en',
-        customer_status_name: 'cs.name_en', payment_days: 'c.payment_days',
-        credit_limit: 'c.credit_limit', credit_used: 'c.credit_used',
+        credit_limit: 'c.credit_limit',
         created_at: 'c.created_at', updated_at: 'c.updated_at',
-        is_active: 'c.is_active',
       };
       const sortCol = sortableColumns[sort as string] || 'c.code';
       const sortDir = order === 'desc' ? 'DESC' : 'ASC';
@@ -302,9 +283,6 @@ router.get(
       const countResult = await pool.query(
         `SELECT COUNT(*)::int AS total FROM customers c
          LEFT JOIN countries cn ON c.country_id = cn.id
-         LEFT JOIN customer_types ctype ON c.customer_type_id = ctype.id
-         LEFT JOIN customer_categories ccat ON c.customer_category_id = ccat.id
-         LEFT JOIN customer_statuses cs ON c.status_id = cs.id
          WHERE ${whereClause}`,
         params
       );

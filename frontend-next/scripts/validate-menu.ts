@@ -329,7 +329,9 @@ function validateMenu(): ValidationResult {
   }
   if (missingAr.length > 0) {
     result.stats.missingTranslationsAr = missingAr.length;
-    result.errors.push(`ترجمات عربية مفقودة (${missingAr.length}):\n  - ${missingAr.join('\n  - ')}`);
+    result.errors.push(`ترجمات عربية مفقودة (${missingAr.length}):
+  - ${missingAr.join('
+  - ')}`);
     result.valid = false;
   }
 
@@ -342,14 +344,18 @@ function validateMenu(): ValidationResult {
   }
   if (missingEn.length > 0) {
     result.stats.missingTranslationsEn = missingEn.length;
-    result.errors.push(`ترجمات إنجليزية مفقودة (${missingEn.length}):\n  - ${missingEn.join('\n  - ')}`);
+    result.errors.push(`ترجمات إنجليزية مفقودة (${missingEn.length}):
+  - ${missingEn.join('
+  - ')}`);
     result.valid = false;
   }
 
   // التحقق من العناصر الأب بدون permission
   const parentWithoutPermission = checkParentPermissions(menuRegistry);
   if (parentWithoutPermission.length > 0) {
-    result.suggestions.push(`عناصر أب بدون permission (قد يكون مقصود):\n  - ${parentWithoutPermission.join('\n  - ')}`);
+    result.suggestions.push(`عناصر أب بدون permission (قد يكون مقصود):
+  - ${parentWithoutPermission.join('
+  - ')}`);
   }
 
   // اقتراحات للتحسين
@@ -370,12 +376,14 @@ function validateMenu(): ValidationResult {
  * طباعة النتائج (موسّعة)
  */
 function printResults(result: ValidationResult): void {
-  console.log('\n' + '═'.repeat(60));
+  console.log('
+' + '═'.repeat(60));
   console.log(`${colors.cyan}🔍 نتائج التحقق من القائمة الجانبية (موسّع)${colors.reset}`);
   console.log('═'.repeat(60));
 
   // الإحصائيات
-  console.log(`\n${colors.blue}📊 الإحصائيات:${colors.reset}`);
+  console.log(`
+${colors.blue}📊 الإحصائيات:${colors.reset}`);
   console.log(`   - إجمالي عناصر القائمة: ${result.stats.totalMenuItems}`);
   console.log(`   - إجمالي مفاتيح الترجمة: ${result.stats.totalLabelKeys}`);
   console.log(`   - إجمالي الصلاحيات: ${result.stats.totalPermissions}`);
@@ -391,7 +399,8 @@ function printResults(result: ValidationResult): void {
 
   // الأخطاء
   if (result.errors.length > 0) {
-    console.log(`\n${colors.red}❌ الأخطاء (${result.errors.length}):${colors.reset}`);
+    console.log(`
+${colors.red}❌ الأخطاء (${result.errors.length}):${colors.reset}`);
     result.errors.forEach((error, i) => {
       console.log(`   ${i + 1}. ${error}`);
     });
@@ -399,7 +408,8 @@ function printResults(result: ValidationResult): void {
 
   // التحذيرات
   if (result.warnings.length > 0) {
-    console.log(`\n${colors.yellow}⚠️  التحذيرات (${result.warnings.length}):${colors.reset}`);
+    console.log(`
+${colors.yellow}⚠️  التحذيرات (${result.warnings.length}):${colors.reset}`);
     result.warnings.forEach((warning, i) => {
       console.log(`   ${i + 1}. ${warning}`);
     });
@@ -407,14 +417,16 @@ function printResults(result: ValidationResult): void {
 
   // الاقتراحات
   if (result.suggestions.length > 0) {
-    console.log(`\n${colors.magenta}💡 الاقتراحات (${result.suggestions.length}):${colors.reset}`);
+    console.log(`
+${colors.magenta}💡 الاقتراحات (${result.suggestions.length}):${colors.reset}`);
     result.suggestions.forEach((suggestion, i) => {
       console.log(`   ${i + 1}. ${suggestion}`);
     });
   }
 
   // النتيجة النهائية
-  console.log('\n' + '─'.repeat(60));
+  console.log('
+' + '─'.repeat(60));
   if (result.valid) {
     console.log(`${colors.green}✅ القائمة صالحة!${colors.reset}`);
   } else {

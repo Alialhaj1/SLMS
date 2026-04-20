@@ -173,7 +173,7 @@ export class SalesInvoiceService {
              c.code as customer_code_db, c.name as customer_name_db,
              so.order_number as sales_order_number,
              dn.delivery_number as delivery_note_number,
-             u.first_name || ' ' || u.last_name as sales_rep_name
+             u.full_name as sales_rep_name
       FROM sales_invoices si
       LEFT JOIN customers c ON si.customer_id = c.id
       LEFT JOIN sales_orders so ON si.sales_order_id = so.id
@@ -655,7 +655,7 @@ export class SalesInvoiceService {
     const dataResult = await pool.query(`
       SELECT si.*,
              c.code as customer_code_db, c.name as customer_name_db,
-             u.first_name || ' ' || u.last_name as sales_rep_name,
+             u.full_name as sales_rep_name,
              CASE WHEN si.due_date < CURRENT_DATE AND si.balance_due > 0 THEN true ELSE false END as is_overdue,
              CASE WHEN si.due_date < CURRENT_DATE AND si.balance_due > 0 THEN CURRENT_DATE - si.due_date ELSE 0 END as days_overdue
       FROM sales_invoices si

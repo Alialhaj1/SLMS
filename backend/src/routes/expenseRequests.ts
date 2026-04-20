@@ -11,6 +11,8 @@ import { authenticate } from '../middleware/auth';
 import { requirePermission, requireAnyPermission } from '../middleware/rbac';
 import { loadCompanyContext } from '../middleware/companyContext';
 import { runAccountingRules } from '../services/accountingEngine';
+import { recordApprovalHistory, notifyOnAction } from '../services/approvalService';
+import { ApprovalWorkflowEngine } from '../services/approvalWorkflowEngine';
 
 const router = express.Router();
 
@@ -57,8 +59,8 @@ router.get(
       const queryParams: any[] = [];
       let paramIndex = 1;
 
-      // Company filter (unless super_admin)
-      if (!isSuperAdmin && companyId) {
+      // Company filter — always enforce company isolation (even for super_admin)
+      if (companyId) {
         whereConditions.push(`er.company_id = $${paramIndex}`);
         queryParams.push(companyId);
         paramIndex++;
@@ -232,7 +234,8 @@ router.get(
       const queryParams: any[] = [id];
       let paramIndex = 2;
 
-      if (!isSuperAdmin && companyId) {
+      // Company filter — always enforce company isolation
+      if (companyId) {
         whereConditions.push(`er.company_id = $${paramIndex}`);
         queryParams.push(companyId);
         paramIndex++;
@@ -251,6 +254,7 @@ router.get(
           rs.name_ar as status_name_ar,
           rs.color as status_color,
           rs.icon as status_icon,
+          rs.code as status_code,
           rs.allows_edit,
           rs.allows_delete,
           rs.allows_print,
@@ -285,6 +289,19 @@ router.get(
           approver.full_name as approved_by_name,
           rejector.email as rejected_by_email,
           rejector.full_name as rejected_by_name,
+          reviewer.email as reviewed_by_email,
+          reviewer.full_name as reviewed_by_name,
+          reviewer.signature_image_url as reviewer_signature_url,
+          reviewer.signature_title_en as reviewer_title_en,
+          reviewer.signature_title_ar as reviewer_title_ar,
+          approver.signature_image_url as approver_signature_url,
+          approver.signature_title_en as approver_title_en,
+          approver.signature_title_ar as approver_title_ar,
+          u.signature_image_url as requester_signature_url,
+          u.signature_title_en as requester_title_en,
+          u.signature_title_ar as requester_title_ar,
+          er.reviewed_at,
+          er.reviewed_by,
           -- Shipment expense source data
           se.invoice_number as source_invoice_number,
           se.expense_date as source_invoice_date,
@@ -317,6 +334,7 @@ router.get(
         LEFT JOIN users u ON er.requested_by = u.id
         LEFT JOIN users approver ON er.approved_by = approver.id
         LEFT JOIN users rejector ON er.rejected_by = rejector.id
+        LEFT JOIN users reviewer ON er.reviewed_by = reviewer.id
         LEFT JOIN insurance_companies ins_co ON se.insurance_company_id = ins_co.id
         LEFT JOIN shipping_agents ship_agent ON se.shipping_agent_id = ship_agent.id
         LEFT JOIN vendors ship_co ON se.shipping_company_id = ship_co.id
@@ -368,6 +386,9 @@ router.get(
           rah.*,
           u.email as performed_by_email,
           u.full_name as performed_by_name,
+          u.signature_image_url as performer_signature_url,
+          u.signature_title_en as performer_title_en,
+          u.signature_title_ar as performer_title_ar,
           ps.name as previous_status_name,
           ps.name_ar as previous_status_name_ar,
           ns.name as new_status_name,
@@ -476,7 +497,7 @@ router.post(
 
       // Verify shipment exists
       const shipmentCheck = await client.query(
-        'SELECT id FROM shipments WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL',
+        'SELECT id FROM logistics_shipments WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL',
         [shipment_id, companyId]
       );
 
@@ -823,9 +844,26 @@ router.post(
         });
       }
 
+      const request = result.rows[0];
+
+      // Record approval history
+      const draftStatusId = (await pool.query(`SELECT id FROM request_statuses WHERE code = 'DRAFT'`)).rows[0]?.id;
+      await recordApprovalHistory({
+        requestType: 'expense', requestId: parseInt(id), companyId: companyId!,
+        userId, action: 'submitted', previousStatusId: draftStatusId, newStatusId: submittedStatusId,
+        ipAddress: req.ip, userAgent: req.headers['user-agent'],
+      });
+
+      // Notify reviewers/approvers
+      await notifyOnAction({
+        companyId: companyId!, requestType: 'expense', requestId: parseInt(id),
+        requestNumber: request.request_number || `EXP-${id}`,
+        action: 'submitted', actorId: userId, requestedBy: request.requested_by,
+      });
+
       res.json({
         message: 'Expense request submitted for approval',
-        data: result.rows[0]
+        data: request
       });
 
     } catch (error: any) {
@@ -836,8 +874,161 @@ router.post(
 );
 
 /**
+ * POST /api/expense-requests/:id/submit-for-approval
+ * Submit expense request through the multi-step approval workflow engine
+ */
+router.post(
+  '/:id/submit-for-approval',
+  authenticate,
+  requirePermission('expense_requests:submit'),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const userId = req.user!.id;
+      const companyId = req.companyId;
+      const tenantId = (req as any).tenantId;
+
+      // Get the expense request and verify it's in DRAFT
+      const expResult = await pool.query(`
+        SELECT er.*, rs.code as status_code
+        FROM expense_requests er
+        LEFT JOIN request_statuses rs ON er.status_id = rs.id
+        WHERE er.id = $1 AND er.company_id = $2 AND er.deleted_at IS NULL
+      `, [id, companyId]);
+
+      if (expResult.rows.length === 0) {
+        return res.status(404).json({ error: 'Expense request not found' });
+      }
+
+      const request = expResult.rows[0];
+
+      if (request.status_code !== 'DRAFT') {
+        return res.status(400).json({ error: 'Expense request must be in DRAFT status to submit' });
+      }
+
+      // Submit to the approval workflow engine
+      const result = await ApprovalWorkflowEngine.submitDocument({
+        companyId: companyId!,
+        tenantId,
+        documentType: 'expense_claim',
+        referenceId: parseInt(id),
+        referenceTable: 'expense_requests',
+        documentNumber: request.request_number || `EXP-${id}`,
+        title: request.description || `Expense Request ${request.request_number || id}`,
+        amount: parseFloat(request.total_amount) || 0,
+        currency: 'SAR',
+        createdBy: userId,
+        notes: req.body.notes,
+        priority: req.body.priority || 'normal',
+        watchers: req.body.watchers,
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent'),
+      });
+
+      // Update the expense request status and link approval document
+      const submittedStatusId = (await pool.query(`SELECT id FROM request_statuses WHERE code = 'SUBMITTED'`)).rows[0]?.id;
+      if (submittedStatusId) {
+        await pool.query(`
+          UPDATE expense_requests 
+          SET status_id = $1, submitted_at = NOW(), submitted_by = $2, 
+              approval_document_id = $3, updated_by = $2
+          WHERE id = $4
+        `, [submittedStatusId, userId, result.approvalDocumentId, id]);
+      }
+
+      res.json({
+        message: 'Expense request submitted for approval',
+        data: { approvalDocumentId: result.approvalDocumentId, status: result.status }
+      });
+
+    } catch (error: any) {
+      console.error('Error submitting expense request for approval:', error);
+      res.status(500).json({ error: 'Failed to submit expense request for approval' });
+    }
+  }
+);
+
+/**
+ * POST /api/expense-requests/:id/review
+ * Review expense request (3-level: SUBMITTED → REVIEWED)
+ */
+router.post(
+  '/:id/review',
+  authenticate,
+  requireAnyPermission(['expense_requests:review', 'expense_requests:approve']),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { comments } = req.body;
+      const userId = req.user!.id;
+      const companyId = req.companyId;
+
+      // Get REVIEWED status ID
+      const statusResult = await pool.query(`SELECT id FROM request_statuses WHERE code = 'REVIEWED'`);
+      const reviewedStatusId = statusResult.rows[0]?.id;
+
+      if (!reviewedStatusId) {
+        return res.status(500).json({ error: 'REVIEWED status not found in system' });
+      }
+
+      // Get current status before update
+      const currentReq = await pool.query(
+        `SELECT er.*, rs.code as status_code FROM expense_requests er
+         JOIN request_statuses rs ON er.status_id = rs.id
+         WHERE er.id = $1 AND er.company_id = $2 AND er.deleted_at IS NULL`,
+        [id, companyId]
+      );
+
+      if (currentReq.rows.length === 0) {
+        return res.status(404).json({ error: 'Expense request not found' });
+      }
+
+      if (currentReq.rows[0].status_code !== 'SUBMITTED') {
+        return res.status(400).json({ error: 'Expense request must be in SUBMITTED status to review' });
+      }
+
+      const previousStatusId = currentReq.rows[0].status_id;
+
+      // Update request status
+      const updateQuery = `
+        UPDATE expense_requests
+        SET status_id = $1, reviewed_at = NOW(), reviewed_by = $2, updated_by = $2
+        WHERE id = $3 AND company_id = $4 AND deleted_at IS NULL
+        RETURNING *
+      `;
+
+      const result = await pool.query(updateQuery, [reviewedStatusId, userId, id, companyId]);
+      const request = result.rows[0];
+
+      // Record approval history
+      await recordApprovalHistory({
+        requestType: 'expense', requestId: parseInt(id), companyId: companyId!,
+        userId, action: 'reviewed', previousStatusId, newStatusId: reviewedStatusId,
+        comments, ipAddress: req.ip, userAgent: req.headers['user-agent'],
+      });
+
+      // Notify approvers and requester
+      await notifyOnAction({
+        companyId: companyId!, requestType: 'expense', requestId: parseInt(id),
+        requestNumber: request.request_number || `EXP-${id}`,
+        action: 'reviewed', actorId: userId, requestedBy: request.requested_by,
+      });
+
+      res.json({
+        message: 'Expense request reviewed successfully',
+        data: request
+      });
+
+    } catch (error: any) {
+      console.error('Error reviewing expense request:', error);
+      res.status(500).json({ error: 'Failed to review expense request' });
+    }
+  }
+);
+
+/**
  * POST /api/expense-requests/:id/approve
- * Approve expense request
+ * Approve expense request (accepts from SUBMITTED or REVIEWED status)
  */
 router.post(
   '/:id/approve',
@@ -846,6 +1037,7 @@ router.post(
   async (req, res) => {
     try {
       const { id } = req.params;
+      const { comments } = req.body;
       const userId = req.user!.id;
       const companyId = req.companyId;
 
@@ -858,22 +1050,51 @@ router.post(
         return res.status(500).json({ error: 'APPROVED status not found in system' });
       }
 
+      // Get current status before update
+      const currentReq = await pool.query(
+        `SELECT er.*, rs.code as status_code FROM expense_requests er
+         JOIN request_statuses rs ON er.status_id = rs.id
+         WHERE er.id = $1 AND er.company_id = $2 AND er.deleted_at IS NULL`,
+        [id, companyId]
+      );
+
+      if (currentReq.rows.length === 0) {
+        return res.status(404).json({ error: 'Expense request not found' });
+      }
+
+      const currentStatus = currentReq.rows[0].status_code;
+      if (currentStatus !== 'SUBMITTED' && currentStatus !== 'REVIEWED') {
+        return res.status(400).json({
+          error: 'Expense request must be in SUBMITTED or REVIEWED status to approve'
+        });
+      }
+
+      const previousStatusId = currentReq.rows[0].status_id;
+
       // Update request status
       const updateQuery = `
         UPDATE expense_requests
         SET status_id = $1, approved_at = NOW(), approved_by = $2, updated_by = $2
         WHERE id = $3 AND company_id = $4 AND deleted_at IS NULL
-          AND status_id = (SELECT id FROM request_statuses WHERE code = 'SUBMITTED')
         RETURNING *
       `;
 
       const result = await pool.query(updateQuery, [approvedStatusId, userId, id, companyId]);
+      const request = result.rows[0];
 
-      if (result.rows.length === 0) {
-        return res.status(404).json({
-          error: 'Expense request not found or cannot be approved (must be in SUBMITTED status)'
-        });
-      }
+      // Record approval history
+      await recordApprovalHistory({
+        requestType: 'expense', requestId: parseInt(id), companyId: companyId!,
+        userId, action: 'approved', previousStatusId, newStatusId: approvedStatusId,
+        comments, ipAddress: req.ip, userAgent: req.headers['user-agent'],
+      });
+
+      // Notify requester
+      await notifyOnAction({
+        companyId: companyId!, requestType: 'expense', requestId: parseInt(id),
+        requestNumber: request.request_number || `EXP-${id}`,
+        action: 'approved', actorId: userId, requestedBy: request.requested_by,
+      });
 
       // =============================================
       // Trigger Accounting Engine
@@ -921,7 +1142,7 @@ router.post(
   async (req, res) => {
     try {
       const { id } = req.params;
-      const { rejection_reason } = req.body;
+      const { rejection_reason, comments } = req.body;
       const userId = req.user!.id;
       const companyId = req.companyId;
 
@@ -938,13 +1159,33 @@ router.post(
         return res.status(500).json({ error: 'REJECTED status not found in system' });
       }
 
+      // Get current status before update
+      const currentReq = await pool.query(
+        `SELECT er.*, rs.code as status_code FROM expense_requests er
+         JOIN request_statuses rs ON er.status_id = rs.id
+         WHERE er.id = $1 AND er.company_id = $2 AND er.deleted_at IS NULL`,
+        [id, companyId]
+      );
+
+      if (currentReq.rows.length === 0) {
+        return res.status(404).json({ error: 'Expense request not found' });
+      }
+
+      const currentStatus = currentReq.rows[0].status_code;
+      if (currentStatus !== 'SUBMITTED' && currentStatus !== 'REVIEWED') {
+        return res.status(400).json({
+          error: 'Expense request must be in SUBMITTED or REVIEWED status to reject'
+        });
+      }
+
+      const previousStatusId = currentReq.rows[0].status_id;
+
       // Update request status
       const updateQuery = `
         UPDATE expense_requests
         SET status_id = $1, rejected_at = NOW(), rejected_by = $2, 
             rejection_reason = $3, updated_by = $2
         WHERE id = $4 AND company_id = $5 AND deleted_at IS NULL
-          AND status_id = (SELECT id FROM request_statuses WHERE code = 'SUBMITTED')
         RETURNING *
       `;
 
@@ -952,15 +1193,26 @@ router.post(
         rejectedStatusId, userId, rejection_reason, id, companyId
       ]);
 
-      if (result.rows.length === 0) {
-        return res.status(404).json({
-          error: 'Expense request not found or cannot be rejected (must be in SUBMITTED status)'
-        });
-      }
+      const request = result.rows[0];
+
+      // Record approval history
+      await recordApprovalHistory({
+        requestType: 'expense', requestId: parseInt(id), companyId: companyId!,
+        userId, action: 'rejected', previousStatusId, newStatusId: rejectedStatusId,
+        comments, rejectionReason: rejection_reason,
+        ipAddress: req.ip, userAgent: req.headers['user-agent'],
+      });
+
+      // Notify requester
+      await notifyOnAction({
+        companyId: companyId!, requestType: 'expense', requestId: parseInt(id),
+        requestNumber: request.request_number || `EXP-${id}`,
+        action: 'rejected', actorId: userId, requestedBy: request.requested_by,
+      });
 
       res.json({
         message: 'Expense request rejected',
-        data: result.rows[0]
+        data: request
       });
 
     } catch (error: any) {
@@ -997,11 +1249,11 @@ router.post(
           last_printed_by = $1
         WHERE id = $2 
           AND deleted_at IS NULL
-          ${!isSuperAdmin && companyId ? 'AND company_id = $3' : ''}
+          ${companyId ? 'AND company_id = $3' : ''}
         RETURNING *
       `;
 
-      const params = !isSuperAdmin && companyId ? [userId, id, companyId] : [userId, id];
+      const params = companyId ? [userId, id, companyId] : [userId, id];
       const result = await pool.query(updateQuery, params);
 
       if (result.rows.length === 0) {
@@ -1045,11 +1297,11 @@ router.post(
           updated_at = NOW()
         WHERE id = $2 
           AND deleted_at IS NOT NULL
-          ${!isSuperAdmin && companyId ? 'AND company_id = $3' : ''}
+          ${companyId ? 'AND company_id = $3' : ''}
         RETURNING *
       `;
 
-      const params = !isSuperAdmin && companyId ? [userId, id, companyId] : [userId, id];
+      const params = companyId ? [userId, id, companyId] : [userId, id];
       const result = await pool.query(updateQuery, params);
 
       if (result.rows.length === 0) {

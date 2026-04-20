@@ -37,6 +37,7 @@ import {
   CubeIcon,
 } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
+import ExchangeRateField from '../../../components/ui/ExchangeRateField';
 
 // =====================================================
 // INTERFACES
@@ -1329,13 +1330,12 @@ export default function CustomsDeclarationsPage() {
                 <option value="">{locale === 'ar' ? '-- اختر --' : '-- Select --'}</option>
                 {currencies.map(currency => <option key={currency.id} value={currency.id}>{currency.code} - {locale === 'ar' ? currency.name_ar : currency.name}</option>)}
               </Select>
-              <Input 
-                label={locale === 'ar' ? 'سعر الصرف (ر.س)' : 'Exchange Rate (SAR)'} 
-                type="number" 
-                step="0.0001" 
-                value={formData.exchange_rate} 
-                onChange={(e) => setFormData({ ...formData, exchange_rate: e.target.value })} 
-                helperText={locale === 'ar' ? 'افتراضي: 3.75' : 'Default: 3.75'}
+              <ExchangeRateField
+                currencyCode={currencies.find((c: any) => String(c.id) === formData.currency_id)?.code}
+                value={formData.exchange_rate}
+                onChange={(v) => setFormData({ ...formData, exchange_rate: v })}
+                label={locale === 'ar' ? 'سعر الصرف (ر.س)' : 'Exchange Rate (SAR)'}
+                hideWhenBaseCurrency
               />
               <Input label={locale === 'ar' ? 'قيمة FOB' : 'FOB Value'} type="number" step="0.01" value={formData.total_fob_value} onChange={(e) => setFormData({ ...formData, total_fob_value: e.target.value })} />
               <Input label={locale === 'ar' ? 'قيمة الشحن' : 'Freight'} type="number" step="0.01" value={formData.freight_value} onChange={(e) => setFormData({ ...formData, freight_value: e.target.value })} />

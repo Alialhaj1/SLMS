@@ -47,6 +47,9 @@ const projectCreateSchema = z.object({
   budget_labor: z.number().optional(),
   budget_services: z.number().optional(),
   budget_miscellaneous: z.number().optional(),
+  budget_allocated: z.number().optional(),
+  risk_level: z.string().optional().nullable(),
+  tags: z.any().optional().nullable(),
   status: z.enum(['planned', 'in_progress', 'on_hold', 'completed', 'cancelled', 'active', 'draft']).default('active'),
   priority: z.enum(['low', 'medium', 'high', 'critical']).default('medium'),
   progress_percent: z.number().optional(),
@@ -63,7 +66,7 @@ const projectUpdateSchema = projectCreateSchema.partial();
  * Generate next project code based on level and parent
  * Numbering system:
  * - Group: 1, 2, 3, ... (simple sequential)
- * - Master: 101, 102, 103, ... (starting from 101)
+ * - Master: [groupCode]01, [groupCode]02, ... (e.g., group 1 → 101, 102; group 2 → 201, 202)
  * - Sub: [parent]001, [parent]002, ... (e.g., 101001, 101002, 102001)
  */
 async function generateProjectCode(
@@ -93,20 +96,45 @@ async function generateProjectCode(
   }
   
   if (projectLevel === 'master') {
-    // Master level: 101, 102, 103, ...
+    // Master level: per-group numbering [groupCode]01, [groupCode]02, ...
+    // e.g., Group 1 → 101, 102, 103; Group 2 → 201, 202, 203
+    if (!parentId) {
+      throw new Error('Parent group is required for master projects');
+    }
+    
+    // Get parent group's code
+    const parentResult = await db.query(`
+      SELECT code FROM projects WHERE id = $1 AND company_id = $2 AND project_level = 'group'
+    `, [parentId, companyId]);
+    
+    if (parentResult.rows.length === 0) {
+      throw new Error('Parent group not found');
+    }
+    
+    const groupCode = parentResult.rows[0].code;
+    const prefix = groupCode; // e.g., "1", "2", "3"
+    const suffixLen = 2; // two-digit sequence: 01, 02, ...
+    const likePattern = prefix + '__'; // exactly 2 more characters
+    
+    console.log(`[generateProjectCode] Master under group ${parentId}, groupCode=${groupCode}, pattern=${likePattern}`);
+    
     const result = await db.query(`
-      SELECT COALESCE(MAX(CAST(code AS INTEGER)), 100) + 1 as next_seq
+      SELECT COALESCE(MAX(
+        CAST(SUBSTRING(code FROM $3::integer) AS INTEGER)
+      ), 0) + 1 as next_seq
       FROM projects
       WHERE company_id = $1
+        AND parent_project_id = $2
         AND project_level = 'master'
         AND deleted_at IS NULL
-        AND code ~ '^[0-9]+$'
-        AND CAST(code AS INTEGER) >= 101
-        AND CAST(code AS INTEGER) <= 999
-    `, [companyId]);
+        AND code LIKE $4
+        AND LENGTH(code) = $5
+    `, [companyId, parentId, prefix.length + 1, likePattern, prefix.length + suffixLen]);
     
-    const nextSeq = result.rows[0]?.next_seq || 101;
-    return String(nextSeq);
+    const nextSeq = result.rows[0]?.next_seq || 1;
+    const generatedCode = prefix + String(nextSeq).padStart(suffixLen, '0');
+    console.log(`[generateProjectCode] Master code: ${generatedCode}`);
+    return generatedCode;
   }
   
   // Sub level: [parent]001, [parent]002, ...
@@ -571,6 +599,56 @@ router.get('/stats', async (req: Request, res: Response) => {
 });
 
 /**
+ * @route   GET /api/projects/check-vendor-in-group
+ * @desc    Check if a vendor already has master projects in a group
+ * @access  Private (projects:create)
+ */
+router.get('/check-vendor-in-group', requirePermission('projects:create'), async (req: Request, res: Response) => {
+  try {
+    const companyId = await getEffectiveCompanyId(req);
+    if (!companyId) {
+      return res.status(400).json({ error: 'No company found' });
+    }
+
+    const { group_id, vendor_id } = req.query;
+    if (!group_id || !vendor_id) {
+      return res.status(400).json({ error: 'group_id and vendor_id are required' });
+    }
+
+    const groupId = parseInt(group_id as string, 10);
+    const vendorId = parseInt(vendor_id as string, 10);
+
+    if (isNaN(groupId) || isNaN(vendorId)) {
+      return res.status(400).json({ error: 'Invalid group_id or vendor_id' });
+    }
+
+    // Find existing master projects for this vendor in this group
+    const result = await pool.query(`
+      SELECT p.id, p.code, p.name, p.name_ar, p.status,
+             (SELECT COUNT(*) FROM projects sub WHERE sub.parent_project_id = p.id AND sub.deleted_at IS NULL) as sub_count
+      FROM projects p
+      WHERE p.company_id = $1
+        AND p.parent_project_id = $2
+        AND p.vendor_id = $3
+        AND p.project_level = 'master'
+        AND p.deleted_at IS NULL
+      ORDER BY p.code
+    `, [companyId, groupId, vendorId]);
+
+    return res.json({
+      success: true,
+      data: {
+        has_existing: result.rows.length > 0,
+        existing_projects: result.rows
+      }
+    });
+  } catch (error: any) {
+    console.error('Error checking vendor in group:', error);
+    return res.status(500).json({ error: 'Failed to check vendor' });
+  }
+});
+
+/**
  * @route   GET /api/projects/next-code
  * @desc    Get next auto-generated code for a project
  * @access  Private (projects:create)
@@ -884,7 +962,7 @@ router.post('/', requirePermission('projects:create'), async (req: Request, res:
 
 /**
  * @route   PUT /api/projects/:id
- * @desc    Update project
+ * @desc    Update project (with code uniqueness, vendor cascade, full field support)
  * @access  Private (projects:update)
  */
 router.put('/:id', requirePermission('projects:update'), async (req: Request, res: Response) => {
@@ -898,6 +976,7 @@ router.put('/:id', requirePermission('projects:update'), async (req: Request, re
 
     const { id } = req.params;
     const validatedData = projectUpdateSchema.parse(req.body);
+    const userId = (req as any).user?.id;
 
     await client.query('BEGIN');
 
@@ -916,7 +995,6 @@ router.put('/:id', requirePermission('projects:update'), async (req: Request, re
 
     // Check if locked
     if (project.is_locked) {
-      // Only allow certain fields to be updated when locked
       const allowedFields = ['name', 'name_ar', 'description', 'description_ar', 'status', 'priority', 'progress_percent'];
       const attemptedFields = Object.keys(validatedData);
       const blockedFields = attemptedFields.filter(f => !allowedFields.includes(f));
@@ -929,25 +1007,71 @@ router.put('/:id', requirePermission('projects:update'), async (req: Request, re
       }
     }
 
-    // Build update query
+    // ---- Code uniqueness check ----
+    if (validatedData.code && validatedData.code !== project.code) {
+      const codeExists = await client.query(`
+        SELECT id FROM projects 
+        WHERE company_id = $1 AND code = $2 AND id != $3 AND deleted_at IS NULL
+      `, [companyId, validatedData.code.trim(), id]);
+      
+      if (codeExists.rows.length > 0) {
+        await client.query('ROLLBACK');
+        return res.status(409).json({ error: 'Project code already exists' });
+      }
+    }
+
+    // ---- Vendor change: resolve currency and cascade to sub-projects ----
+    let vendorCurrencyId: number | null = null;
+    let vendorCurrencyCode: string | null = null;
+    const vendorChanged = validatedData.vendor_id !== undefined && validatedData.vendor_id !== project.vendor_id;
+
+    if (vendorChanged && validatedData.vendor_id) {
+      const vendorResult = await client.query(`
+        SELECT v.currency_id, c.code as currency_code 
+        FROM vendors v
+        LEFT JOIN currencies c ON v.currency_id = c.id
+        WHERE v.id = $1
+      `, [validatedData.vendor_id]);
+      
+      if (vendorResult.rows.length > 0) {
+        vendorCurrencyId = vendorResult.rows[0].currency_id;
+        vendorCurrencyCode = vendorResult.rows[0].currency_code;
+      }
+    }
+
+    // Build update query — full field map
     const updateFields: string[] = [];
     const updateValues: any[] = [];
     let paramCount = 1;
 
     const fieldMap: Record<string, string> = {
+      code: 'code',
       name: 'name',
       name_ar: 'name_ar',
       description: 'description',
       description_ar: 'description_ar',
       project_type_id: 'project_type_id',
+      vendor_id: 'vendor_id',
+      cost_center_id: 'cost_center_id',
+      manager_id: 'manager_id',
+      manager_name: 'manager_name',
       lc_number: 'lc_number',
       contract_number: 'contract_number',
       start_date: 'start_date',
       end_date: 'end_date',
       budget: 'budget',
+      budget_materials: 'budget_materials',
+      budget_labor: 'budget_labor',
+      budget_services: 'budget_services',
+      budget_miscellaneous: 'budget_miscellaneous',
+      budget_allocated: 'budget_allocated',
+      progress_percent: 'progress_percent',
+      risk_level: 'risk_level',
+      tags: 'tags',
+      parent_project_id: 'parent_project_id',
       status: 'status',
       priority: 'priority',
-      is_active: 'is_active'
+      is_active: 'is_active',
     };
 
     Object.entries(validatedData).forEach(([key, value]) => {
@@ -957,6 +1081,20 @@ router.put('/:id', requirePermission('projects:update'), async (req: Request, re
         paramCount++;
       }
     });
+
+    // If vendor changed, also update currency fields
+    if (vendorChanged && validatedData.vendor_id) {
+      updateFields.push(`currency_id = $${paramCount}`);
+      updateValues.push(vendorCurrencyId);
+      paramCount++;
+      updateFields.push(`currency_code = $${paramCount}`);
+      updateValues.push(vendorCurrencyCode);
+      paramCount++;
+    } else if (vendorChanged && !validatedData.vendor_id) {
+      // Vendor cleared
+      updateFields.push(`currency_id = NULL`);
+      updateFields.push(`currency_code = NULL`);
+    }
 
     if (updateFields.length === 0) {
       await client.query('ROLLBACK');
@@ -972,6 +1110,19 @@ router.put('/:id', requirePermission('projects:update'), async (req: Request, re
       RETURNING *
     `, [...updateValues, id, companyId]);
 
+    // ---- Cascade vendor/currency to sub-projects (master → sub) ----
+    if (vendorChanged && project.project_level === 'master') {
+      const cascadeVendorId = validatedData.vendor_id || null;
+      await client.query(`
+        UPDATE projects 
+        SET vendor_id = $1, currency_id = $2, currency_code = $3, updated_at = NOW()
+        WHERE parent_project_id = $4 
+          AND project_level = 'sub' 
+          AND deleted_at IS NULL
+      `, [cascadeVendorId, vendorCurrencyId, vendorCurrencyCode, id]);
+      console.log(`[PUT /projects/${id}] Cascaded vendor change to sub-projects`);
+    }
+
     await client.query('COMMIT');
 
     return res.json({
@@ -981,6 +1132,12 @@ router.put('/:id', requirePermission('projects:update'), async (req: Request, re
   } catch (error: any) {
     await client.query('ROLLBACK');
     console.error('Error updating project:', error);
+    if (error.code === '23505') {
+      return res.status(409).json({ error: 'Project code already exists' });
+    }
+    if (error.name === 'ZodError') {
+      return res.status(400).json({ error: 'Validation error', details: error.errors });
+    }
     return res.status(500).json({ error: 'Failed to update project' });
   } finally {
     client.release();
@@ -1081,10 +1238,11 @@ router.post('/:id/lock', requireAnyPermission(['projects:lock', 'projects:update
 
 /**
  * @route   DELETE /api/projects/:id
- * @desc    Soft delete project (with validation)
+ * @desc    Soft delete project (with comprehensive dependency validation)
  * @access  Private (projects:delete)
  */
 router.delete('/:id', requirePermission('projects:delete'), async (req: Request, res: Response) => {
+  const client = await pool.connect();
   try {
     const companyId = await getEffectiveCompanyId(req);
     const userId = (req as any).user?.id;
@@ -1093,84 +1251,584 @@ router.delete('/:id', requirePermission('projects:delete'), async (req: Request,
     }
 
     const { id } = req.params;
-    const unlinkPayments = req.query.unlinkPayments === 'true';
-    const unlinkChildren = req.query.unlinkChildren === 'true';
+    const forceDelete = req.query.force === 'true';
 
-    // Check for children
-    const childrenCheck = await pool.query(`
+    await client.query('BEGIN');
+
+    // Verify project exists
+    const projectCheck = await client.query(`
+      SELECT id, code, name, project_level FROM projects
+      WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL
+    `, [id, companyId]);
+
+    if (projectCheck.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    // ---- Collect all dependencies ----
+    const deps: { type: string; count: number; label: string; label_ar: string }[] = [];
+
+    // 1. Children projects
+    const childrenCheck = await client.query(`
       SELECT COUNT(*) as count FROM projects
       WHERE parent_project_id = $1 AND deleted_at IS NULL
     `, [id]);
-
     const childrenCount = parseInt(childrenCheck.rows[0].count, 10);
     if (childrenCount > 0) {
-      if (unlinkChildren) {
-        // Unlink children by setting their parent_project_id to NULL
-        await pool.query(`
-          UPDATE projects 
-          SET parent_project_id = NULL, updated_at = NOW()
-          WHERE parent_project_id = $1 AND deleted_at IS NULL
-        `, [id]);
-        console.log(`Unlinked ${childrenCount} child projects from project ${id}`);
-      } else {
-        return res.status(400).json({ 
-          error: 'Cannot delete project with child projects',
-          childrenCount,
-          hint: 'Add ?unlinkChildren=true to unlink children and delete'
-        });
-      }
+      deps.push({ type: 'children', count: childrenCount, label: 'Child projects', label_ar: 'مشاريع فرعية' });
     }
 
-    // Note: shipments.project_id doesn't exist yet - skipping shipments check
-    // TODO: Add shipments check when project_id column is added to shipments table
-
-    // Check for payments
-    const paymentsCheck = await pool.query(`
+    // 2. Vendor payments
+    const paymentsCheck = await client.query(`
       SELECT COUNT(*) as count FROM vendor_payments
       WHERE project_id = $1 AND deleted_at IS NULL
     `, [id]);
-
     const paymentsCount = parseInt(paymentsCheck.rows[0].count, 10);
     if (paymentsCount > 0) {
-      if (unlinkPayments) {
-        // Unlink payments by setting their project_id to NULL
-        await pool.query(`
-          UPDATE vendor_payments 
-          SET project_id = NULL, updated_at = NOW(), updated_by = $2
+      deps.push({ type: 'payments', count: paymentsCount, label: 'Vendor payments', label_ar: 'دفعات موردين' });
+    }
+
+    // 3. Project links (shipments, invoices, expenses)
+    const linksCheck = await client.query(`
+      SELECT link_type, COUNT(*) as count 
+      FROM project_links
+      WHERE project_id = $1 AND deleted_at IS NULL
+      GROUP BY link_type
+    `, [id]);
+    for (const row of linksCheck.rows) {
+      const linkLabels: Record<string, { en: string; ar: string }> = {
+        shipment: { en: 'Linked shipments', ar: 'شحنات مرتبطة' },
+        purchase_invoice: { en: 'Purchase invoices', ar: 'فواتير مشتريات' },
+        sales_invoice: { en: 'Sales invoices', ar: 'فواتير مبيعات' },
+        expense: { en: 'Expenses', ar: 'مصروفات' },
+        payment: { en: 'Linked payments', ar: 'دفعات مرتبطة' },
+      };
+      const labels = linkLabels[row.link_type] || { en: row.link_type, ar: row.link_type };
+      deps.push({ type: `link_${row.link_type}`, count: parseInt(row.count, 10), label: labels.en, label_ar: labels.ar });
+    }
+
+    // 4. Shipment expenses
+    const expensesCheck = await client.query(`
+      SELECT COUNT(*) as count FROM shipment_expenses
+      WHERE project_id = $1 AND deleted_at IS NULL
+    `, [id]).catch(() => ({ rows: [{ count: '0' }] }));
+    const expensesCount = parseInt(expensesCheck.rows[0].count, 10);
+    if (expensesCount > 0) {
+      deps.push({ type: 'shipment_expenses', count: expensesCount, label: 'Shipment expenses', label_ar: 'مصاريف شحنات' });
+    }
+
+    // 5. Project phases
+    const phasesCheck = await client.query(`
+      SELECT COUNT(*) as count FROM project_phases
+      WHERE project_id = $1 AND deleted_at IS NULL
+    `, [id]).catch(() => ({ rows: [{ count: '0' }] }));
+    const phasesCount = parseInt(phasesCheck.rows[0].count, 10);
+    if (phasesCount > 0) {
+      deps.push({ type: 'phases', count: phasesCount, label: 'Project phases', label_ar: 'مراحل المشروع' });
+    }
+
+    // If any dependencies exist and force is not set, block delete
+    if (deps.length > 0 && !forceDelete) {
+      await client.query('ROLLBACK');
+      const totalDeps = deps.reduce((s, d) => s + d.count, 0);
+      return res.status(400).json({
+        error: 'Cannot delete project with linked records',
+        error_ar: 'لا يمكن حذف مشروع مرتبط بسجلات أخرى',
+        dependencies: deps,
+        totalDependencies: totalDeps,
+        hint: 'Remove or unlink all dependencies before deleting, or use ?force=true (admin only)',
+      });
+    }
+
+    // Force delete: soft-delete cascading records
+    if (forceDelete && deps.length > 0) {
+      // Unlink children
+      if (childrenCount > 0) {
+        await client.query(`
+          UPDATE projects SET parent_project_id = NULL, updated_at = NOW()
+          WHERE parent_project_id = $1 AND deleted_at IS NULL
+        `, [id]);
+      }
+      // Unlink payments
+      if (paymentsCount > 0) {
+        await client.query(`
+          UPDATE vendor_payments SET project_id = NULL, updated_at = NOW(), updated_by = $2
           WHERE project_id = $1 AND deleted_at IS NULL
         `, [id, userId]);
-        console.log(`Unlinked ${paymentsCount} payments from project ${id}`);
-      } else {
-        return res.status(400).json({ 
-          error: 'Cannot delete project with linked payments',
-          paymentsCount,
-          hint: 'Add ?unlinkPayments=true to unlink payments and delete'
-        });
       }
+      // Soft-delete project links
+      const totalLinks = linksCheck.rows.reduce((s: number, r: any) => s + parseInt(r.count, 10), 0);
+      if (totalLinks > 0) {
+        await client.query(`
+          UPDATE project_links SET deleted_at = NOW()
+          WHERE project_id = $1 AND deleted_at IS NULL
+        `, [id]);
+      }
+      console.log(`[DELETE /projects/${id}] Force delete: unlinked ${childrenCount} children, ${paymentsCount} payments, ${totalLinks} links`);
     }
 
-    const result = await pool.query(`
+    // Soft delete the project
+    await client.query(`
       UPDATE projects 
-      SET deleted_at = NOW(), 
-          deleted_by = $3,
-          is_deleted = true
+      SET deleted_at = NOW(), deleted_by = $3, is_deleted = true
       WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL
-      RETURNING id
     `, [id, companyId, userId]);
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Project not found' });
-    }
+    await client.query('COMMIT');
 
     return res.json({
       success: true,
       message: 'Project deleted successfully',
-      unlinkedChildren: unlinkChildren ? childrenCount : 0,
-      unlinkedPayments: unlinkPayments ? paymentsCount : 0
+      dependencies_cleared: forceDelete ? deps : [],
     });
   } catch (error: any) {
+    await client.query('ROLLBACK');
     console.error('Error deleting project:', error);
     return res.status(500).json({ error: 'Failed to delete project' });
+  } finally {
+    client.release();
+  }
+});
+
+// =============================================
+// PROJECT LINKS — Link/Unlink transactions
+// =============================================
+
+/**
+ * @route   GET /api/projects/:id/links
+ * @desc    Get all linked transactions for a project
+ */
+router.get('/:id/links', requirePermission('projects:view'), async (req: Request, res: Response) => {
+  try {
+    const companyId = await getEffectiveCompanyId(req);
+    if (!companyId) return res.status(400).json({ error: 'No company found' });
+    const { id } = req.params;
+    const { link_type, cost_category } = req.query;
+
+    let query = `
+      SELECT pl.*, u.full_name as linked_by_name
+      FROM project_links pl
+      LEFT JOIN users u ON pl.linked_by = u.id
+      WHERE pl.project_id = $1 AND pl.company_id = $2 AND pl.deleted_at IS NULL
+    `;
+    const params: any[] = [id, companyId];
+    let idx = 3;
+
+    if (link_type) {
+      query += ` AND pl.link_type = $${idx}`; params.push(link_type); idx++;
+    }
+    if (cost_category) {
+      query += ` AND pl.cost_category = $${idx}`; params.push(cost_category); idx++;
+    }
+
+    query += ` ORDER BY pl.linked_at DESC`;
+    const result = await pool.query(query, params);
+
+    return res.json({ success: true, data: result.rows });
+  } catch (error: any) {
+    console.error('Error fetching project links:', error);
+    return res.status(500).json({ error: 'Failed to fetch project links' });
+  }
+});
+
+/**
+ * @route   GET /api/projects/:id/shipments
+ * @desc    Get linked shipments only
+ */
+router.get('/:id/shipments', requirePermission('projects:view'), async (req: Request, res: Response) => {
+  try {
+    const companyId = await getEffectiveCompanyId(req);
+    if (!companyId) return res.status(400).json({ error: 'No company found' });
+    const { id } = req.params;
+
+    const result = await pool.query(`
+      SELECT pl.*, u.full_name as linked_by_name
+      FROM project_links pl
+      LEFT JOIN users u ON pl.linked_by = u.id
+      WHERE pl.project_id = $1 AND pl.company_id = $2 
+        AND pl.link_type = 'shipment' AND pl.deleted_at IS NULL
+      ORDER BY pl.linked_at DESC
+    `, [id, companyId]);
+
+    return res.json({ success: true, data: result.rows });
+  } catch (error: any) {
+    console.error('Error fetching project shipments:', error);
+    return res.status(500).json({ error: 'Failed to fetch project shipments' });
+  }
+});
+
+/**
+ * @route   GET /api/projects/:id/payments
+ * @desc    Get linked payments only
+ */
+router.get('/:id/payments', requirePermission('projects:view'), async (req: Request, res: Response) => {
+  try {
+    const companyId = await getEffectiveCompanyId(req);
+    if (!companyId) return res.status(400).json({ error: 'No company found' });
+    const { id } = req.params;
+
+    const result = await pool.query(`
+      SELECT pl.*, u.full_name as linked_by_name
+      FROM project_links pl
+      LEFT JOIN users u ON pl.linked_by = u.id
+      WHERE pl.project_id = $1 AND pl.company_id = $2
+        AND pl.link_type = 'payment' AND pl.deleted_at IS NULL
+      ORDER BY pl.linked_at DESC
+    `, [id, companyId]);
+
+    return res.json({ success: true, data: result.rows });
+  } catch (error: any) {
+    console.error('Error fetching project payments:', error);
+    return res.status(500).json({ error: 'Failed to fetch project payments' });
+  }
+});
+
+/**
+ * @route   GET /api/projects/:id/expenses
+ * @desc    Get linked expenses only
+ */
+router.get('/:id/expenses', requirePermission('projects:view'), async (req: Request, res: Response) => {
+  try {
+    const companyId = await getEffectiveCompanyId(req);
+    if (!companyId) return res.status(400).json({ error: 'No company found' });
+    const { id } = req.params;
+
+    const result = await pool.query(`
+      SELECT pl.*, u.full_name as linked_by_name
+      FROM project_links pl
+      LEFT JOIN users u ON pl.linked_by = u.id
+      WHERE pl.project_id = $1 AND pl.company_id = $2
+        AND pl.link_type = 'expense' AND pl.deleted_at IS NULL
+      ORDER BY pl.linked_at DESC
+    `, [id, companyId]);
+
+    return res.json({ success: true, data: result.rows });
+  } catch (error: any) {
+    console.error('Error fetching project expenses:', error);
+    return res.status(500).json({ error: 'Failed to fetch project expenses' });
+  }
+});
+
+/**
+ * @route   GET /api/projects/:id/invoices
+ * @desc    Get linked invoices only
+ */
+router.get('/:id/invoices', requirePermission('projects:view'), async (req: Request, res: Response) => {
+  try {
+    const companyId = await getEffectiveCompanyId(req);
+    if (!companyId) return res.status(400).json({ error: 'No company found' });
+    const { id } = req.params;
+
+    const result = await pool.query(`
+      SELECT pl.*, u.full_name as linked_by_name
+      FROM project_links pl
+      LEFT JOIN users u ON pl.linked_by = u.id
+      WHERE pl.project_id = $1 AND pl.company_id = $2
+        AND pl.link_type IN ('purchase_invoice', 'sales_invoice') AND pl.deleted_at IS NULL
+      ORDER BY pl.linked_at DESC
+    `, [id, companyId]);
+
+    return res.json({ success: true, data: result.rows });
+  } catch (error: any) {
+    console.error('Error fetching project invoices:', error);
+    return res.status(500).json({ error: 'Failed to fetch project invoices' });
+  }
+});
+
+/**
+ * @route   POST /api/projects/:id/links
+ * @desc    Link a transaction to a project
+ */
+router.post('/:id/links', requireAnyPermission(['projects:links:manage', 'projects:update']), async (req: Request, res: Response) => {
+  try {
+    const companyId = await getEffectiveCompanyId(req);
+    const userId = (req as any).user?.id;
+    if (!companyId) return res.status(400).json({ error: 'No company found' });
+    const { id } = req.params;
+
+    // Verify project exists and is not financially closed
+    const projectCheck = await pool.query(`
+      SELECT id, financial_status, currency_code FROM projects
+      WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL
+    `, [id, companyId]);
+
+    if (projectCheck.rows.length === 0) return res.status(404).json({ error: 'Project not found' });
+    if (projectCheck.rows[0].financial_status === 'closed') {
+      return res.status(422).json({ error: 'Cannot link transactions to a financially closed project' });
+    }
+
+    const { link_type, linked_id, linked_reference, linked_date, linked_description,
+            linked_status, amount, currency_code, amount_base, cost_category, notes, phase_id } = req.body;
+
+    if (!link_type || !linked_id) {
+      return res.status(400).json({ error: 'link_type and linked_id are required' });
+    }
+
+    const result = await pool.query(`
+      INSERT INTO project_links (
+        company_id, project_id, link_type, linked_id, linked_reference,
+        linked_date, linked_description, linked_status,
+        amount, currency_code, amount_base, cost_category, notes,
+        phase_id, linked_by, linked_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW())
+      RETURNING *
+    `, [companyId, id, link_type, linked_id, linked_reference || null,
+        linked_date || null, linked_description || null, linked_status || null,
+        amount || null, currency_code || null, amount_base || amount || null,
+        cost_category || null, notes || null, phase_id || null, userId]);
+
+    // Update budget_consumed on the project
+    if (amount_base && cost_category !== 'revenue') {
+      await pool.query(`
+        UPDATE projects SET budget_consumed = COALESCE(budget_consumed, 0) + $2, updated_at = NOW()
+        WHERE id = $1
+      `, [id, Math.abs(parseFloat(amount_base || amount || '0'))]);
+    }
+
+    return res.status(201).json({ success: true, data: result.rows[0] });
+  } catch (error: any) {
+    if (error.code === '23505') return res.status(409).json({ error: 'This transaction is already linked to this project' });
+    console.error('Error linking transaction:', error);
+    return res.status(500).json({ error: 'Failed to link transaction' });
+  }
+});
+
+/**
+ * @route   DELETE /api/projects/:id/links/:linkId
+ * @desc    Unlink a transaction from a project
+ */
+router.delete('/:id/links/:linkId', requireAnyPermission(['projects:links:manage', 'projects:update']), async (req: Request, res: Response) => {
+  try {
+    const companyId = await getEffectiveCompanyId(req);
+    if (!companyId) return res.status(400).json({ error: 'No company found' });
+    const { id, linkId } = req.params;
+
+    // Get link amount before deleting
+    const linkResult = await pool.query(`
+      SELECT amount_base, cost_category FROM project_links
+      WHERE id = $1 AND project_id = $2 AND deleted_at IS NULL
+    `, [linkId, id]);
+
+    if (linkResult.rows.length === 0) return res.status(404).json({ error: 'Link not found' });
+
+    // Soft-delete the link
+    await pool.query(`
+      UPDATE project_links SET deleted_at = NOW()
+      WHERE id = $1 AND project_id = $2 AND deleted_at IS NULL
+    `, [linkId, id]);
+
+    // Decrease budget_consumed
+    const link = linkResult.rows[0];
+    if (link.amount_base && link.cost_category !== 'revenue') {
+      await pool.query(`
+        UPDATE projects SET budget_consumed = GREATEST(0, COALESCE(budget_consumed, 0) - $2), updated_at = NOW()
+        WHERE id = $1
+      `, [id, Math.abs(parseFloat(link.amount_base))]);
+    }
+
+    return res.json({ success: true, message: 'Transaction unlinked' });
+  } catch (error: any) {
+    console.error('Error unlinking transaction:', error);
+    return res.status(500).json({ error: 'Failed to unlink transaction' });
+  }
+});
+
+// =============================================
+// COST BREAKDOWN
+// =============================================
+
+/**
+ * @route   GET /api/projects/:id/cost-breakdown
+ * @desc    Get full cost breakdown from v_project_cost_summary
+ */
+router.get('/:id/cost-breakdown', requirePermission('projects:view'), async (req: Request, res: Response) => {
+  try {
+    const companyId = await getEffectiveCompanyId(req);
+    if (!companyId) return res.status(400).json({ error: 'No company found' });
+    const { id } = req.params;
+
+    const result = await pool.query(`
+      SELECT * FROM v_project_cost_summary WHERE id = $1 AND company_id = $2
+    `, [id, companyId]);
+
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Project not found' });
+
+    return res.json({ success: true, data: result.rows[0] });
+  } catch (error: any) {
+    console.error('Error fetching cost breakdown:', error);
+    return res.status(500).json({ error: 'Failed to fetch cost breakdown' });
+  }
+});
+
+// =============================================
+// TIMELINE
+// =============================================
+
+/**
+ * @route   GET /api/projects/:id/timeline
+ * @desc    Get project timeline (phases + linked transactions chronologically)
+ */
+router.get('/:id/timeline', requirePermission('projects:view'), async (req: Request, res: Response) => {
+  try {
+    const companyId = await getEffectiveCompanyId(req);
+    if (!companyId) return res.status(400).json({ error: 'No company found' });
+    const { id } = req.params;
+
+    // Phases timeline
+    const phasesResult = await pool.query(`
+      SELECT id, code, name, name_ar, phase_type, status, completion_pct,
+             planned_start, planned_end, actual_start, actual_end, duration_days,
+             'phase' as entry_type
+      FROM project_phases
+      WHERE project_id = $1 AND deleted_at IS NULL
+      ORDER BY sort_order, planned_start
+    `, [id]);
+
+    // Linked transactions timeline
+    const linksResult = await pool.query(`
+      SELECT id, link_type as entry_type, linked_reference as reference,
+             linked_description as description, linked_date as date,
+             amount_base as amount, cost_category, linked_status as status
+      FROM project_links
+      WHERE project_id = $1 AND deleted_at IS NULL
+      ORDER BY linked_at DESC
+      LIMIT 50
+    `, [id]);
+
+    return res.json({
+      success: true,
+      data: {
+        phases: phasesResult.rows,
+        transactions: linksResult.rows
+      }
+    });
+  } catch (error: any) {
+    console.error('Error fetching project timeline:', error);
+    return res.status(500).json({ error: 'Failed to fetch project timeline' });
+  }
+});
+
+// =============================================
+// FINANCIAL CLOSE
+// =============================================
+
+/**
+ * @route   PATCH /api/projects/:id/financial-close
+ * @desc    Financially close a project (prevents new links)
+ */
+router.patch('/:id/financial-close', requireAnyPermission(['projects:financial:close', 'projects:close', 'projects:update']), async (req: Request, res: Response) => {
+  try {
+    const companyId = await getEffectiveCompanyId(req);
+    const userId = (req as any).user?.id;
+    if (!companyId) return res.status(400).json({ error: 'No company found' });
+    const { id } = req.params;
+
+    // Check for open children
+    const childrenCheck = await pool.query(`
+      SELECT COUNT(*) as count FROM projects
+      WHERE parent_project_id = $1 AND deleted_at IS NULL
+        AND COALESCE(financial_status, 'open') NOT IN ('closed', 'archived')
+    `, [id]);
+
+    if (parseInt(childrenCheck.rows[0].count, 10) > 0) {
+      return res.status(400).json({ error: 'Cannot close project with financially open child projects' });
+    }
+
+    const result = await pool.query(`
+      UPDATE projects
+      SET financial_status = 'closed', closed_at = NOW(), closed_by = $3, is_locked = TRUE, updated_at = NOW()
+      WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL
+      RETURNING *
+    `, [id, companyId, userId]);
+
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Project not found' });
+    return res.json({ success: true, data: result.rows[0], message: 'Project financially closed' });
+  } catch (error: any) {
+    console.error('Error closing project financially:', error);
+    return res.status(500).json({ error: 'Failed to close project financially' });
+  }
+});
+
+// =============================================
+// DUPLICATE PROJECT
+// =============================================
+
+/**
+ * @route   POST /api/projects/:id/duplicate
+ * @desc    Duplicate a project (without transactions)
+ */
+router.post('/:id/duplicate', requirePermission('projects:create'), async (req: Request, res: Response) => {
+  const client = await pool.connect();
+  try {
+    const companyId = await getEffectiveCompanyId(req);
+    const userId = (req as any).user?.id;
+    if (!companyId) return res.status(400).json({ error: 'No company found' });
+    const { id } = req.params;
+    const { new_name, new_name_ar } = req.body;
+
+    const original = await client.query(`
+      SELECT * FROM projects WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL
+    `, [id, companyId]);
+
+    if (original.rows.length === 0) return res.status(404).json({ error: 'Project not found' });
+
+    const proj = original.rows[0];
+
+    await client.query('BEGIN');
+
+    // Generate new code
+    const newCode = await generateProjectCode(companyId, proj.project_level, proj.parent_project_id, client);
+
+    const result = await client.query(`
+      INSERT INTO projects (
+        company_id, code, name, name_ar, description, description_ar,
+        project_level, level, parent_project_id, vendor_id, currency_id, currency_code,
+        project_type_id, manager_id, cost_center_id,
+        start_date, end_date, budget, budget_allocated,
+        budget_materials, budget_labor, budget_services, budget_miscellaneous,
+        status, priority, risk_level, tags, is_active, created_by
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
+        $16, $17, $18, $19, $20, $21, $22, $23, 'planned', $24, 'low', $25, TRUE, $26
+      )
+      RETURNING *
+    `, [
+      companyId, newCode,
+      new_name || proj.name + ' (Copy)',
+      new_name_ar || (proj.name_ar ? proj.name_ar + ' (نسخة)' : null),
+      proj.description, proj.description_ar,
+      proj.project_level, proj.level, proj.parent_project_id,
+      proj.vendor_id, proj.currency_id, proj.currency_code,
+      proj.project_type_id, proj.manager_id, proj.cost_center_id,
+      proj.start_date, proj.end_date, proj.budget, proj.budget_allocated,
+      proj.budget_materials, proj.budget_labor, proj.budget_services, proj.budget_miscellaneous,
+      proj.priority, proj.tags || '{}', userId
+    ]);
+
+    // Copy phases if they exist
+    await client.query(`
+      INSERT INTO project_phases (company_id, project_id, code, name, name_ar, description, description_ar,
+        phase_type, sort_order, duration_days, budget, is_template, is_active, created_by)
+      SELECT company_id, $2, code, name, name_ar, description, description_ar,
+        phase_type, sort_order, duration_days, budget, FALSE, TRUE, $3
+      FROM project_phases
+      WHERE project_id = $1 AND deleted_at IS NULL
+    `, [id, result.rows[0].id, userId]);
+
+    await client.query('COMMIT');
+
+    return res.status(201).json({
+      success: true,
+      data: result.rows[0],
+      message: `Project duplicated with code: ${newCode}`
+    });
+  } catch (error: any) {
+    await client.query('ROLLBACK');
+    console.error('Error duplicating project:', error);
+    return res.status(500).json({ error: 'Failed to duplicate project' });
+  } finally {
+    client.release();
   }
 });
 

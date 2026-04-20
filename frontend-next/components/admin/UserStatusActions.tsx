@@ -1,4 +1,4 @@
-/**
+﻿/**
  * UserStatusActions Component
  * Phase 4B Feature 3: Action buttons for user status management (Disable/Enable/Unlock)
  */
@@ -48,7 +48,9 @@ export default function UserStatusActions({
   };
 
   const handleEnable = async () => {
-    if (!confirm(`Are you sure you want to enable user "${username}"?\n\nThis will allow them to log in again.`)) {
+    if (!confirm(`Are you sure you want to enable user "${username}"?
+
+This will allow them to log in again.`)) {
       return;
     }
 
@@ -67,7 +69,9 @@ export default function UserStatusActions({
   };
 
   const handleUnlock = async () => {
-    if (!confirm(`Are you sure you want to unlock user "${username}"?\n\nThis will reset failed login attempts and allow them to log in.`)) {
+    if (!confirm(`Are you sure you want to unlock user "${username}"?
+
+This will reset failed login attempts and allow them to log in.`)) {
       return;
     }
 

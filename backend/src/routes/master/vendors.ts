@@ -36,30 +36,22 @@ const VENDOR_SELECT = `
     cur.code  AS currency_code,
     cur.name  AS currency_name,
     cur.symbol AS currency_symbol,
-    lang.name_en AS language_name,
-    lang.name_native AS language_native_name,
-    st.name_en   AS supplier_type_name,
+    st.name   AS supplier_type_name,
     st.name_ar AS supplier_type_name_ar,
-    sc.name_en   AS supplier_category_name,
+    sc.name   AS supplier_category_name,
     sc.name_ar AS supplier_category_name_ar,
-    ss.name_en   AS supplier_status_name,
+    ss.name   AS supplier_status_name,
     ss.name_ar AS supplier_status_name_ar,
     ss.color  AS supplier_status_color,
-    supt.name_en AS supply_term_name,
-    delt.name_en AS delivery_term_name,
-    delt.incoterm_code AS delivery_term_incoterm,
     uc.email  AS created_by_name,
     uu.email  AS updated_by_name
   FROM vendors v
   LEFT JOIN countries cn          ON v.country_id = cn.id
   LEFT JOIN cities ct             ON v.city_id = ct.id
   LEFT JOIN currencies cur        ON v.currency_id = cur.id
-  LEFT JOIN system_languages lang  ON v.language_id = lang.id
-  LEFT JOIN supplier_types st     ON v.supplier_type_id = st.id
-  LEFT JOIN supplier_categories sc ON v.supplier_category_id = sc.id
-  LEFT JOIN supplier_statuses ss  ON v.status_id = ss.id
-  LEFT JOIN supply_terms supt     ON v.supply_term_id = supt.id
-  LEFT JOIN delivery_terms delt   ON v.delivery_term_id = delt.id
+  LEFT JOIN vendor_types st       ON v.vendor_type_id = st.id
+  LEFT JOIN vendor_categories sc  ON v.vendor_category_id = sc.id
+  LEFT JOIN vendor_statuses ss    ON v.status_id = ss.id
   LEFT JOIN users uc              ON v.created_by = uc.id
   LEFT JOIN users uu              ON v.updated_by = uu.id
 `;
@@ -100,9 +92,9 @@ router.get(
 
       const hasIsActive = await columnExists('vendors', 'is_active');
       const hasStatusId = await columnExists('vendors', 'status_id');
-      const hasSupplierTypeId = await columnExists('vendors', 'supplier_type_id');
+      const hasSupplierTypeId = await columnExists('vendors', 'vendor_type_id');
       const hasCreditLimit = await columnExists('vendors', 'credit_limit');
-      const hasRating = await columnExists('vendors', 'rating');
+      const hasRating = await columnExists('vendors', 'rating_score');
 
       let statsQuery = `
         SELECT
@@ -110,10 +102,10 @@ router.get(
           ${hasIsActive ? `COUNT(*) FILTER (WHERE v.is_active = true)::int AS active,
           COUNT(*) FILTER (WHERE v.is_active = false)::int AS inactive,` : `
           COUNT(*)::int AS active, 0 AS inactive,`}
-          ${hasSupplierTypeId ? `COUNT(DISTINCT v.supplier_type_id)::int AS type_count,` : `0 AS type_count,`}
+          ${hasSupplierTypeId ? `COUNT(DISTINCT v.vendor_type_id)::int AS type_count,` : `0 AS type_count,`}
           COUNT(DISTINCT v.country_id)::int AS countries_count
           ${hasCreditLimit ? `, COALESCE(SUM(v.credit_limit), 0)::numeric AS total_credit_limit` : ``}
-          ${hasRating ? `, COALESCE(ROUND(AVG(v.rating), 1), 0)::numeric AS avg_rating` : ``}
+          ${hasRating ? `, COALESCE(ROUND(AVG(v.rating_score), 1), 0)::numeric AS avg_rating` : ``}
         FROM vendors v
         WHERE v.company_id = $1 AND v.deleted_at IS NULL
       `;
@@ -121,15 +113,15 @@ router.get(
       const result = await pool.query(statsQuery, [companyId]);
       const stats = result.rows[0] || {};
 
-      // Get by-type breakdown if supplier_types table exists
+      // Get by-type breakdown if vendor_types table exists
       let byType: any[] = [];
-      if (hasSupplierTypeId && await tableExists('supplier_types')) {
+      if (hasSupplierTypeId && await tableExists('vendor_types')) {
         const typeRes = await pool.query(
-          `SELECT st.name_en AS name, st.name_ar, COUNT(v.id)::int AS count
+          `SELECT st.name AS name, st.name_ar, COUNT(v.id)::int AS count
            FROM vendors v
-           JOIN supplier_types st ON v.supplier_type_id = st.id
+           JOIN vendor_types st ON v.vendor_type_id = st.id
            WHERE v.company_id = $1 AND v.deleted_at IS NULL
-           GROUP BY st.name_en, st.name_ar ORDER BY count DESC`,
+           GROUP BY st.name, st.name_ar ORDER BY count DESC`,
           [companyId]
         );
         byType = typeRes.rows;
@@ -159,26 +151,26 @@ router.get(
 
       const filters: any = {};
 
-      // Supplier types
-      if (await tableExists('supplier_types')) {
+      // Vendor types
+      if (await tableExists('vendor_types')) {
         const r = await pool.query(
-          `SELECT id, name_en AS name, name_ar FROM supplier_types WHERE deleted_at IS NULL ORDER BY name_en`
+          `SELECT id, name, name_ar FROM vendor_types WHERE deleted_at IS NULL ORDER BY name`
         );
         filters.supplier_types = r.rows;
       }
 
-      // Supplier categories
-      if (await tableExists('supplier_categories')) {
+      // Vendor categories
+      if (await tableExists('vendor_categories')) {
         const r = await pool.query(
-          `SELECT id, name_en AS name, name_ar FROM supplier_categories WHERE deleted_at IS NULL ORDER BY name_en`
+          `SELECT id, name, name_ar FROM vendor_categories WHERE deleted_at IS NULL ORDER BY name`
         );
         filters.supplier_categories = r.rows;
       }
 
-      // Supplier statuses
-      if (await tableExists('supplier_statuses')) {
+      // Vendor statuses
+      if (await tableExists('vendor_statuses')) {
         const r = await pool.query(
-          `SELECT id, name_en AS name, name_ar, color FROM supplier_statuses WHERE deleted_at IS NULL ORDER BY sort_order, name_en`
+          `SELECT id, name, name_ar, color FROM vendor_statuses WHERE deleted_at IS NULL ORDER BY sort_order, name`
         );
         filters.supplier_statuses = r.rows;
       }
@@ -218,19 +210,21 @@ router.get(
       const {
         search, is_active, vendor_type, status, supplier_type_id,
         supplier_category_id, status_id, country_id, city_id,
-        page = '1', limit = '25', sort = 'code', order = 'asc',
+        page = '1', limit = '25', sort, sortBy, order, sortOrder,
       } = req.query;
+      const effectiveSort = (sort || sortBy || 'code') as string;
+      const effectiveOrder = (order || sortOrder || 'asc') as string;
 
       const params: any[] = [companyId];
       let paramIdx = 2;
       const conditions: string[] = ['v.company_id = $1', 'v.deleted_at IS NULL'];
 
-      // Search across code, name, name_en, name_ar, short_name, tax_number
+      // Search across code, name, name_ar, tax_number
       if (search) {
         conditions.push(`(
           v.code ILIKE $${paramIdx} OR v.name ILIKE $${paramIdx} OR
-          v.name_en ILIKE $${paramIdx} OR v.name_ar ILIKE $${paramIdx} OR
-          v.short_name ILIKE $${paramIdx} OR v.tax_number ILIKE $${paramIdx}
+          v.name_ar ILIKE $${paramIdx} OR
+          COALESCE(v.tax_number, '') ILIKE $${paramIdx}
         )`);
         params.push(`%${search}%`);
         paramIdx++;
@@ -260,12 +254,12 @@ router.get(
 
       // New FK filters
       if (supplier_type_id) {
-        conditions.push(`v.supplier_type_id = $${paramIdx}`);
+        conditions.push(`v.vendor_type_id = $${paramIdx}`);
         params.push(Number(supplier_type_id));
         paramIdx++;
       }
       if (supplier_category_id) {
-        conditions.push(`v.supplier_category_id = $${paramIdx}`);
+        conditions.push(`v.vendor_category_id = $${paramIdx}`);
         params.push(Number(supplier_category_id));
         paramIdx++;
       }
@@ -289,24 +283,24 @@ router.get(
 
       // Sorting — whitelist allowed columns
       const sortableColumns: Record<string, string> = {
-        code: 'v.code', name: 'v.name', name_en: 'v.name_en', name_ar: 'v.name_ar',
+        code: 'v.code', name: 'v.name', name_ar: 'v.name_ar',
         country_name: 'cn.name', city_name: 'ct.name', currency_code: 'cur.code',
-        supplier_type_name: 'st.name_en', supplier_category_name: 'sc.name_en',
-        supplier_status_name: 'ss.name_en', payment_days: 'v.payment_days',
-        credit_limit: 'v.credit_limit', rating: 'v.rating',
+        supplier_type_name: 'st.name', supplier_category_name: 'sc.name',
+        supplier_status_name: 'ss.name',
+        credit_limit: 'v.credit_limit', rating: 'v.rating_score',
         created_at: 'v.created_at', updated_at: 'v.updated_at',
         is_active: 'v.is_active',
       };
-      const sortCol = sortableColumns[sort as string] || 'v.code';
-      const sortDir = order === 'desc' ? 'DESC' : 'ASC';
+      const sortCol = sortableColumns[effectiveSort] || 'v.code';
+      const sortDir = effectiveOrder === 'desc' ? 'DESC' : 'ASC';
 
       // Count
       const countResult = await pool.query(
         `SELECT COUNT(*)::int AS total FROM vendors v
          LEFT JOIN countries cn ON v.country_id = cn.id
-         LEFT JOIN supplier_types st ON v.supplier_type_id = st.id
-         LEFT JOIN supplier_categories sc ON v.supplier_category_id = sc.id
-         LEFT JOIN supplier_statuses ss ON v.status_id = ss.id
+         LEFT JOIN vendor_types st ON v.vendor_type_id = st.id
+         LEFT JOIN vendor_categories sc ON v.vendor_category_id = sc.id
+         LEFT JOIN vendor_statuses ss ON v.status_id = ss.id
          WHERE ${whereClause}`,
         params
       );
@@ -314,7 +308,7 @@ router.get(
 
       // Paginated data
       const pageNum = Math.max(1, parseInt(page as string, 10) || 1);
-      const pageSize = Math.min(200, Math.max(1, parseInt(limit as string, 10) || 25));
+      const pageSize = Math.min(1000, Math.max(1, parseInt(limit as string, 10) || 25));
       const offset = (pageNum - 1) * pageSize;
 
       const dataResult = await pool.query(
@@ -502,17 +496,14 @@ router.post(
       await addCol('is_external', is_external);
 
       // New FK columns
-      await addCol('supplier_type_id', supplier_type_id);
-      await addCol('supplier_category_id', supplier_category_id);
+      await addCol('vendor_type_id', supplier_type_id);
+      await addCol('vendor_category_id', supplier_category_id);
       await addCol('status_id', status_id);
       await addCol('country_id', country_id);
       await addCol('city_id', city_id);
       await addCol('address', address);
       await addCol('postal_code', postal_code);
-      await addCol('language_id', language_id);
       await addCol('currency_id', currency_id);
-      await addCol('supply_term_id', supply_term_id);
-      await addCol('delivery_term_id', delivery_term_id);
 
       // Tax / Registration
       await addCol('tax_number', tax_number);
@@ -650,15 +641,14 @@ router.put(
       await setCol('is_external', is_external);
       await setCol('supplier_type_id', supplier_type_id);
       await setCol('supplier_category_id', supplier_category_id);
+      await setCol('vendor_type_id', supplier_type_id);
+      await setCol('vendor_category_id', supplier_category_id);
       await setCol('status_id', status_id);
       await setCol('country_id', country_id);
       await setCol('city_id', city_id);
       await setCol('address', address);
       await setCol('postal_code', postal_code);
-      await setCol('language_id', language_id);
       await setCol('currency_id', currency_id);
-      await setCol('supply_term_id', supply_term_id);
-      await setCol('delivery_term_id', delivery_term_id);
       await setCol('tax_number', tax_number);
       await setCol('cr_number', cr_number || commercial_register);
       await setCol('cr_expiry_date', cr_expiry_date);

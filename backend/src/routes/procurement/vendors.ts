@@ -730,7 +730,7 @@ router.put('/:id', requirePermission('vendors:edit'), async (req: Request, res: 
     const { id } = req.params;
     const {
       code, name, name_ar, vendor_type, category_id, type_id, status_id,
-      is_external,
+      is_external, is_active,
       tax_number, commercial_register, phone, mobile, email, website,
       address, country_id, city_id, postal_code, currency_id,
       credit_limit, bank_id, bank_account_name, bank_account_number, bank_iban, bank_swift,
@@ -788,9 +788,10 @@ router.put('/:id', requirePermission('vendors:edit'), async (req: Request, res: 
         min_order_amount = $27,
         notes = COALESCE($28, notes),
         status = COALESCE($29, status),
-        updated_by = $30,
+        is_active = COALESCE($30, is_active),
+        updated_by = $31,
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $31 AND company_id = $32 AND deleted_at IS NULL
+      WHERE id = $32 AND company_id = $33 AND deleted_at IS NULL
       RETURNING *
     `, [
       code, name, name_ar, vendor_type, category_id, type_id, status_id,
@@ -798,7 +799,9 @@ router.put('/:id', requirePermission('vendors:edit'), async (req: Request, res: 
       tax_number, commercial_register, phone, mobile, email, website,
       address, country_id, city_id, postal_code, currency_id,
       credit_limit, bank_id, bank_account_name, bank_account_number, bank_iban, bank_swift,
-      lead_time_days, min_order_amount, notes, status, userId, id, companyId
+      lead_time_days, min_order_amount, notes, status,
+      typeof is_active === 'boolean' ? is_active : null,
+      userId, id, companyId
     ]);
 
     logger.info('Vendor updated', { vendorId: id, userId });
@@ -965,6 +968,22 @@ router.get('/:id/bank-accounts', requirePermission('vendors:bank_accounts:view')
       ORDER BY vba.is_default DESC, vba.created_at
     `, [id]);
 
+    // If no vendor_bank_accounts, fall back to legacy vendor bank fields
+    if (result.rows.length === 0) {
+      const legacyResult = await pool.query(`
+        SELECT v.bank_id, v.bank_account_name as account_name, v.bank_account_number as account_number,
+               v.bank_iban as iban, v.bank_swift as swift_code,
+               b.name as bank_name, b.name as bank_name_lookup, b.swift_code as bank_swift_code,
+               true as is_default, true as is_legacy
+        FROM vendors v
+        LEFT JOIN banks b ON v.bank_id = b.id
+        WHERE v.id = $1 AND (v.bank_account_number IS NOT NULL AND v.bank_account_number != '' OR v.bank_iban IS NOT NULL AND v.bank_iban != '')
+      `, [id]);
+      if (legacyResult.rows.length > 0) {
+        return res.json({ success: true, data: legacyResult.rows, total: legacyResult.rowCount });
+      }
+    }
+
     res.json({ success: true, data: result.rows, total: result.rowCount });
   } catch (error) {
     logger.error('Error fetching vendor bank accounts:', error);
@@ -977,10 +996,13 @@ router.post('/:id/bank-accounts', requirePermission('vendors:bank_accounts:manag
   try {
     const userId = (req as any).user?.id;
     const { id } = req.params;
-    const { bank_id, bank_name, account_name, account_number, iban, swift_code, currency_id, country_id, branch_name, branch_address, is_default, notes } = req.body;
+    const { bank_id, bank_name, account_name, account_number, iban, swift_code, currency_id, country_id, branch_name, branch_address, beneficiary_address, is_default, notes } = req.body;
 
-    if (!account_name || !account_number) {
-      return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Account name and number are required' } });
+    if (!account_name) {
+      return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Account name is required' } });
+    }
+    if (!account_number && !iban) {
+      return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Account number or IBAN is required' } });
     }
 
     // If setting as default, unset other defaults
@@ -991,10 +1013,10 @@ router.post('/:id/bank-accounts', requirePermission('vendors:bank_accounts:manag
     const result = await pool.query(`
       INSERT INTO vendor_bank_accounts (
         vendor_id, bank_id, bank_name, account_name, account_number, iban, swift_code,
-        currency_id, country_id, branch_name, branch_address, is_default, notes, created_by
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+        currency_id, country_id, branch_name, branch_address, beneficiary_address, is_default, notes, created_by
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
       RETURNING *
-    `, [id, bank_id, bank_name, account_name, account_number, iban, swift_code, currency_id, country_id, branch_name, branch_address, is_default || false, notes, userId]);
+    `, [id, bank_id, bank_name, account_name, account_number || '', iban, swift_code, currency_id, country_id, branch_name, branch_address, beneficiary_address, is_default || false, notes, userId]);
 
     res.status(201).json({ success: true, data: result.rows[0] });
   } catch (error) {
@@ -1008,7 +1030,7 @@ router.put('/:vendorId/bank-accounts/:bankAccountId', requirePermission('vendors
   try {
     const userId = (req as any).user?.id;
     const { vendorId, bankAccountId } = req.params;
-    const { bank_id, bank_name, account_name, account_number, iban, swift_code, currency_id, country_id, branch_name, branch_address, is_default, is_active, notes } = req.body;
+    const { bank_id, bank_name, account_name, account_number, iban, swift_code, currency_id, country_id, branch_name, branch_address, beneficiary_address, is_default, is_active, notes } = req.body;
 
     // If setting as default, unset other defaults
     if (is_default) {
@@ -1027,13 +1049,14 @@ router.put('/:vendorId/bank-accounts/:bankAccountId', requirePermission('vendors
         country_id = $8,
         branch_name = COALESCE($9, branch_name),
         branch_address = COALESCE($10, branch_address),
-        is_default = COALESCE($11, is_default),
-        is_active = COALESCE($12, is_active),
-        notes = COALESCE($13, notes),
+        beneficiary_address = COALESCE($11, beneficiary_address),
+        is_default = COALESCE($12, is_default),
+        is_active = COALESCE($13, is_active),
+        notes = COALESCE($14, notes),
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $14 AND vendor_id = $15 AND deleted_at IS NULL
+      WHERE id = $15 AND vendor_id = $16 AND deleted_at IS NULL
       RETURNING *
-    `, [bank_id, bank_name, account_name, account_number, iban, swift_code, currency_id, country_id, branch_name, branch_address, is_default, is_active, notes, bankAccountId, vendorId]);
+    `, [bank_id, bank_name, account_name, account_number, iban, swift_code, currency_id, country_id, branch_name, branch_address, beneficiary_address, is_default, is_active, notes, bankAccountId, vendorId]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Bank account not found' } });
@@ -2060,6 +2083,87 @@ router.get('/expiring-documents', requirePermission('vendors:documents:view'), a
   } catch (error) {
     logger.error('Error fetching expiring documents:', error);
     res.status(500).json({ success: false, error: { code: 'FETCH_ERROR', message: 'Failed to fetch expiring documents' } });
+  }
+});
+
+// ============================================================
+// VENDOR CURRENCIES
+// ============================================================
+
+// GET /api/procurement/vendors/:id/currencies - Get vendor linked currencies
+router.get('/:id/currencies', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query(`
+      SELECT vc.id, vc.vendor_id, vc.currency_id, vc.is_default,
+             c.code as currency_code, c.name as currency_name, c.symbol as currency_symbol
+      FROM vendor_currencies vc
+      JOIN currencies c ON vc.currency_id = c.id
+      WHERE vc.vendor_id = $1
+      ORDER BY vc.is_default DESC, c.code
+    `, [id]);
+    res.json({ success: true, data: result.rows, total: result.rowCount });
+  } catch (error) {
+    logger.error('Error fetching vendor currencies:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch vendor currencies' });
+  }
+});
+
+// POST /api/procurement/vendors/:id/currencies - Link currency to vendor
+router.post('/:id/currencies', requirePermission('vendors:bank_accounts:manage'), async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { currency_id, is_default } = req.body;
+
+    if (!currency_id) {
+      return res.status(400).json({ success: false, error: 'currency_id is required' });
+    }
+
+    // Check if already linked
+    const existing = await pool.query('SELECT id FROM vendor_currencies WHERE vendor_id = $1 AND currency_id = $2', [id, currency_id]);
+    if (existing.rows.length > 0) {
+      return res.status(409).json({ success: false, error: 'Currency already linked to this vendor' });
+    }
+
+    // If setting as default, unset others
+    if (is_default) {
+      await pool.query('UPDATE vendor_currencies SET is_default = false WHERE vendor_id = $1', [id]);
+    }
+
+    const result = await pool.query(`
+      INSERT INTO vendor_currencies (vendor_id, currency_id, is_default)
+      VALUES ($1, $2, $3) RETURNING *
+    `, [id, currency_id, is_default || false]);
+
+    res.status(201).json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    logger.error('Error linking currency to vendor:', error);
+    res.status(500).json({ success: false, error: 'Failed to link currency' });
+  }
+});
+
+// PUT /api/procurement/vendors/:id/currencies/:currencyLinkId/default - Set default currency
+router.put('/:id/currencies/:currencyLinkId/default', requirePermission('vendors:bank_accounts:manage'), async (req: Request, res: Response) => {
+  try {
+    const { id, currencyLinkId } = req.params;
+    await pool.query('UPDATE vendor_currencies SET is_default = false WHERE vendor_id = $1', [id]);
+    await pool.query('UPDATE vendor_currencies SET is_default = true WHERE id = $1 AND vendor_id = $2', [currencyLinkId, id]);
+    res.json({ success: true });
+  } catch (error) {
+    logger.error('Error setting default currency:', error);
+    res.status(500).json({ success: false, error: 'Failed to set default' });
+  }
+});
+
+// DELETE /api/procurement/vendors/:id/currencies/:currencyLinkId - Unlink currency from vendor
+router.delete('/:id/currencies/:currencyLinkId', requirePermission('vendors:bank_accounts:manage'), async (req: Request, res: Response) => {
+  try {
+    const { id, currencyLinkId } = req.params;
+    await pool.query('DELETE FROM vendor_currencies WHERE id = $1 AND vendor_id = $2', [currencyLinkId, id]);
+    res.json({ success: true });
+  } catch (error) {
+    logger.error('Error unlinking currency:', error);
+    res.status(500).json({ success: false, error: 'Failed to unlink currency' });
   }
 });
 

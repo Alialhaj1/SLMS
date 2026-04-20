@@ -117,7 +117,7 @@ async function resolveBankId(bankName: string, bankNameAr?: string, swiftCode?: 
   }
 
   // Create minimal bank record if it doesn't exist
-  const code = `BNK${String(Date.now()).slice(-10)}`; // <= 13 chars
+  const code = `BNK${String(Date.now()).slice(-10)}`;
   const inserted = await pool.query(
     `INSERT INTO banks (code, swift_code, name, name_ar, is_active)
      VALUES ($1, $2, $3, $4, true)
@@ -127,6 +127,111 @@ async function resolveBankId(bankName: string, bankNameAr?: string, swiftCode?: 
 
   return inserted.rows[0]?.id ?? null;
 }
+
+/**
+ * Find the Bank parent group account under which bank account sub-accounts live.
+ */
+async function findBankParentGroup(companyId: number): Promise<{ id: number; code: string; level: number; account_type_id: number } | null> {
+  const da = await pool.query(
+    `SELECT da.account_id FROM default_accounts da WHERE da.company_id = $1 AND da.account_key = 'BANK' LIMIT 1`,
+    [companyId]
+  );
+  const bankAccountId = da.rows[0]?.account_id;
+  if (bankAccountId) {
+    const grp = await pool.query(
+      `SELECT id, code, level, account_type_id FROM accounts WHERE company_id = $1 AND parent_id = $2 AND is_group = true AND deleted_at IS NULL ORDER BY code LIMIT 1`,
+      [companyId, bankAccountId]
+    );
+    if (grp.rows[0]) return grp.rows[0];
+    const self = await pool.query(
+      `SELECT id, code, level, account_type_id FROM accounts WHERE company_id = $1 AND id = $2 AND deleted_at IS NULL`,
+      [companyId, bankAccountId]
+    );
+    if (self.rows[0]) return self.rows[0];
+  }
+  return null;
+}
+
+/**
+ * Auto-create a GL sub-account under the bank parent group for a new bank account.
+ */
+async function autoCreateBankGlAccount(
+  companyId: number,
+  name: string,
+  nameAr: string | null,
+  userId: number | null
+): Promise<{ id: number; code: string } | null> {
+  const parent = await findBankParentGroup(companyId);
+  if (!parent) return null;
+
+  const children = await pool.query(
+    `SELECT code FROM accounts WHERE company_id = $1 AND parent_id = $2 AND deleted_at IS NULL ORDER BY code DESC LIMIT 1`,
+    [companyId, parent.id]
+  );
+
+  let nextCode: string;
+  if (children.rows.length > 0) {
+    const lastCode = children.rows[0].code;
+    const numPart = parseInt(lastCode.replace(/\D/g, ''), 10);
+    nextCode = String(numPart + 1).padStart(lastCode.length, '0');
+  } else {
+    nextCode = parent.code + '0001';
+  }
+
+  const inserted = await pool.query(
+    `INSERT INTO accounts (
+      company_id, parent_id, account_type_id, code, name, name_ar,
+      level, is_group, is_active, allow_posting, normal_balance,
+      created_by, updated_by, created_at, updated_at
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, false, true, true, 'debit', $8, $8, NOW(), NOW())
+    RETURNING id, code`,
+    [companyId, parent.id, parent.account_type_id, nextCode, name, nameAr, parent.level + 1, userId]
+  );
+
+  return inserted.rows[0] ?? null;
+}
+
+// =============================================
+// GET /api/bank-accounts/available-accounts - Available GL accounts for bank accounts
+// =============================================
+router.get(
+  '/available-accounts',
+  requireAnyPermission([
+    'finance:bank_accounts:view',
+    'finance:bank_accounts:manage',
+    'master:finance:view',
+    'master:finance:create',
+  ]),
+  requireCompany,
+  async (req: Request, res: Response) => {
+    try {
+      const companyId = req.companyId as number;
+      const parent = await findBankParentGroup(companyId);
+      if (!parent) {
+        return res.json({ success: true, data: [], parent_code: null });
+      }
+
+      const result = await pool.query(
+        `SELECT a.id, a.code, a.name, a.name_ar,
+                CASE WHEN ba.id IS NOT NULL THEN true ELSE false END AS already_linked
+         FROM accounts a
+         LEFT JOIN bank_accounts ba ON ba.gl_account_id = a.id AND ba.company_id = $1 AND ba.deleted_at IS NULL
+         WHERE a.company_id = $1 AND a.parent_id = $2 AND a.allow_posting = true AND a.deleted_at IS NULL
+         ORDER BY a.code`,
+        [companyId, parent.id]
+      );
+
+      return res.json({
+        success: true,
+        data: result.rows,
+        parent_code: parent.code,
+      });
+    } catch (error) {
+      console.error('Error fetching available bank GL accounts:', error);
+      return res.status(500).json({ success: false, error: 'Failed to fetch available accounts' });
+    }
+  }
+);
 
 // =============================================
 // GET /api/bank-accounts - List bank accounts
@@ -245,10 +350,6 @@ router.post(
         return res.status(400).json({ success: false, error: 'account_number is required' });
       }
 
-      if (!gl_account_code || !String(gl_account_code).trim()) {
-        return res.status(400).json({ success: false, error: 'gl_account_code is required' });
-      }
-
       const currencyId = await resolveCurrencyId(String(currency_code || ''));
       if (!currencyId) {
         return res.status(400).json({ success: false, error: 'Invalid currency_code' });
@@ -260,9 +361,28 @@ router.post(
       }
 
       const branchId = await resolveBranchId(companyId, branch_code, branch_name);
-      const glAccountId = await resolveGlAccountId(companyId, String(gl_account_code));
-      if (!glAccountId) {
-        return res.status(400).json({ success: false, error: 'Invalid gl_account_code' });
+
+      let glAccountId: number | null = null;
+      if (gl_account_code && String(gl_account_code).trim() && String(gl_account_code).trim() !== 'auto') {
+        glAccountId = await resolveGlAccountId(companyId, String(gl_account_code));
+        if (!glAccountId) {
+          return res.status(400).json({ success: false, error: 'Invalid gl_account_code' });
+        }
+      } else {
+        // Auto-create a new GL sub-account under the bank parent group
+        const created = await autoCreateBankGlAccount(
+          companyId,
+          bank_name_ar ? String(bank_name_ar).trim() : String(bank_name).trim(),
+          bank_name_ar ? String(bank_name_ar).trim() : null,
+          userId ?? null
+        );
+        if (!created) {
+          return res.status(400).json({
+            success: false,
+            error: 'Cannot auto-create GL account: no bank parent group found. Please set up a BANK default account first.',
+          });
+        }
+        glAccountId = created.id;
       }
 
       const opening = toNumber(opening_balance);
@@ -292,10 +412,8 @@ router.post(
           opening_balance,
           current_balance,
           is_default,
-          is_active,
-          created_by,
-          updated_by
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+          is_active
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
         RETURNING id`,
         [
           companyId,
@@ -311,8 +429,6 @@ router.post(
           opening,
           makeDefault,
           active,
-          userId ?? null,
-          userId ?? null,
         ]
       );
 
@@ -370,7 +486,6 @@ router.put(
         currency_code,
         gl_account_code,
         opening_balance,
-        current_balance,
         is_default,
         is_active,
       } = req.body || {};
@@ -409,19 +524,17 @@ router.put(
         `UPDATE bank_accounts
          SET
            bank_id = COALESCE($1, bank_id),
-           branch_id = $2,
+           branch_id = COALESCE($2, branch_id),
            account_number = COALESCE($3, account_number),
            iban = $4,
            currency_id = COALESCE($5, currency_id),
            account_type = COALESCE($6, account_type),
            gl_account_id = COALESCE($7, gl_account_id),
            opening_balance = COALESCE($8, opening_balance),
-           current_balance = COALESCE($9, current_balance),
-           is_default = COALESCE($10, is_default),
-           is_active = COALESCE($11, is_active),
-           updated_by = $12,
+           is_default = COALESCE($9, is_default),
+           is_active = COALESCE($10, is_active),
            updated_at = NOW()
-         WHERE id = $13 AND company_id = $14 AND deleted_at IS NULL`,
+         WHERE id = $11 AND company_id = $12 AND deleted_at IS NULL`,
         [
           bankId,
           branchId,
@@ -431,10 +544,8 @@ router.put(
           account_type ? String(account_type).trim() : null,
           gl_account_code !== undefined ? glAccountId : null,
           opening_balance === undefined ? null : toNumber(opening_balance),
-          current_balance === undefined ? null : toNumber(current_balance),
           makeDefault,
           is_active === undefined ? null : Boolean(is_active),
-          userId ?? null,
           id,
           companyId,
         ]

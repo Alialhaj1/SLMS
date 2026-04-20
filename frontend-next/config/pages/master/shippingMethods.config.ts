@@ -106,3 +106,5 @@ export const shippingMethodsConfig: PageConfig<ShippingMethod> = {
   pageSizeOptions: [10, 25, 50, 100],
   bulkOperationsEnabled: true,
 };
+
+export const shippingMethodConfig = shippingMethodsConfig;
